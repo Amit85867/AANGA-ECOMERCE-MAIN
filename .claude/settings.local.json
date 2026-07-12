@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(pip --version)",
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(ls migrations *)",
+      "Bash(grep -rl \"migrate\\\\|Migrate\\\\|alembic\" app/*.py)"
+    ]
+  }
+}

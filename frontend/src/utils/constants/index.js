@@ -1,0 +1,36 @@
+export const APP_NAME = 'AANGA'
+
+export const CURRENCY_SYMBOL = '₹'
+
+export const ROUTES = {
+  HOME: '/',
+  SHOP: '/shop',
+  PRODUCT_DETAIL: '/product/:slug',
+  CART: '/cart',
+  CHECKOUT: '/checkout',
+  LOGIN: '/login',
+  REGISTER: '/register',
+  DASHBOARD: '/account',
+  WISHLIST: '/wishlist',
+  TRACKING: '/track-order',
+  CONTACT: '/contact',
+  ABOUT: '/about',
+  OFFERS: '/offers',
+  FAQ: '/faq',
+  WHOLESALE: '/wholesale',
+  RETURNS: '/returns',
+  PRIVACY: '/privacy-policy',
+  TERMS: '/terms',
+  ADMIN_LOGIN: '/admin/login',
+  ADMIN_DASHBOARD: '/admin',
+  ADMIN_PRODUCTS: '/admin/products',
+  ADMIN_CATEGORIES: '/admin/categories',
+  ADMIN_ORDERS: '/admin/orders',
+  ADMIN_USERS: '/admin/users',
+  ADMIN_COUPONS: '/admin/coupons',
+  ADMIN_OFFERS: '/admin/offers',
+  ADMIN_INQUIRIES: '/admin/inquiries',
+  ADMIN_MESSAGES: '/admin/messages',
+  ADMIN_NEWSLETTER: '/admin/newsletter',
+  ADMIN_SETTINGS: '/admin/settings',
+}

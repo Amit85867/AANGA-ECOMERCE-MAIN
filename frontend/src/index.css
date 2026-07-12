@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  /* Brand palette — sourced from docs/design-reference prototypes */
+  --color-ink: #0a0a0a;
+  --color-paper: #fafaf8;
+  --color-cream: #f5f0e8;
+  --color-gold: #c8963e;
+  --color-gold-light: #e8b96a;
+  --color-maroon: #8b1a1a;
+  --color-maroon-light: #c0392b;
+  --color-gray: #6b6b6b;
+  --color-line: #e8e4dc;
+  --color-surface: #f2ede5;
+
+  --font-serif: 'Playfair Display', serif;
+  --font-sans: 'Inter', sans-serif;
+}
+
+body {
+  @apply bg-paper text-ink font-sans;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
