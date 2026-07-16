@@ -13,6 +13,7 @@ def create_app(config_object=None):
     app = Flask(__name__, static_folder="../static", static_url_path="/static")
     app.config.from_object(config_object or get_config())
 
+    _validate_config(app)
     _init_extensions(app)
     _register_blueprints(app)
     _register_jwt_handlers(app)
@@ -20,6 +21,38 @@ def create_app(config_object=None):
     _auto_seed_admin(app)
 
     return app
+
+
+# Values that must never survive into a real deployment.
+_WEAK_SECRETS = {"dev-secret-change-me", "dev-jwt-change-me", "", None}
+
+
+def _validate_config(app):
+    """Fail fast if a production app is missing real secrets or a real database.
+
+    Skipped in debug/testing so local development keeps working with defaults.
+    """
+    if app.config.get("DEBUG") or app.config.get("TESTING"):
+        return
+
+    problems = []
+    for key in ("SECRET_KEY", "JWT_SECRET_KEY"):
+        value = app.config.get(key)
+        if value in _WEAK_SECRETS:
+            problems.append(f"{key} is unset or still the development default")
+        elif len(str(value)) < 32:
+            problems.append(f"{key} is too short (use at least 32 random characters)")
+
+    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI") or ""
+    if db_uri.startswith("sqlite"):
+        problems.append("DATABASE_URL is unset (falling back to SQLite)")
+
+    if problems:
+        raise RuntimeError(
+            "Refusing to start: insecure production configuration.\n  - "
+            + "\n  - ".join(problems)
+            + "\nSet these via environment variables before deploying."
+        )
 
 
 def _init_extensions(app):

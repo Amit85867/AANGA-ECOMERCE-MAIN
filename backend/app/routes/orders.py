@@ -161,9 +161,9 @@ def cancel_order(order_id):
     if order.status not in cancellable:
         return jsonify(error="Order cannot be cancelled at this stage"), 422
 
+    # Stock is restored by the trg_restore_inventory trigger when the status
+    # flips to 'cancelled' — do not add it back here as well.
     order.status = OrderStatus.cancelled
-    for oi in order.items:
-        oi.variant.stock_qty += oi.quantity
 
     tracking = OrderTracking(
         order_id=order.id,

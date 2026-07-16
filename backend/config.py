@@ -46,9 +46,14 @@ class ProductionConfig(BaseConfig):
 
 class TestingConfig(BaseConfig):
     TESTING = True
+    # Tests run against a real Postgres (Docker) so enum types, computed
+    # columns and triggers behave exactly as in production. Spin it up with
+    # `docker compose -f docker-compose.test.yml up -d`.
     SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "TEST_DATABASE_URL", "sqlite:///:memory:"
+        "TEST_DATABASE_URL", "postgresql://postgres:test@localhost:55432/aanga_test"
     )
+    JWT_SECRET_KEY = "test-jwt-secret"
+    SECRET_KEY = "test-secret"
 
 
 config_by_name = {

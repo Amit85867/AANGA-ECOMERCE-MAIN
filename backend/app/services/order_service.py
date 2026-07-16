@@ -1,5 +1,15 @@
-"""Shared order-creation logic used by COD checkout and online payment verify."""
+"""Shared order-creation logic used by COD checkout and online payment verify.
+
+Inventory deduction, coupon-usage counting and order-number assignment are all
+handled by database triggers (see schema.sql: trg_deduct_inventory,
+trg_coupon_usage, trg_order_number). This module must NOT repeat that work or
+the effect is applied twice. It is responsible only for building the order,
+its items and the initial tracking event, and for turning the trigger's
+atomic stock guard into a clean API error.
+"""
 from datetime import datetime, timezone, timedelta
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
 from app.models.order import Order, OrderItem, OrderTracking
@@ -46,9 +56,22 @@ def create_order_from_cart(user_id, address_id, payment_method_value, payment_re
     """Turn a user's cart into an Order.
 
     Returns (order, None) on success or (None, (error_message, status_code)).
-    Deducts stock, records the initial tracking event, consumes the coupon,
-    and clears the cart — all in one transaction.
+
+    Idempotent on ``payment_ref``: an online payment can be verified more than
+    once (gateway retries, duplicate callbacks, an impatient user), so if an
+    order already exists for this payment we return it rather than creating a
+    duplicate or charging the customer for nothing.
+
+    Records the initial tracking event and clears the cart in one transaction.
+    Stock deduction, coupon usage and the order number are applied by database
+    triggers — not here.
     """
+    # Idempotency guard for prepaid orders.
+    if payment_ref:
+        existing = Order.query.filter_by(payment_ref=payment_ref).first()
+        if existing:
+            return existing, None
+
     cart = Cart.query.filter_by(user_id=user_id).first()
     if not cart or not cart.items:
         return None, ("Cart is empty", 422)
@@ -56,6 +79,17 @@ def create_order_from_cart(user_id, address_id, payment_method_value, payment_re
     address = Address.query.filter_by(id=address_id, user_id=user_id).first()
     if not address:
         return None, ("Address not found", 404)
+
+    # Friendly, early stock check. The trg_deduct_inventory trigger is the
+    # atomic authority (it raises if stock would go negative under a race);
+    # this just returns a clean message for the common, non-racy case.
+    for ci in cart.items:
+        variant = ci.variant
+        if variant.stock_qty < ci.quantity:
+            return None, (
+                f"Insufficient stock for {variant.product.name} ({variant.size}/{variant.color_name})",
+                409,
+            )
 
     totals = compute_totals(cart)
 
@@ -66,7 +100,7 @@ def create_order_from_cart(user_id, address_id, payment_method_value, payment_re
         user_id=user_id,
         address_id=address_id,
         coupon_id=cart.coupon_id,
-        order_number="",
+        order_number=None,  # assigned by trg_order_number (fires only when NULL)
         status=OrderStatus.pending,
         subtotal=totals["subtotal"],
         discount_amount=totals["discount"],
@@ -79,25 +113,15 @@ def create_order_from_cart(user_id, address_id, payment_method_value, payment_re
         expected_delivery=datetime.now(timezone.utc).date() + timedelta(days=7),
     )
     db.session.add(order)
-    db.session.flush()
-
-    order.order_number = f"ANG-{datetime.now().year}-{order.id}"
+    db.session.flush()  # trg_order_number + trg_coupon_usage fire here
 
     for ci in cart.items:
-        variant = ci.variant
-        if variant.stock_qty < ci.quantity:
-            db.session.rollback()
-            return None, (
-                f"Insufficient stock for {variant.product.name} ({variant.size}/{variant.color_name})",
-                409,
-            )
-        variant.stock_qty -= ci.quantity
         db.session.add(OrderItem(
             order_id=order.id,
             variant_id=ci.variant_id,
             quantity=ci.quantity,
             unit_price=ci.unit_price,
-        ))
+        ))  # trg_deduct_inventory fires per row
 
     db.session.add(OrderTracking(
         order_id=order.id,
@@ -106,11 +130,17 @@ def create_order_from_cart(user_id, address_id, payment_method_value, payment_re
         status_type=TrackingStatusType.placed,
     ))
 
-    if cart.coupon:
-        cart.coupon.used_count += 1
-
     CartItem.query.filter_by(cart_id=cart.id).delete()
     cart.coupon_id = None
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        # trg_deduct_inventory raises on a concurrent oversell.
+        if "stock" in str(getattr(exc, "orig", exc)).lower():
+            return None, ("Insufficient stock for one or more items", 409)
+        raise
+
+    db.session.refresh(order)  # pull the trigger-assigned order_number
     return order, None
