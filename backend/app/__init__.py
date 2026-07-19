@@ -6,7 +6,7 @@ from flask import Flask
 from werkzeug.security import generate_password_hash
 
 from config import get_config
-from app.extensions import db, migrate, jwt, cors
+from app.extensions import db, migrate, jwt, cors, limiter
 
 
 def create_app(config_object=None):
@@ -59,7 +59,13 @@ def _init_extensions(app):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    cors.init_app(app, origins=[app.config["FRONTEND_ORIGIN"]], supports_credentials=True)
+    limiter.init_app(app)
+    cors.init_app(
+        app,
+        origins=[app.config["FRONTEND_ORIGIN"]],
+        supports_credentials=True,  # required for the httpOnly refresh cookie
+        expose_headers=["X-CSRF-TOKEN"],
+    )
 
     import app.models  # noqa: F401 – register models for Alembic
 

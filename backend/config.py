@@ -16,9 +16,28 @@ class BaseConfig:
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
     # JWT
+    # The access token is short-lived and lives only in the client's memory
+    # (sent as an Authorization header). The refresh token is long-lived and
+    # travels exclusively in an httpOnly cookie, so XSS cannot read it.
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-jwt-change-me")
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+
+    JWT_TOKEN_LOCATION = ["headers", "cookies"]
+    JWT_REFRESH_COOKIE_NAME = "aanga_refresh"
+    # Scope the cookie to the auth routes that need it (refresh + logout).
+    JWT_REFRESH_COOKIE_PATH = "/api/auth"
+    # Double-submit CSRF protection for anything authenticated via a cookie.
+    JWT_COOKIE_CSRF_PROTECT = True
+    JWT_CSRF_IN_COOKIES = True
+    # Overridden per environment below.
+    JWT_COOKIE_SECURE = True
+    JWT_COOKIE_SAMESITE = "None"
+
+    # Rate limiting (Flask-Limiter). In-memory is fine for a single instance;
+    # point this at Redis once the API runs on more than one process.
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_HEADERS_ENABLED = True
 
     # CORS
     FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
@@ -38,6 +57,10 @@ class BaseConfig:
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
+    # localhost:5173 and localhost:5000 are the same site, so Lax works and we
+    # can't use Secure cookies over plain http.
+    JWT_COOKIE_SECURE = False
+    JWT_COOKIE_SAMESITE = "Lax"
 
 
 class ProductionConfig(BaseConfig):
@@ -52,8 +75,13 @@ class TestingConfig(BaseConfig):
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "TEST_DATABASE_URL", "postgresql://postgres:test@localhost:55432/aanga_test"
     )
-    JWT_SECRET_KEY = "test-jwt-secret"
+    JWT_SECRET_KEY = "test-jwt-secret-that-is-long-enough-for-hs256"
     SECRET_KEY = "test-secret"
+    JWT_COOKIE_SECURE = False
+    JWT_COOKIE_SAMESITE = "Lax"
+    # Limiter stays enabled (so its behaviour is actually tested) but the
+    # conftest resets counters between tests to keep them isolated.
+    RATELIMIT_STORAGE_URI = "memory://"
 
 
 config_by_name = {

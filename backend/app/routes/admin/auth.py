@@ -6,7 +6,7 @@ from flask_jwt_extended import create_access_token, create_refresh_token, get_jw
 from marshmallow import ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.admin import Admin
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required, master_required
@@ -29,6 +29,7 @@ def _issue_admin_tokens(admin):
 
 
 @admin_bp.route("/auth/login", methods=["POST"])
+@limiter.limit("5 per 15 minutes")
 def admin_login():
     try:
         data = _login_in.load(request.get_json())

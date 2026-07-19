@@ -11,6 +11,7 @@ starts from an empty set of tables (TRUNCATE) for isolation.
 """
 import os
 import pathlib
+import re
 
 import psycopg2
 import pytest
@@ -26,12 +27,21 @@ os.environ.pop("ADMIN_EMAIL", None)
 os.environ.pop("ADMIN_PASSWORD", None)
 
 from app import create_app  # noqa: E402
-from app.extensions import db as _db  # noqa: E402
+from app.extensions import db as _db, limiter as _limiter  # noqa: E402
 
 BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA_SQL = BACKEND_DIR / "schema.sql"
 PREREQS_SQL = pathlib.Path(__file__).resolve().parent / "sql" / "00_prereqs.sql"
 TEST_DB_URL = os.environ["TEST_DATABASE_URL"]
+
+
+# Newer pg_dump versions emit \restrict / \unrestrict psql meta-commands.
+# psql understands them; psycopg2 does not, so drop those lines before executing.
+_PSQL_META = re.compile(r"^\\(un)?restrict\b.*$", re.MULTILINE)
+
+
+def _strip_psql_meta(sql: str) -> str:
+    return _PSQL_META.sub("", sql)
 
 
 def _rebuild_schema():
@@ -52,8 +62,8 @@ def _rebuild_schema():
             cur.execute("DROP SCHEMA IF EXISTS public CASCADE;")
             cur.execute("DROP SCHEMA IF EXISTS auth CASCADE;")
             cur.execute("DROP SCHEMA IF EXISTS extensions CASCADE;")
-            cur.execute(PREREQS_SQL.read_text())
-            cur.execute(SCHEMA_SQL.read_text())
+            cur.execute(_strip_psql_meta(PREREQS_SQL.read_text()))
+            cur.execute(_strip_psql_meta(SCHEMA_SQL.read_text()))
     finally:
         conn.close()
 
@@ -88,6 +98,8 @@ def _clean_db(app):
         quoted = ", ".join(f'"{t}"' for t in tables)
         _db.session.execute(text(f"TRUNCATE {quoted} RESTART IDENTITY CASCADE"))
     _db.session.commit()
+    # Rate-limit counters are per-IP and would otherwise bleed between tests.
+    _limiter.reset()
     yield
     _db.session.rollback()
     _db.session.remove()

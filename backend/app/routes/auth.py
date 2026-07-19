@@ -12,13 +12,15 @@ from flask_jwt_extended import (
     jwt_required,
     get_jwt_identity,
     get_jwt,
+    set_refresh_cookies,
+    unset_jwt_cookies,
 )
 from marshmallow import ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.user import User, OTP, PasswordReset
 from app.models.cart import Cart
 from app.models.enums import AuthProviderType, AccountType
@@ -49,18 +51,28 @@ def _hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _issue_tokens(user):
+def _auth_response(user, status=200, **extra):
+    """Build a sign-in response.
+
+    The access token goes in the JSON body — the client keeps it in memory
+    only. The refresh token is set as an httpOnly cookie so JavaScript (and
+    therefore XSS) can never read it.
+    """
     identity = str(user.id)
-    return {
+    body = {
         "access_token": create_access_token(identity=identity),
-        "refresh_token": create_refresh_token(identity=identity),
         "user": _user_out.dump(user),
+        **extra,
     }
+    resp = jsonify(body)
+    set_refresh_cookies(resp, create_refresh_token(identity=identity))
+    return resp, status
 
 
 # ── Email/Password ─────────────────────────────────────────────
 
 @auth_bp.route("/register", methods=["POST"])
+@limiter.limit("10 per hour")
 def register():
     try:
         data = _register_schema.load(request.get_json())
@@ -84,10 +96,11 @@ def register():
     db.session.add(Cart(user_id=user.id))
     db.session.commit()
 
-    return jsonify(_issue_tokens(user)), 201
+    return _auth_response(user, 201)
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("10 per 15 minutes")
 def login():
     try:
         data = _login_schema.load(request.get_json())
@@ -101,12 +114,13 @@ def login():
     if not user.is_active:
         return jsonify(error="Account is deactivated"), 403
 
-    return jsonify(_issue_tokens(user)), 200
+    return _auth_response(user)
 
 
 # ── Google OAuth ───────────────────────────────────────────────
 
 @auth_bp.route("/google", methods=["POST"])
+@limiter.limit("20 per hour")
 def google_auth():
     try:
         data = _google_schema.load(request.get_json())
@@ -165,12 +179,13 @@ def google_auth():
         db.session.add(Cart(user_id=user.id))
         db.session.commit()
 
-    return jsonify(_issue_tokens(user)), 200
+    return _auth_response(user)
 
 
 # ── Phone OTP ──────────────────────────────────────────────────
 
 @auth_bp.route("/otp/send", methods=["POST"])
+@limiter.limit("10 per hour")
 def send_otp():
     try:
         data = _send_otp_schema.load(request.get_json())
@@ -196,15 +211,19 @@ def send_otp():
     db.session.add(otp)
     db.session.commit()
 
-    # In production, integrate with SMS provider (MSG91, Twilio, etc.)
-    # For dev, log the OTP
-    from flask import current_app
+    # TODO: integrate an SMS provider (MSG91 / Twilio) to actually deliver this.
     current_app.logger.info(f"[DEV] OTP for {phone}: {code}")
 
-    return jsonify(message="OTP sent successfully", dev_otp=code), 200
+    resp = {"message": "OTP sent successfully"}
+    # NEVER expose the code outside local development — returning it would let
+    # anyone sign in as any phone number.
+    if current_app.config.get("DEBUG"):
+        resp["dev_otp"] = code
+    return jsonify(resp), 200
 
 
 @auth_bp.route("/otp/verify", methods=["POST"])
+@limiter.limit("20 per hour")
 def verify_otp():
     try:
         data = _verify_otp_schema.load(request.get_json())
@@ -251,7 +270,8 @@ def verify_otp():
         db.session.add(Cart(user_id=user.id))
         db.session.commit()
 
-    return jsonify({**_issue_tokens(user), "is_new_user": user.created_at > datetime.now(timezone.utc) - timedelta(seconds=5)}), 200
+    is_new = user.created_at > datetime.now(timezone.utc) - timedelta(seconds=5)
+    return _auth_response(user, is_new_user=is_new)
 
 
 # ── Token management ──────────────────────────────────────────
@@ -259,8 +279,29 @@ def verify_otp():
 @auth_bp.route("/refresh", methods=["POST"])
 @jwt_required(refresh=True)
 def refresh():
+    """Mint a new access token from the httpOnly refresh cookie.
+
+    The refresh token is rotated on every use, so a stolen one is only good
+    until the legitimate client next refreshes.
+    """
     identity = get_jwt_identity()
-    return jsonify(access_token=create_access_token(identity=identity)), 200
+    user = db.session.get(User, identity)
+    if not user or not user.is_active:
+        resp = jsonify(error="Account is no longer active")
+        unset_jwt_cookies(resp)
+        return resp, 401
+
+    resp = jsonify(access_token=create_access_token(identity=identity))
+    set_refresh_cookies(resp, create_refresh_token(identity=identity))
+    return resp, 200
+
+
+@auth_bp.route("/logout", methods=["POST"])
+def logout():
+    """Clear the refresh cookie. The in-memory access token dies with the tab."""
+    resp = jsonify(message="Logged out")
+    unset_jwt_cookies(resp)
+    return resp, 200
 
 
 @auth_bp.route("/me", methods=["GET"])
@@ -275,6 +316,7 @@ def me():
 # ── Password reset ────────────────────────────────────────────
 
 @auth_bp.route("/forgot-password", methods=["POST"])
+@limiter.limit("5 per hour")
 def forgot_password():
     try:
         data = _forgot_schema.load(request.get_json())
@@ -314,6 +356,7 @@ def forgot_password():
 
 
 @auth_bp.route("/reset-password", methods=["POST"])
+@limiter.limit("10 per hour")
 def reset_password():
     try:
         data = _reset_schema.load(request.get_json())

@@ -2,8 +2,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict vM4PuTmlD1LMnjSyH9TgqzpVi3G5Nd4AKn2bgezgbb5HGe3JROl2T8r6f23KCTk
+
 -- Dumped from database version 17.6
--- Dumped by pg_dump version 17.5 (Debian 17.5-1.pgdg130+1)
+-- Dumped by pg_dump version 17.6
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -228,13 +230,13 @@ CREATE TYPE public.volume_range AS ENUM (
 
 CREATE FUNCTION public.assign_order_number() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.order_number is null then
-    new.order_number := generate_order_number();
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.order_number is null then
+    new.order_number := generate_order_number();
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -244,19 +246,19 @@ $$;
 
 CREATE FUNCTION public.deduct_inventory() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  update product_variants
-  set stock_qty = stock_qty - new.quantity
-  where id = new.variant_id;
-
-  -- Guard: rollback if stock goes negative
-  if (select stock_qty from product_variants where id = new.variant_id) < 0 then
-    raise exception 'Insufficient stock for variant %', new.variant_id;
-  end if;
-
-  return new;
-end;
+    AS $$
+begin
+  update product_variants
+  set stock_qty = stock_qty - new.quantity
+  where id = new.variant_id;
+
+  -- Guard: rollback if stock goes negative
+  if (select stock_qty from product_variants where id = new.variant_id) < 0 then
+    raise exception 'Insufficient stock for variant %', new.variant_id;
+  end if;
+
+  return new;
+end;
 $$;
 
 
@@ -266,10 +268,10 @@ $$;
 
 CREATE FUNCTION public.generate_order_number() RETURNS text
     LANGUAGE plpgsql
-    AS $$
-begin
-  return 'ANG-' || to_char(now(), 'YYYY') || '-' || nextval('order_seq')::text;
-end;
+    AS $$
+begin
+  return 'ANG-' || to_char(now(), 'YYYY') || '-' || nextval('order_seq')::text;
+end;
 $$;
 
 
@@ -279,15 +281,15 @@ $$;
 
 CREATE FUNCTION public.increment_coupon_usage() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.coupon_id is not null then
-    update coupons
-    set used_count = used_count + 1
-    where id = new.coupon_id;
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.coupon_id is not null then
+    update coupons
+    set used_count = used_count + 1
+    where id = new.coupon_id;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -297,17 +299,17 @@ $$;
 
 CREATE FUNCTION public.restore_inventory_on_cancel() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.status = 'cancelled' and old.status != 'cancelled' then
-    update product_variants pv
-    set stock_qty = pv.stock_qty + oi.quantity
-    from order_items oi
-    where oi.order_id = new.id
-      and pv.id = oi.variant_id;
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.status = 'cancelled' and old.status != 'cancelled' then
+    update product_variants pv
+    set stock_qty = pv.stock_qty + oi.quantity
+    from order_items oi
+    where oi.order_id = new.id
+      and pv.id = oi.variant_id;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -317,11 +319,11 @@ $$;
 
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  new.updated_at = now();
-  return new;
-end;
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
 $$;
 
 
@@ -383,6 +385,46 @@ CREATE TABLE public.admins (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     last_login timestamp with time zone
 );
+
+
+--
+-- Name: announcements; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.announcements (
+    id bigint NOT NULL,
+    text text NOT NULL,
+    highlight_text text,
+    link_url text,
+    link_text text,
+    bg_color text DEFAULT '#0A0A0A'::text NOT NULL,
+    text_color text DEFAULT '#ffffff'::text NOT NULL,
+    highlight_color text DEFAULT '#D4AF37'::text NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: announcements_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.announcements_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: announcements_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.announcements_id_seq OWNED BY public.announcements.id;
 
 
 --
@@ -588,6 +630,84 @@ CREATE SEQUENCE public.coupons_id_seq
 --
 
 ALTER SEQUENCE public.coupons_id_seq OWNED BY public.coupons.id;
+
+
+--
+-- Name: features; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.features (
+    id bigint NOT NULL,
+    icon text,
+    title text NOT NULL,
+    description text,
+    image_url text,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: features_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.features_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: features_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.features_id_seq OWNED BY public.features.id;
+
+
+--
+-- Name: hero_banners; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hero_banners (
+    id bigint NOT NULL,
+    title text NOT NULL,
+    subtitle text,
+    description text,
+    image_url text NOT NULL,
+    mobile_image_url text,
+    link_url text,
+    link_text text,
+    secondary_link_url text,
+    secondary_link_text text,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: hero_banners_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.hero_banners_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: hero_banners_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.hero_banners_id_seq OWNED BY public.hero_banners.id;
 
 
 --
@@ -821,6 +941,39 @@ ALTER SEQUENCE public.otps_id_seq OWNED BY public.otps.id;
 
 
 --
+-- Name: password_resets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.password_resets (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    token_hash text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    used boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: password_resets_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.password_resets_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: password_resets_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.password_resets_id_seq OWNED BY public.password_resets.id;
+
+
+--
 -- Name: product_images; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1006,6 +1159,47 @@ ALTER SEQUENCE public.products_id_seq OWNED BY public.products.id;
 
 
 --
+-- Name: promo_banners; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.promo_banners (
+    id bigint NOT NULL,
+    title text NOT NULL,
+    subtitle text,
+    description text,
+    badge_text text,
+    image_url text,
+    link_url text,
+    link_text text,
+    items jsonb,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: promo_banners_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.promo_banners_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: promo_banners_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.promo_banners_id_seq OWNED BY public.promo_banners.id;
+
+
+--
 -- Name: returns; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1040,6 +1234,75 @@ CREATE SEQUENCE public.returns_id_seq
 --
 
 ALTER SEQUENCE public.returns_id_seq OWNED BY public.returns.id;
+
+
+--
+-- Name: site_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.site_settings (
+    id bigint NOT NULL,
+    key text NOT NULL,
+    value text DEFAULT ''::text NOT NULL,
+    label text,
+    group_name text DEFAULT 'general'::text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: site_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.site_settings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: site_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.site_settings_id_seq OWNED BY public.site_settings.id;
+
+
+--
+-- Name: testimonials; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.testimonials (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    location text,
+    rating smallint DEFAULT 5 NOT NULL,
+    quote text NOT NULL,
+    avatar_url text,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: testimonials_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.testimonials_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: testimonials_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.testimonials_id_seq OWNED BY public.testimonials.id;
 
 
 --
@@ -1204,6 +1467,13 @@ ALTER TABLE ONLY public.addresses ALTER COLUMN id SET DEFAULT nextval('public.ad
 
 
 --
+-- Name: announcements id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.announcements ALTER COLUMN id SET DEFAULT nextval('public.announcements_id_seq'::regclass);
+
+
+--
 -- Name: cart_items id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -1236,6 +1506,20 @@ ALTER TABLE ONLY public.contact_messages ALTER COLUMN id SET DEFAULT nextval('pu
 --
 
 ALTER TABLE ONLY public.coupons ALTER COLUMN id SET DEFAULT nextval('public.coupons_id_seq'::regclass);
+
+
+--
+-- Name: features id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.features ALTER COLUMN id SET DEFAULT nextval('public.features_id_seq'::regclass);
+
+
+--
+-- Name: hero_banners id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hero_banners ALTER COLUMN id SET DEFAULT nextval('public.hero_banners_id_seq'::regclass);
 
 
 --
@@ -1281,6 +1565,13 @@ ALTER TABLE ONLY public.otps ALTER COLUMN id SET DEFAULT nextval('public.otps_id
 
 
 --
+-- Name: password_resets id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_resets ALTER COLUMN id SET DEFAULT nextval('public.password_resets_id_seq'::regclass);
+
+
+--
 -- Name: product_images id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -1309,10 +1600,31 @@ ALTER TABLE ONLY public.products ALTER COLUMN id SET DEFAULT nextval('public.pro
 
 
 --
+-- Name: promo_banners id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promo_banners ALTER COLUMN id SET DEFAULT nextval('public.promo_banners_id_seq'::regclass);
+
+
+--
 -- Name: returns id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.returns ALTER COLUMN id SET DEFAULT nextval('public.returns_id_seq'::regclass);
+
+
+--
+-- Name: site_settings id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.site_settings ALTER COLUMN id SET DEFAULT nextval('public.site_settings_id_seq'::regclass);
+
+
+--
+-- Name: testimonials id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.testimonials ALTER COLUMN id SET DEFAULT nextval('public.testimonials_id_seq'::regclass);
 
 
 --
@@ -1358,6 +1670,14 @@ ALTER TABLE ONLY public.admins
 
 ALTER TABLE ONLY public.admins
     ADD CONSTRAINT admins_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: announcements announcements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.announcements
+    ADD CONSTRAINT announcements_pkey PRIMARY KEY (id);
 
 
 --
@@ -1425,6 +1745,22 @@ ALTER TABLE ONLY public.coupons
 
 
 --
+-- Name: features features_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.features
+    ADD CONSTRAINT features_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: hero_banners hero_banners_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hero_banners
+    ADD CONSTRAINT hero_banners_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: newsletter_subscribers newsletter_subscribers_email_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1489,6 +1825,14 @@ ALTER TABLE ONLY public.otps
 
 
 --
+-- Name: password_resets password_resets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_resets
+    ADD CONSTRAINT password_resets_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: product_images product_images_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1537,11 +1881,43 @@ ALTER TABLE ONLY public.products
 
 
 --
+-- Name: promo_banners promo_banners_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promo_banners
+    ADD CONSTRAINT promo_banners_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: returns returns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.returns
     ADD CONSTRAINT returns_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: site_settings site_settings_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.site_settings
+    ADD CONSTRAINT site_settings_key_key UNIQUE (key);
+
+
+--
+-- Name: site_settings site_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.site_settings
+    ADD CONSTRAINT site_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: testimonials testimonials_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.testimonials
+    ADD CONSTRAINT testimonials_pkey PRIMARY KEY (id);
 
 
 --
@@ -1899,6 +2275,13 @@ CREATE INDEX ix_otps_phone ON public.otps USING btree (phone);
 
 
 --
+-- Name: ix_password_resets_token_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_password_resets_token_hash ON public.password_resets USING btree (token_hash);
+
+
+--
 -- Name: cart_items trg_cart_items_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2094,6 +2477,14 @@ ALTER TABLE ONLY public.orders
 
 ALTER TABLE ONLY public.orders
     ADD CONSTRAINT orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: password_resets password_resets_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_resets
+    ADD CONSTRAINT password_resets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2524,4 +2915,6 @@ ALTER TABLE public.wishlist ENABLE ROW LEVEL SECURITY;
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict vM4PuTmlD1LMnjSyH9TgqzpVi3G5Nd4AKn2bgezgbb5HGe3JROl2T8r6f23KCTk
 
