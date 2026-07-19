@@ -47,6 +47,15 @@ def _validate_config(app):
     if db_uri.startswith("sqlite"):
         problems.append("DATABASE_URL is unset (falling back to SQLite)")
 
+    # Uploads would land on an ephemeral filesystem and be lost on redeploy,
+    # silently breaking every product image.
+    from app.services.storage import is_object_storage_configured
+    if not is_object_storage_configured(app.config):
+        problems.append(
+            "SUPABASE_URL / SUPABASE_SERVICE_KEY are unset — product images "
+            "would be written to an ephemeral disk and lost on the next deploy"
+        )
+
     if problems:
         raise RuntimeError(
             "Refusing to start: insecure production configuration.\n  - "

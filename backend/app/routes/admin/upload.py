@@ -1,12 +1,11 @@
 """Admin file upload: product images."""
 import os
-import uuid
 
 from flask import request, jsonify, current_app
-from werkzeug.utils import secure_filename
 
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.services.storage import save_image, StorageError
 
 ALLOWED = {"png", "jpg", "jpeg", "webp", "gif"}
 MAX_SIZE = 5 * 1024 * 1024
@@ -35,13 +34,10 @@ def upload_image():
     if size > MAX_SIZE:
         return jsonify(error="File too large (max 5 MB)"), 400
 
-    ext = f.filename.rsplit(".", 1)[1].lower()
-    filename = f"{uuid.uuid4().hex}.{ext}"
+    try:
+        url = save_image(f)
+    except StorageError as exc:
+        current_app.logger.error("Image upload failed: %s", exc)
+        return jsonify(error="Could not store the image. Please try again."), 502
 
-    upload_dir = os.path.join(current_app.root_path, "..", "static", "uploads")
-    os.makedirs(upload_dir, exist_ok=True)
-
-    f.save(os.path.join(upload_dir, filename))
-
-    url = f"/static/uploads/{filename}"
     return jsonify(url=url), 201

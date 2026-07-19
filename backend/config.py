@@ -49,6 +49,13 @@ class BaseConfig:
     RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
+    # Supabase Storage (product images).
+    # Required in production: Render/Railway filesystems are ephemeral, so
+    # images written to local disk vanish on the next deploy.
+    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "product-images")
+
     # Shiprocket (delivery)
     SHIPROCKET_EMAIL = os.environ.get("SHIPROCKET_EMAIL", "")
     SHIPROCKET_PASSWORD = os.environ.get("SHIPROCKET_PASSWORD", "")

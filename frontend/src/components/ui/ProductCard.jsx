@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { IconHeart } from '@tabler/icons-react'
+import { IconHeart, IconStarFilled } from '@tabler/icons-react'
 import { useWishlistStore } from '@/store/useWishlistStore'
 
 export default function ProductCard({ product }) {
@@ -14,6 +14,8 @@ export default function ProductCard({ product }) {
     badge_label,
     primary_image,
     colors = [],
+    avg_rating,
+    review_count,
   } = product
 
   const wishlistIds = useWishlistStore((s) => s.productIds)
@@ -27,49 +29,86 @@ export default function ProductCard({ product }) {
   }
 
   return (
-    <Link
-      to={`/product/${slug}`}
-      className="group border border-line rounded overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(0,0,0,0.07)]"
-    >
-      <div className="aspect-[3/4] bg-surface flex items-center justify-center relative overflow-hidden">
+    <Link to={`/product/${slug}`} className="group block">
+      {/* Image — image-first with minimal padding, per the design system */}
+      <div className="relative aspect-[3/4] rounded-card overflow-hidden bg-fill">
         {primary_image ? (
-          <img src={primary_image} alt={name} className="w-full h-full object-cover" />
+          <img
+            src={primary_image}
+            alt={name}
+            loading="lazy"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
         ) : (
-          <div className="text-gray text-xs">No Image</div>
+          <div className="w-full h-full flex items-center justify-center text-subtle text-xs">
+            No Image
+          </div>
         )}
+
         {badge_label && (
-          <span className="absolute top-2.5 left-2.5 px-2 py-0.5 text-[9px] tracking-[1px] uppercase font-bold bg-maroon-light text-white">
+          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-accent text-white
+                           text-[10px] tracking-[0.05em] uppercase font-semibold">
             {badge_label}
           </span>
         )}
+
         <button
           onClick={handleWishlist}
           aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
-          className="absolute top-2.5 right-2.5 w-[30px] h-[30px] bg-white rounded-full flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+          aria-pressed={inWishlist}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-card/90 backdrop-blur
+                     flex items-center justify-center shadow-card
+                     transition-transform duration-200 hover:scale-110"
         >
-          <IconHeart size={14} className={inWishlist ? 'text-maroon-light' : 'text-gray'} fill={inWishlist ? 'currentColor' : 'none'} />
+          <IconHeart
+            size={17}
+            stroke={1.5}
+            className={inWishlist ? 'text-accent' : 'text-muted'}
+            fill={inWishlist ? 'currentColor' : 'none'}
+          />
         </button>
       </div>
-      <div className="p-3.5">
+
+      {/* Metadata — generous padding below the photo */}
+      <div className="pt-4">
         {category_name && (
-          <div className="text-[9px] tracking-[2px] text-gold uppercase font-semibold">{category_name}</div>
+          <div className="text-[11px] tracking-[0.1em] text-subtle uppercase font-medium">
+            {category_name}
+          </div>
         )}
-        <div className="font-serif text-sm mt-1 font-medium">{name}</div>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[15px] font-semibold">&#8377;{selling_price?.toLocaleString('en-IN')}</span>
-          {mrp > selling_price && (
-            <>
-              <span className="text-xs text-gray line-through">&#8377;{mrp?.toLocaleString('en-IN')}</span>
-              <span className="text-[10px] text-maroon-light font-semibold">{discount_percent}% off</span>
-            </>
-          )}
+
+        <div className="flex items-start justify-between gap-3 mt-1">
+          <h3 className="text-sm font-medium text-fg leading-snug">{name}</h3>
+          <span className="text-sm font-semibold text-fg whitespace-nowrap">
+            &#8377;{selling_price?.toLocaleString('en-IN')}
+          </span>
         </div>
+
+        {mrp > selling_price && (
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-subtle line-through">
+              &#8377;{mrp?.toLocaleString('en-IN')}
+            </span>
+            <span className="text-xs text-accent font-semibold">{discount_percent}% off</span>
+          </div>
+        )}
+
+        {avg_rating > 0 && (
+          <div className="flex items-center gap-1.5 mt-2">
+            <IconStarFilled size={12} className="text-accent" />
+            <span className="text-xs font-medium text-fg">{Number(avg_rating).toFixed(1)}</span>
+            {review_count > 0 && (
+              <span className="text-xs text-subtle">({review_count})</span>
+            )}
+          </div>
+        )}
+
         {colors.length > 0 && (
-          <div className="flex gap-1.5 mt-2">
+          <div className="flex gap-1.5 mt-2.5">
             {colors.map((c, i) => (
               <span
                 key={i}
-                className="w-3 h-3 rounded-full border-2 border-white shadow-[0_0_0_1px_#e8e4dc]"
+                className="w-3.5 h-3.5 rounded-full ring-1 ring-hairline"
                 style={{ background: c }}
               />
             ))}

@@ -13,7 +13,8 @@ from app.schemas.admin import AdminCategoryIn
 _cat_in = AdminCategoryIn()
 
 
-def _serialize_tree(cat, counts):
+def _serialize_category(cat):
+    """Flat representation, used by the create/update responses."""
     return {
         "id": cat.id,
         "name": cat.name,
@@ -23,6 +24,12 @@ def _serialize_tree(cat, counts):
         "parent_id": cat.parent_id,
         "sort_order": cat.sort_order,
         "is_active": cat.is_active,
+    }
+
+
+def _serialize_tree(cat, counts):
+    return {
+        **_serialize_category(cat),
         "product_count": counts.get(cat.id, 0),
         "children": [_serialize_tree(ch, counts) for ch in cat.children],
     }

@@ -1,8 +1,52 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 @theme {
-  /* Brand palette — sourced from docs/design-reference prototypes */
+  /* ──────────────────────────────────────────────────────────────
+   * NEW — "Premium Editorial Commerce" design system.
+   * Monochrome editorial canvas with a single pink accent.
+   * Being rolled out screen by screen (see the UI phase plan); the
+   * legacy warm palette below stays until the migration finishes.
+   * ────────────────────────────────────────────────────────────── */
+
+  /* Surfaces */
+  --color-bg: #f8f9fb;           /* page canvas */
+  --color-card: #ffffff;         /* elevated cards */
+  --color-fill: #f2f4f6;         /* subtle filled areas, inputs */
+  --color-fill-strong: #e7e8ea;  /* pressed / hovered fills */
+
+  /* Text */
+  --color-fg: #191c1e;           /* primary text */
+  --color-muted: #444748;        /* secondary text */
+  --color-subtle: #747878;       /* tertiary text, placeholder */
+
+  /* Lines */
+  --color-hairline: #c4c7c7;     /* borders, dividers */
+
+  /* Actions */
+  --color-primary: #000000;      /* solid black buttons */
+  --color-on-primary: #ffffff;
+
+  /* Accent — "fashion pink". Use sparingly: sale tags, active states. */
+  --color-accent: #f53765;
+  --color-accent-soft: #ffd9dc;
+
+  /* Semantic */
+  --color-danger: #ba1a1a;
+  --color-danger-soft: #ffdad6;
+
+  /* Type — Poppins for headings, Inter for body */
+  --font-display: 'Poppins', sans-serif;
+
+  /* Radii (additive so existing rounded-* keep their current values) */
+  --radius-card: 1rem;     /* cards, inputs, large buttons */
+  --radius-block: 1.5rem;  /* container blocks, promo banners */
+
+  /* Elevation — extremely soft, large radius */
+  --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.04);
+  --shadow-lift: 0 18px 50px rgba(0, 0, 0, 0.08);
+
+  /* ── LEGACY palette (pre-redesign). Removed in UI Phase 8. ── */
   --color-ink: #0a0a0a;
   --color-paper: #fafaf8;
   --color-cream: #f5f0e8;
@@ -20,6 +64,20 @@
 
 body {
   @apply bg-paper text-ink font-sans;
+}
+
+/* Frosted navigation / overlay surfaces. */
+@utility glass {
+  background-color: rgb(255 255 255 / 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Editorial heading: Poppins with the tight "locked-in" tracking. */
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 @keyframes slideIn {

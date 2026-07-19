@@ -45,6 +45,9 @@ def test_production_accepts_strong_config():
         SECRET_KEY="x" * 40,
         JWT_SECRET_KEY="y" * 40,
         SQLALCHEMY_DATABASE_URI="postgresql://u:p@host/db",
+        # Object storage is mandatory in production — see test_storage.py.
+        SUPABASE_URL="https://proj.supabase.co",
+        SUPABASE_SERVICE_KEY="service-key",
     )
     _validate_config(app)  # must not raise
 

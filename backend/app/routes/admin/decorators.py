@@ -13,7 +13,10 @@ def admin_required(fn):
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
         claims = get_jwt()
-        if claims.get("type") != "admin":
+        # "actor", not "type": `type` is reserved by flask_jwt_extended for
+        # access/refresh and overwriting it lets a refresh token pass as an
+        # access token.
+        if claims.get("actor") != "admin":
             return jsonify(error="Admin access required"), 403
         admin = db.session.get(Admin, claims["sub"])
         if not admin or not admin.is_active:
@@ -27,7 +30,7 @@ def master_required(fn):
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
         claims = get_jwt()
-        if claims.get("type") != "admin" or claims.get("role") != "master":
+        if claims.get("actor") != "admin" or claims.get("role") != "master":
             return jsonify(error="Master admin access required"), 403
         admin = db.session.get(Admin, claims["sub"])
         if not admin or not admin.is_active:
