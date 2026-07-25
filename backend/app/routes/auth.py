@@ -143,9 +143,20 @@ def google_auth():
             return jsonify(error="Invalid Google token"), 401
     else:
         import requests as http_requests
+        # userinfo confirms the token is valid, but NOT that it was issued for
+        # *our* app. Verify the audience via tokeninfo first, so an access token
+        # minted for a different Google client cannot be replayed here.
+        tokeninfo = http_requests.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"access_token": data["access_token"]},
+            timeout=10,
+        )
+        if tokeninfo.status_code != 200 or tokeninfo.json().get("aud") != client_id:
+            return jsonify(error="Invalid Google access token"), 401
         resp = http_requests.get(
             "https://www.googleapis.com/oauth2/v3/userinfo",
             headers={"Authorization": f"Bearer {data['access_token']}"},
+            timeout=10,
         )
         if resp.status_code != 200:
             return jsonify(error="Invalid Google access token"), 401

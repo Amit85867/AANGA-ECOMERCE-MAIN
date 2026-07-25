@@ -2,7 +2,9 @@
 import os
 
 import click
-from flask import Flask
+from flask import Flask, jsonify
+from sqlalchemy import text
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
 
 from config import get_config
@@ -14,13 +16,101 @@ def create_app(config_object=None):
     app.config.from_object(config_object or get_config())
 
     _validate_config(app)
+    _apply_proxy_fix(app)
     _init_extensions(app)
     _register_blueprints(app)
     _register_jwt_handlers(app)
+    _register_error_handlers(app)
+    _register_security_headers(app)
+    _register_health(app)
+    _warn_runtime_config(app)
     _register_cli(app)
     _auto_seed_admin(app)
 
     return app
+
+
+def _is_dev_or_test(app):
+    return bool(app.config.get("DEBUG") or app.config.get("TESTING"))
+
+
+def _apply_proxy_fix(app):
+    """Trust the platform's proxy for the client IP and scheme.
+
+    On Render/Railway the app sits behind one reverse proxy, so ``remote_addr``
+    is the proxy unless we honour X-Forwarded-For. Without this, rate limiting
+    would key every request on the proxy's IP — one shared bucket for everyone.
+    """
+    if _is_dev_or_test(app):
+        return
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+def _register_error_handlers(app):
+    """Always answer with JSON, and never leak a traceback in production."""
+
+    @app.errorhandler(HTTPException)
+    def _http_error(exc):
+        return jsonify(error=exc.description or exc.name), exc.code
+
+    @app.errorhandler(Exception)
+    def _unhandled(exc):
+        app.logger.exception("Unhandled exception")
+        # In dev/test let it propagate so the real stack trace surfaces.
+        if _is_dev_or_test(app):
+            raise exc
+        return jsonify(error="Internal server error"), 500
+
+
+def _register_security_headers(app):
+    """Add hardening headers to every response.
+
+    This service is a JSON API plus static product images — it renders no HTML
+    of its own — so a strict `default-src 'none'` CSP is safe and clickjacking
+    is fully denied. HSTS is production-only (dev is plain http).
+    """
+    hsts = not _is_dev_or_test(app)
+
+    @app.after_request
+    def _headers(resp):
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        resp.headers.setdefault(
+            "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
+        )
+        # Product images are embedded by the storefront on a different origin.
+        resp.headers.setdefault("Cross-Origin-Resource-Policy", "cross-origin")
+        if hsts:
+            resp.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return resp
+
+
+def _register_health(app):
+    @app.route("/api/health")
+    def health():
+        """Liveness + DB readiness probe for the platform."""
+        try:
+            db.session.execute(text("SELECT 1"))
+        except Exception:
+            app.logger.exception("Health check DB ping failed")
+            return jsonify(status="degraded"), 503
+        return jsonify(status="ok"), 200
+
+
+def _warn_runtime_config(app):
+    """Non-fatal production warnings (fatal ones live in _validate_config)."""
+    if _is_dev_or_test(app):
+        return
+    if str(app.config.get("RATELIMIT_STORAGE_URI", "")).startswith("memory://"):
+        app.logger.warning(
+            "RATELIMIT_STORAGE_URI is memory:// — rate-limit counters are "
+            "per-process. Point it at Redis before running more than one worker "
+            "or instance, or limits will not be enforced globally."
+        )
 
 
 # Values that must never survive into a real deployment.
