@@ -23,6 +23,10 @@ def _serialize_banner(b):
         "link_text": b.link_text,
         "secondary_link_url": b.secondary_link_url,
         "secondary_link_text": b.secondary_link_text,
+        "pill_label": b.pill_label,
+        "pill_value": b.pill_value,
+        "chip_value": b.chip_value,
+        "chip_label": b.chip_label,
         "sort_order": b.sort_order,
         "is_active": b.is_active,
         "starts_at": b.starts_at.isoformat() if b.starts_at else None,
@@ -57,6 +61,10 @@ def create_banner():
         link_text=data.get("link_text"),
         secondary_link_url=data.get("secondary_link_url"),
         secondary_link_text=data.get("secondary_link_text"),
+        pill_label=data.get("pill_label"),
+        pill_value=data.get("pill_value"),
+        chip_value=data.get("chip_value"),
+        chip_label=data.get("chip_label"),
         sort_order=data.get("sort_order", 0),
         is_active=data.get("is_active", True),
         starts_at=data.get("starts_at"),
@@ -88,6 +96,10 @@ def update_banner(banner_id):
     banner.link_text = data.get("link_text")
     banner.secondary_link_url = data.get("secondary_link_url")
     banner.secondary_link_text = data.get("secondary_link_text")
+    banner.pill_label = data.get("pill_label")
+    banner.pill_value = data.get("pill_value")
+    banner.chip_value = data.get("chip_value")
+    banner.chip_label = data.get("chip_label")
     banner.sort_order = data.get("sort_order", 0)
     banner.is_active = data.get("is_active", True)
     banner.starts_at = data.get("starts_at")

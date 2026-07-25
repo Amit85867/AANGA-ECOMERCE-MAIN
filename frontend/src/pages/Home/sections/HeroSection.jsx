@@ -105,6 +105,26 @@ export default function HeroSection() {
           <div className="w-[260px] h-[400px] rounded-[140px_140px_80px_80px] bg-gradient-to-br from-maroon to-gold opacity-[0.18]" />
         )}
 
+        {/* Decorative "pill" badge — small label + value */}
+        {slide.pill_value && (
+          <div className="absolute bottom-[60px] left-10 bg-white px-[18px] py-3.5 border-l-[3px] border-gold shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+            {slide.pill_label && (
+              <div className="text-[9px] tracking-[2px] uppercase text-gray">{slide.pill_label}</div>
+            )}
+            <div className="font-serif text-base font-bold mt-[3px]">{slide.pill_value}</div>
+          </div>
+        )}
+
+        {/* Decorative "chip" badge — big value + small label */}
+        {slide.chip_value && (
+          <div className="absolute top-12 right-8 bg-ink text-white px-5 py-4 text-center">
+            <div className="font-serif text-[32px] font-bold text-gold leading-none">{slide.chip_value}</div>
+            {slide.chip_label && (
+              <div className="text-[9px] tracking-[2px] uppercase opacity-60 mt-0.5">{slide.chip_label}</div>
+            )}
+          </div>
+        )}
+
         {/* Slider dots */}
         {banners.length > 1 && (
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">

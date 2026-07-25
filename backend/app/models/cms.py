@@ -18,6 +18,13 @@ class HeroBanner(db.Model):
     link_text = db.Column(db.Text)
     secondary_link_url = db.Column(db.Text)
     secondary_link_text = db.Column(db.Text)
+    # Optional decorative overlays on the hero visual (see the reference design):
+    # a "pill" (small label + value, e.g. "This Season" / "Summer Edit '26") and
+    # a "chip" (big value + small label, e.g. "40%" / "Off Sale Items").
+    pill_label = db.Column(db.Text)
+    pill_value = db.Column(db.Text)
+    chip_value = db.Column(db.Text)
+    chip_label = db.Column(db.Text)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     starts_at = db.Column(db.DateTime(timezone=True))

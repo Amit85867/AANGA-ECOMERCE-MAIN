@@ -76,8 +76,11 @@ def test_optimize_passes_gif_through_untouched(app):
 
 
 # ── Backend selection ─────────────────────────────────────────────────────
-def test_object_storage_not_configured_by_default(app):
-    assert is_object_storage_configured(app.config) is False
+def test_object_storage_not_configured_without_keys():
+    # Explicit config so the result never depends on the developer's ambient
+    # .env (which may legitimately have Supabase configured).
+    assert is_object_storage_configured({}) is False
+    assert is_object_storage_configured({"SUPABASE_URL": "", "SUPABASE_SERVICE_KEY": ""}) is False
 
 
 def test_object_storage_detected_when_keys_present():
@@ -90,7 +93,12 @@ def test_partial_config_does_not_count_as_configured():
     assert is_object_storage_configured({"SUPABASE_SERVICE_KEY": "k"}) is False
 
 
-def test_local_backend_writes_webp_and_returns_static_url(app):
+def test_local_backend_writes_webp_and_returns_static_url(app, monkeypatch):
+    # Force the local-disk branch regardless of any Supabase keys in the
+    # ambient .env, so this test is deterministic and offline.
+    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    monkeypatch.setitem(app.config, "SUPABASE_SERVICE_KEY", "")
+
     url = save_image(_png_upload())
 
     assert url.startswith("/static/uploads/")

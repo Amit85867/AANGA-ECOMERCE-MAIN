@@ -38,6 +38,10 @@ def public_banners():
             "link_text": b.link_text,
             "secondary_link_url": b.secondary_link_url,
             "secondary_link_text": b.secondary_link_text,
+            "pill_label": b.pill_label,
+            "pill_value": b.pill_value,
+            "chip_value": b.chip_value,
+            "chip_label": b.chip_label,
         }
         for b in banners
     ]), 200

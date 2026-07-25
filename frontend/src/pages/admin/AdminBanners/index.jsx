@@ -12,6 +12,7 @@ export default function AdminBanners() {
   const empty = {
     title: '', subtitle: '', description: '', image_url: '', mobile_image_url: '',
     link_url: '', link_text: '', secondary_link_url: '', secondary_link_text: '',
+    pill_label: '', pill_value: '', chip_value: '', chip_label: '',
     sort_order: 0, is_active: true, starts_at: '', ends_at: '',
   }
   const [form, setForm] = useState(empty)
@@ -35,6 +36,8 @@ export default function AdminBanners() {
       image_url: b.image_url, mobile_image_url: b.mobile_image_url || '',
       link_url: b.link_url || '', link_text: b.link_text || '',
       secondary_link_url: b.secondary_link_url || '', secondary_link_text: b.secondary_link_text || '',
+      pill_label: b.pill_label || '', pill_value: b.pill_value || '',
+      chip_value: b.chip_value || '', chip_label: b.chip_label || '',
       sort_order: b.sort_order, is_active: b.is_active,
       starts_at: b.starts_at ? b.starts_at.slice(0, 16) : '',
       ends_at: b.ends_at ? b.ends_at.slice(0, 16) : '',
@@ -71,6 +74,10 @@ export default function AdminBanners() {
       link_text: form.link_text || null,
       secondary_link_url: form.secondary_link_url || null,
       secondary_link_text: form.secondary_link_text || null,
+      pill_label: form.pill_label || null,
+      pill_value: form.pill_value || null,
+      chip_value: form.chip_value || null,
+      chip_label: form.chip_label || null,
     }
     try {
       if (editing) {
@@ -166,6 +173,29 @@ export default function AdminBanners() {
             <div>
               <label className={labelCls}>Secondary Button URL</label>
               <input value={form.secondary_link_url} onChange={(e) => setForm((f) => ({ ...f, secondary_link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
+            </div>
+          </div>
+
+          {/* Decorative overlay badges (optional) — shown on the hero visual */}
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium text-gray-400">Hero badges (optional) — leave blank to hide</p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className={labelCls}>Pill Label</label>
+                <input value={form.pill_label} onChange={(e) => setForm((f) => ({ ...f, pill_label: e.target.value }))} placeholder="This Season" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Pill Value</label>
+                <input value={form.pill_value} onChange={(e) => setForm((f) => ({ ...f, pill_value: e.target.value }))} placeholder="Summer Edit '26" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Chip Value</label>
+                <input value={form.chip_value} onChange={(e) => setForm((f) => ({ ...f, chip_value: e.target.value }))} placeholder="40%" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Chip Label</label>
+                <input value={form.chip_label} onChange={(e) => setForm((f) => ({ ...f, chip_label: e.target.value }))} placeholder="Off Sale Items" className={inputCls} />
+              </div>
             </div>
           </div>
 
