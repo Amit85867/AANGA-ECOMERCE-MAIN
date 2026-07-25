@@ -186,12 +186,13 @@ def _register_blueprints(app):
     from app.routes.admin import admin_bp
     from app.routes.cms import cms_bp
     from app.routes.payments import payments_bp
+    from app.routes.seo import seo_bp
 
     for bp in (
         auth_bp, products_bp, categories_bp, cart_bp,
         wishlist_bp, orders_bp, addresses_bp, reviews_bp,
         profile_bp, offers_bp, contact_bp, wholesale_bp,
-        newsletter_bp, admin_bp, cms_bp, payments_bp,
+        newsletter_bp, admin_bp, cms_bp, payments_bp, seo_bp,
     ):
         app.register_blueprint(bp)
 

@@ -4,6 +4,7 @@ import { IconAdjustmentsHorizontal } from '@tabler/icons-react'
 import { useProductStore } from '@/store/useProductStore'
 import ProductCard from '@/components/ui/ProductCard'
 import PageHeader from '@/components/ui/PageHeader'
+import Seo from '@/components/Seo'
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const FILTER_COLORS = ['#0A0A0A', '#fff', '#8B1A1A', '#1a2a4a', '#C8963E', '#1a3a1a']
@@ -45,6 +46,10 @@ export default function Shop() {
 
   return (
     <>
+      <Seo
+        title="Shop All Products"
+        description="Browse the full AANGA collection — clothing, accessories and more for men, women and kids, with fast delivery across India."
+      />
       <PageHeader title="All Products" crumbs={[{ label: 'Home', to: '/' }, { label: 'Shop' }]} />
       <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] flex-1">
         {/* Sidebar */}

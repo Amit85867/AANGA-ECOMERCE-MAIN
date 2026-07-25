@@ -12,6 +12,7 @@ import apiClient from '@/services/apiClient'
 import ProductCard from '@/components/ui/ProductCard'
 import Button from '@/components/ui/Button'
 import Chip from '@/components/ui/Chip'
+import Seo from '@/components/Seo'
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -108,6 +109,40 @@ export default function ProductDetail() {
   const images = product.images || []
   const activeColorName = colors.find((c) => c.hex === selectedColor)?.name
 
+  const primaryImage =
+    images.find((i) => i.is_primary)?.image_url || images[0]?.image_url
+  const inStock = (product.variants || []).some((v) => v.stock_qty > 0)
+  const seoDescription = (product.description || `${product.name} — shop now at AANGA.`)
+    .replace(/\s+/g, ' ')
+    .slice(0, 160)
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    ...(product.description ? { description: product.description } : {}),
+    ...(images.length ? { image: images.map((i) => i.image_url) } : {}),
+    brand: { '@type': 'Brand', name: 'AANGA' },
+    ...(product.category_name ? { category: product.category_name } : {}),
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'INR',
+      price: Number(product.selling_price),
+      availability: inStock
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/OutOfStock',
+      ...(typeof window !== 'undefined' ? { url: window.location.href } : {}),
+    },
+    ...(product.review_count > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: Number(product.avg_rating),
+            reviewCount: product.review_count,
+          },
+        }
+      : {}),
+  }
+
   const resolveVariant = () => {
     const variants = product.variants || []
     if (!variants.length) return null
@@ -144,6 +179,13 @@ export default function ProductDetail() {
 
   return (
     <div className="bg-bg">
+      <Seo
+        title={product.name}
+        description={seoDescription}
+        image={primaryImage}
+        type="product"
+        jsonLd={productJsonLd}
+      />
       <section className="max-w-[1280px] mx-auto px-4 md:px-8 lg:px-12 py-8 lg:py-12">
         {/* Breadcrumb — kept slim for navigation and SEO */}
         <nav aria-label="Breadcrumb" className="text-xs text-subtle mb-8">

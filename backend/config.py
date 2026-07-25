@@ -42,6 +42,10 @@ class BaseConfig:
     # CORS
     FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
 
+    # Public storefront origin used to build absolute URLs in sitemap.xml /
+    # robots.txt (canonical links, Open Graph). Defaults to the frontend origin.
+    SITE_URL = os.environ.get("SITE_URL", os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173"))
+
     # Google OAuth
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
