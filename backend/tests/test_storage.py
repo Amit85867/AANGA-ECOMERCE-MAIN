@@ -1,12 +1,13 @@
-"""Image storage backend selection and the production guard.
+"""Image storage: optimisation, backend selection, and the production guard.
 
-Production must never fall back to local disk: Render/Railway filesystems are
-ephemeral, so product images would disappear on the next deploy.
+Production must never fall back to local disk (Render/Railway filesystems are
+ephemeral) and every upload must be optimised before it is stored.
 """
 import io
 
 import pytest
 import requests
+from PIL import Image
 from werkzeug.datastructures import FileStorage
 
 from app import _validate_config
@@ -14,6 +15,7 @@ from app.services import storage
 from app.services.storage import (
     StorageError,
     is_object_storage_configured,
+    optimize_image,
     save_image,
 )
 
@@ -23,8 +25,54 @@ class _FakeApp:
         self.config = config
 
 
-def _upload_file(name="photo.png", data=b"fake-png-bytes"):
-    return FileStorage(stream=io.BytesIO(data), filename=name, content_type="image/png")
+def _png_upload(name="photo.png", size=(2000, 2500), colour=(120, 30, 60)):
+    """A large solid PNG, deliberately bigger than MAX_DIMENSION."""
+    img = Image.new("RGB", size, colour)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return FileStorage(stream=buf, filename=name, content_type="image/png")
+
+
+# ── Optimisation ──────────────────────────────────────────────────────────
+def test_optimize_converts_png_to_webp(app):
+    data, ext, content_type = optimize_image(_png_upload())
+
+    assert ext == "webp"
+    assert content_type == "image/webp"
+    # bytes really are WebP
+    assert Image.open(io.BytesIO(data)).format == "WEBP"
+
+
+def test_optimize_downscales_to_max_dimension(app):
+    data, _, _ = optimize_image(_png_upload(size=(3000, 3000)))
+
+    out = Image.open(io.BytesIO(data))
+    assert max(out.size) == storage.MAX_DIMENSION
+
+
+def test_optimize_shrinks_file_size(app):
+    upload = _png_upload(size=(2000, 2500))
+    upload.stream.seek(0, io.SEEK_END)
+    original = upload.stream.tell()
+    upload.stream.seek(0)
+
+    data, _, _ = optimize_image(upload)
+
+    assert len(data) < original
+
+
+def test_optimize_passes_gif_through_untouched(app):
+    gif = Image.new("RGB", (10, 10), (0, 0, 0))
+    buf = io.BytesIO()
+    gif.save(buf, format="GIF")
+    raw = buf.getvalue()
+    fs = FileStorage(stream=io.BytesIO(raw), filename="a.gif", content_type="image/gif")
+
+    data, ext, content_type = optimize_image(fs)
+
+    assert ext == "gif"
+    assert data == raw
 
 
 # ── Backend selection ─────────────────────────────────────────────────────
@@ -42,13 +90,11 @@ def test_partial_config_does_not_count_as_configured():
     assert is_object_storage_configured({"SUPABASE_SERVICE_KEY": "k"}) is False
 
 
-def test_local_backend_returns_static_url(app, tmp_path, monkeypatch):
-    monkeypatch.setattr(storage, "_save_to_disk", lambda f, name: f"/static/uploads/{name}")
-
-    url = save_image(_upload_file())
+def test_local_backend_writes_webp_and_returns_static_url(app):
+    url = save_image(_png_upload())
 
     assert url.startswith("/static/uploads/")
-    assert url.endswith(".png")
+    assert url.endswith(".webp")
 
 
 # ── Supabase backend ──────────────────────────────────────────────────────
@@ -65,18 +111,21 @@ def test_supabase_backend_posts_and_returns_public_url(app, monkeypatch):
     def fake_post(url, data=None, headers=None, timeout=None):
         captured["url"] = url
         captured["headers"] = headers
+        captured["content_type"] = headers["Content-Type"]
         return _Resp()
 
     monkeypatch.setattr(requests, "post", fake_post)
     try:
-        url = save_image(_upload_file())
+        url = save_image(_png_upload())
     finally:
         app.config["SUPABASE_URL"] = ""
         app.config["SUPABASE_SERVICE_KEY"] = ""
 
     assert "/storage/v1/object/product-images/" in captured["url"]
     assert captured["headers"]["Authorization"] == "Bearer service-key"
+    assert captured["content_type"] == "image/webp"
     assert url.startswith("https://proj.supabase.co/storage/v1/object/public/product-images/")
+    assert url.endswith(".webp")
 
 
 def test_supabase_failure_raises_storage_error(app, monkeypatch):
@@ -90,7 +139,7 @@ def test_supabase_failure_raises_storage_error(app, monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp())
     try:
         with pytest.raises(StorageError):
-            save_image(_upload_file())
+            save_image(_png_upload())
     finally:
         app.config["SUPABASE_URL"] = ""
         app.config["SUPABASE_SERVICE_KEY"] = ""
