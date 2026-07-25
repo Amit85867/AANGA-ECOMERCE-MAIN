@@ -230,13 +230,13 @@ CREATE TYPE public.volume_range AS ENUM (
 
 CREATE FUNCTION public.assign_order_number() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.order_number is null then
-    new.order_number := generate_order_number();
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.order_number is null then
+    new.order_number := generate_order_number();
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -246,19 +246,19 @@ $$;
 
 CREATE FUNCTION public.deduct_inventory() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  update product_variants
-  set stock_qty = stock_qty - new.quantity
-  where id = new.variant_id;
-
-  -- Guard: rollback if stock goes negative
-  if (select stock_qty from product_variants where id = new.variant_id) < 0 then
-    raise exception 'Insufficient stock for variant %', new.variant_id;
-  end if;
-
-  return new;
-end;
+    AS $$
+begin
+  update product_variants
+  set stock_qty = stock_qty - new.quantity
+  where id = new.variant_id;
+
+  -- Guard: rollback if stock goes negative
+  if (select stock_qty from product_variants where id = new.variant_id) < 0 then
+    raise exception 'Insufficient stock for variant %', new.variant_id;
+  end if;
+
+  return new;
+end;
 $$;
 
 
@@ -268,10 +268,10 @@ $$;
 
 CREATE FUNCTION public.generate_order_number() RETURNS text
     LANGUAGE plpgsql
-    AS $$
-begin
-  return 'ANG-' || to_char(now(), 'YYYY') || '-' || nextval('order_seq')::text;
-end;
+    AS $$
+begin
+  return 'ANG-' || to_char(now(), 'YYYY') || '-' || nextval('order_seq')::text;
+end;
 $$;
 
 
@@ -281,15 +281,15 @@ $$;
 
 CREATE FUNCTION public.increment_coupon_usage() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.coupon_id is not null then
-    update coupons
-    set used_count = used_count + 1
-    where id = new.coupon_id;
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.coupon_id is not null then
+    update coupons
+    set used_count = used_count + 1
+    where id = new.coupon_id;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -299,17 +299,17 @@ $$;
 
 CREATE FUNCTION public.restore_inventory_on_cancel() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.status = 'cancelled' and old.status != 'cancelled' then
-    update product_variants pv
-    set stock_qty = pv.stock_qty + oi.quantity
-    from order_items oi
-    where oi.order_id = new.id
-      and pv.id = oi.variant_id;
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.status = 'cancelled' and old.status != 'cancelled' then
+    update product_variants pv
+    set stock_qty = pv.stock_qty + oi.quantity
+    from order_items oi
+    where oi.order_id = new.id
+      and pv.id = oi.variant_id;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -319,11 +319,11 @@ $$;
 
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  new.updated_at = now();
-  return new;
-end;
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
 $$;
 
 
@@ -879,6 +879,7 @@ CREATE TABLE public.orders (
     payment_method public.payment_method NOT NULL,
     payment_status public.payment_status DEFAULT 'pending'::public.payment_status NOT NULL,
     payment_ref text,
+    idempotency_key text,
     courier_name text,
     tracking_number text,
     expected_delivery date,
@@ -2118,6 +2119,20 @@ CREATE INDEX idx_orders_status ON public.orders USING btree (status);
 --
 
 CREATE INDEX idx_orders_user_id ON public.orders USING btree (user_id);
+
+
+--
+-- Name: uq_orders_payment_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_orders_payment_ref ON public.orders USING btree (payment_ref) WHERE (payment_ref IS NOT NULL);
+
+
+--
+-- Name: uq_orders_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_orders_idempotency_key ON public.orders USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
 
 
 --

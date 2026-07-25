@@ -28,15 +28,22 @@ def place_order():
     except ValidationError as err:
         return jsonify(errors=err.messages), 422
 
-    # Prepaid orders are created via /api/payments/verify after the gateway
-    # confirms payment. This route handles COD (and any pre-verified ref).
-    paid = bool(data.get("payment_ref"))
+    # This route always creates an UNPAID (pending) order — typically COD.
+    # Payment is never asserted by the client here; prepaid orders are created
+    # only by /api/payments/verify, which validates the gateway signature and
+    # the amount. So `paid` is hard-coded False and no client `payment_ref` is
+    # accepted (see PlaceOrderIn).
+    #
+    # An optional Idempotency-Key header lets a retried/double-submitted COD
+    # checkout resolve to the same order instead of placing two.
+    idempotency_key = request.headers.get("Idempotency-Key") or None
+
     order, err = create_order_from_cart(
         get_jwt_identity(),
         data["address_id"],
         data["payment_method"],
-        payment_ref=data.get("payment_ref"),
-        paid=paid,
+        paid=False,
+        idempotency_key=idempotency_key,
     )
     if err:
         return jsonify(error=err[0]), err[1]

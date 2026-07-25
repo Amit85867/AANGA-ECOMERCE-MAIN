@@ -9,7 +9,7 @@ atomic stock guard into a clean API error.
 """
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from app.extensions import db
 from app.models.order import Order, OrderItem, OrderTracking
@@ -52,23 +52,31 @@ def compute_totals(cart):
     }
 
 
-def create_order_from_cart(user_id, address_id, payment_method_value, payment_ref=None, paid=False):
+def create_order_from_cart(user_id, address_id, payment_method_value,
+                           payment_ref=None, paid=False, idempotency_key=None):
     """Turn a user's cart into an Order.
 
     Returns (order, None) on success or (None, (error_message, status_code)).
 
-    Idempotent on ``payment_ref``: an online payment can be verified more than
-    once (gateway retries, duplicate callbacks, an impatient user), so if an
-    order already exists for this payment we return it rather than creating a
-    duplicate or charging the customer for nothing.
+    Idempotent on both ``payment_ref`` (prepaid: a payment can be verified more
+    than once via gateway retries, duplicate callbacks, or an impatient user)
+    and ``idempotency_key`` (COD: a double-submitted checkout). If an order
+    already exists for either, we return it rather than creating a duplicate or
+    charging the customer for nothing. The application-level pre-checks below
+    cover the common sequential case; the DB unique indexes on those columns are
+    the race-proof authority and are recovered from in the commit handler.
 
     Records the initial tracking event and clears the cart in one transaction.
     Stock deduction, coupon usage and the order number are applied by database
     triggers — not here.
     """
-    # Idempotency guard for prepaid orders.
+    # Idempotency guards (fast path for the common, non-racy case).
     if payment_ref:
         existing = Order.query.filter_by(payment_ref=payment_ref).first()
+        if existing:
+            return existing, None
+    if idempotency_key:
+        existing = Order.query.filter_by(idempotency_key=idempotency_key).first()
         if existing:
             return existing, None
 
@@ -110,6 +118,7 @@ def create_order_from_cart(user_id, address_id, payment_method_value, payment_re
         payment_method=payment_method,
         payment_status=payment_status,
         payment_ref=payment_ref,
+        idempotency_key=idempotency_key,
         expected_delivery=datetime.now(timezone.utc).date() + timedelta(days=7),
     )
     db.session.add(order)
@@ -135,6 +144,20 @@ def create_order_from_cart(user_id, address_id, payment_method_value, payment_re
 
     try:
         db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        # A concurrent request inserted the same payment_ref / idempotency_key
+        # first — the DB unique indexes are the race-proof authority. Resolve to
+        # the order that won the race instead of surfacing an error.
+        if payment_ref:
+            existing = Order.query.filter_by(payment_ref=payment_ref).first()
+            if existing:
+                return existing, None
+        if idempotency_key:
+            existing = Order.query.filter_by(idempotency_key=idempotency_key).first()
+            if existing:
+                return existing, None
+        raise
     except SQLAlchemyError as exc:
         db.session.rollback()
         # trg_deduct_inventory raises on a concurrent oversell.

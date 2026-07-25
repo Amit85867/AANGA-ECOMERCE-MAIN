@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { IconCheck, IconPlus, IconMapPin } from '@tabler/icons-react'
 import PageHeader from '@/components/ui/PageHeader'
@@ -37,6 +37,7 @@ export default function Checkout() {
   const navigate = useNavigate()
   const { isAuthenticated, user } = useAuthStore()
   const { cart, fetchCart, clearLocal } = useCartStore()
+  const codIdempotencyKey = useRef(null)
 
   const [step, setStep] = useState(0)
   const [payment, setPayment] = useState('cod')
@@ -125,7 +126,17 @@ export default function Checkout() {
   }
 
   const placeCod = async (method) => {
-    const { data } = await orderService.create({ address_id: selectedAddr, payment_method: method.backend })
+    // Reuse one key across retries of the same checkout so a double-submit is
+    // deduped server-side; mint a fresh one only after an order is placed.
+    if (!codIdempotencyKey.current) {
+      codIdempotencyKey.current =
+        (crypto.randomUUID && crypto.randomUUID()) || `cod-${Date.now()}-${Math.random()}`
+    }
+    const { data } = await orderService.create(
+      { address_id: selectedAddr, payment_method: method.backend },
+      codIdempotencyKey.current,
+    )
+    codIdempotencyKey.current = null
     clearLocal()
     setPlacedOrder(data)
   }
