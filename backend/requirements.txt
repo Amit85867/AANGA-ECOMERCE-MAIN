@@ -25,5 +25,8 @@ python-dotenv==1.0.1            # load .env
 google-auth==2.36.0
 requests==2.32.3
 
+# ── Observability ───────────────────────────────────────────
+sentry-sdk[flask]==2.20.0        # error tracking (enabled when SENTRY_DSN set)
+
 # ── Production server ───────────────────────────────────────
 gunicorn==23.0.0

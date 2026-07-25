@@ -15,6 +15,10 @@ def create_app(config_object=None):
     app = Flask(__name__, static_folder="../static", static_url_path="/static")
     app.config.from_object(config_object or get_config())
 
+    from app.observability import init_logging, init_sentry
+    init_sentry(app)   # as early as possible so startup errors are captured
+    init_logging(app)
+
     _validate_config(app)
     _apply_proxy_fix(app)
     _init_extensions(app)

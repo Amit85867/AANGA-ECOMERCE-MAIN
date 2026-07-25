@@ -34,6 +34,12 @@ class BaseConfig:
     JWT_COOKIE_SECURE = True
     JWT_COOKIE_SAMESITE = "None"
 
+    # Observability (Sentry). Leave SENTRY_DSN blank to disable entirely.
+    SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+    SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", os.environ.get("FLASK_ENV", "development"))
+    SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.0"))
+    APP_RELEASE = os.environ.get("APP_RELEASE", "")
+
     # Rate limiting (Flask-Limiter). In-memory is fine for a single instance;
     # point this at Redis once the API runs on more than one process.
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
