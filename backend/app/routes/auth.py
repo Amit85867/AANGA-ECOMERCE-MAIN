@@ -356,8 +356,9 @@ def forgot_password():
     frontend = current_app.config.get("FRONTEND_ORIGIN", "http://localhost:5173")
     reset_link = f"{frontend}/reset-password?token={raw_token}"
 
-    # TODO: send reset_link via email (SendGrid / SES / SMTP).
-    current_app.logger.info(f"[DEV] Password reset link for {user.email}: {reset_link}")
+    from app.services.email import send_password_reset
+    send_password_reset(user.email, reset_link)
+    # When email isn't configured, send_* logs the message so dev still works.
 
     resp = dict(generic)
     if current_app.config.get("DEBUG"):

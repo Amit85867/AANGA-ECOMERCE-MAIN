@@ -166,4 +166,9 @@ def create_order_from_cart(user_id, address_id, payment_method_value,
         raise
 
     db.session.refresh(order)  # pull the trigger-assigned order_number
+
+    # Best-effort confirmation email — never let a mail hiccup fail the order.
+    from app.services.email import send_order_confirmation
+    send_order_confirmation(order)
+
     return order, None

@@ -56,6 +56,12 @@ class BaseConfig:
     SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
     SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "product-images")
 
+    # Transactional email (Resend). Leave RESEND_API_KEY blank to log instead
+    # of sending (local dev). EMAIL_ENABLED is a manual kill switch.
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    EMAIL_FROM = os.environ.get("EMAIL_FROM", "AANGA <orders@aanga.in>")
+    EMAIL_ENABLED = os.environ.get("EMAIL_ENABLED", "true").lower() == "true"
+
     # Shiprocket (delivery)
     SHIPROCKET_EMAIL = os.environ.get("SHIPROCKET_EMAIL", "")
     SHIPROCKET_PASSWORD = os.environ.get("SHIPROCKET_PASSWORD", "")
