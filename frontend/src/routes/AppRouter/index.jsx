@@ -20,6 +20,7 @@ import Returns from '@/pages/Returns'
 import Privacy from '@/pages/Privacy'
 import Terms from '@/pages/Terms'
 import NotFound from '@/pages/NotFound'
+import StyleGuide from '@/pages/StyleGuide'
 import Login from '@/pages/auth/Login'
 import Register from '@/pages/auth/Register'
 import ForgotPassword from '@/pages/auth/ForgotPassword'
@@ -82,6 +83,8 @@ const router = createBrowserRouter([
     element: <DashboardLayout />,
     children: [{ path: '/account', element: <Dashboard /> }],
   },
+  // Internal design-system reference (not linked from the storefront).
+  { path: '/style-guide', element: <StyleGuide /> },
   { path: '/admin/login', element: <AdminLogin /> },
   {
     element: <AdminLayout />,

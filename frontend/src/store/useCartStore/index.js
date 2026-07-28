@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import apiClient from '@/services/apiClient'
+import apiClient, { getAccessToken } from '@/services/apiClient'
 import { toast } from '@/components/ui/Toast'
 
-const hasToken = () => !!localStorage.getItem('aanga_token')
+// Tokens are no longer persisted — the in-memory access token is the signal.
+const hasToken = () => !!getAccessToken()
 
 export const useCartStore = create((set, get) => ({
   cart: null,

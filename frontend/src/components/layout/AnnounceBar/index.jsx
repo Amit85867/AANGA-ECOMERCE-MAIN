@@ -20,14 +20,22 @@ export default function AnnounceBar() {
   const a = announcement
 
   return (
+    // Colours stay CMS-controlled (admin sets them); only the type scale is
+    // aligned to the design system here.
     <div
-      className="text-center py-2 px-4 text-[11px] tracking-[1.5px] uppercase"
-      style={{ backgroundColor: a.bg_color, color: a.text_color + 'd9' }}
+      className="text-center py-2.5 px-4 text-[11px] font-medium tracking-[0.1em] uppercase"
+      style={{ backgroundColor: a.bg_color, color: a.text_color }}
     >
       {a.text}{' '}
-      {a.highlight_text && <span style={{ color: a.highlight_color }}>{a.highlight_text}</span>}
+      {a.highlight_text && (
+        <span className="font-semibold" style={{ color: a.highlight_color }}>
+          {a.highlight_text}
+        </span>
+      )}
       {a.link_text && a.link_url && (
-        <Link to={a.link_url} className="ml-2 underline hover:opacity-80">{a.link_text}</Link>
+        <Link to={a.link_url} className="ml-2 underline underline-offset-2 hover:opacity-80">
+          {a.link_text}
+        </Link>
       )}
     </div>
   )

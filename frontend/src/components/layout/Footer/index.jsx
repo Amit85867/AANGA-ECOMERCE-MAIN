@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import {
   IconBrandInstagram, IconBrandFacebook, IconBrandWhatsapp, IconBrandYoutube,
 } from '@tabler/icons-react'
-import logoImg from '@/assets/images/logo-main.png'
 import { useSetting } from '@/store/useSettingsStore'
 
 const SHOP_LINKS = [
@@ -28,16 +27,20 @@ const LEGAL_LINKS = [
   { label: 'Returns Policy', to: '/returns' },
 ]
 
-const PAYMENTS = ['UPI', 'Visa', 'MC', 'COD']
+const PAYMENTS = ['UPI', 'Visa', 'Mastercard', 'COD']
 
 function FooterCol({ title, links }) {
   return (
     <div>
-      <h4 className="text-[10px] tracking-[2px] uppercase text-white font-semibold mb-4">{title}</h4>
-      <ul className="space-y-2">
+      <h4 className="text-[11px] tracking-[0.1em] uppercase text-fg font-semibold mb-4">
+        {title}
+      </h4>
+      <ul className="space-y-2.5">
         {links.map(({ label, to }) => (
           <li key={label}>
-            <Link to={to} className="text-xs text-white/40 hover:text-gold transition-colors">{label}</Link>
+            <Link to={to} className="text-sm text-muted hover:text-fg transition-colors">
+              {label}
+            </Link>
           </li>
         ))}
       </ul>
@@ -50,37 +53,39 @@ export default function Footer() {
 
   const waNumber = s('whatsapp_number', '').replace(/\D/g, '')
   const socials = [
-    { icon: IconBrandInstagram, href: s('instagram_url') },
-    { icon: IconBrandFacebook, href: s('facebook_url') },
-    { icon: IconBrandWhatsapp, href: waNumber ? `https://wa.me/${waNumber}` : '' },
-    { icon: IconBrandYoutube, href: s('youtube_url') },
+    { icon: IconBrandInstagram, label: 'Instagram', href: s('instagram_url') },
+    { icon: IconBrandFacebook, label: 'Facebook', href: s('facebook_url') },
+    { icon: IconBrandWhatsapp, label: 'WhatsApp', href: waNumber ? `https://wa.me/${waNumber}` : '' },
+    { icon: IconBrandYoutube, label: 'YouTube', href: s('youtube_url') },
   ].filter((soc) => soc.href)
 
   return (
-    <footer className="bg-[#050505] px-6 md:px-12 pt-12 pb-6 text-white/60">
-      <div className="max-w-[1400px] mx-auto">
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr] gap-9 pb-10 border-b border-white/[0.07]">
+    <footer className="bg-bg border-t border-hairline px-4 md:px-8 lg:px-12 pt-16 pb-8">
+      <div className="max-w-[1280px] mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr] gap-10 pb-12">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-3 mb-3">
-              <img src={logoImg} alt="AANGA" className="h-9 w-9 brightness-0 invert" />
-              <span className="font-serif text-[22px] font-bold text-white tracking-[3px]">AANGA</span>
-            </div>
-            <p className="text-xs leading-[1.8] text-white/40 max-w-[260px]">
-              {s('footer_tagline', "Bihar's premium fashion destination for men, women & kids. Wholesale and retail clothing with 1,200+ styles.")}
+            <div className="display text-3xl text-fg mb-4">AANGA</div>
+            <p className="text-sm leading-relaxed text-muted max-w-[280px]">
+              {s(
+                'footer_tagline',
+                "Bihar's premium fashion destination for men, women & kids. Wholesale and retail clothing with 1,200+ styles.",
+              )}
             </p>
             {socials.length > 0 && (
-              <div className="flex gap-2.5 mt-5">
-                {socials.map(({ icon: Icon, href }) => (
+              <div className="flex gap-3 mt-6">
+                {socials.map(({ icon: Icon, label, href }) => (
                   <a
-                    key={href + Icon.displayName}
+                    key={label}
                     href={href}
                     target="_blank"
                     rel="noreferrer"
-                    className="w-[34px] h-[34px] border border-white/[0.12] flex items-center justify-center text-white/40 hover:border-gold hover:text-gold transition-colors"
+                    aria-label={label}
+                    className="w-10 h-10 rounded-full border border-hairline flex items-center
+                               justify-center text-muted hover:border-primary hover:text-fg
+                               transition-colors"
                   >
-                    <Icon size={16} stroke={1.5} />
+                    <Icon size={18} stroke={1.5} />
                   </a>
                 ))}
               </div>
@@ -92,14 +97,19 @@ export default function Footer() {
           <FooterCol title="Legal" links={LEGAL_LINKS} />
         </div>
 
-        {/* Bottom */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-5">
-          <p className="text-[11px] text-white/20">
+        {/* Bottom bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-hairline">
+          <p className="text-xs text-subtle">
             © {new Date().getFullYear()} AANGA — Amit Enterprises, Patna. All rights reserved.
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-2">
             {PAYMENTS.map((p) => (
-              <span key={p} className="bg-white/[0.07] px-2.5 py-1 text-[9px] tracking-[1px] text-white/35 uppercase">{p}</span>
+              <span
+                key={p}
+                className="bg-fill px-3 py-1.5 rounded text-[10px] tracking-[0.05em] text-muted uppercase"
+              >
+                {p}
+              </span>
             ))}
           </div>
         </div>

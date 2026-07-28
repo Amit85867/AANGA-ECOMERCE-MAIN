@@ -6,14 +6,15 @@ import { useCartStore } from '@/store/useCartStore'
 import { useWishlistStore } from '@/store/useWishlistStore'
 
 function App() {
-  const fetchMe = useAuthStore((s) => s.fetchMe)
+  const restoreSession = useAuthStore((s) => s.restoreSession)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const fetchCart = useCartStore((s) => s.fetchCart)
   const fetchWishlist = useWishlistStore((s) => s.fetchWishlist)
 
+  // Exchange the httpOnly refresh cookie for an access token on first load.
   useEffect(() => {
-    fetchMe()
-  }, [fetchMe])
+    restoreSession()
+  }, [restoreSession])
 
   useEffect(() => {
     if (isAuthenticated) {

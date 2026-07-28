@@ -11,7 +11,7 @@ import hmac
 import hashlib
 
 import requests
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.models.cart import Cart
@@ -110,6 +110,20 @@ def verify_payment():
         paid=True,
     )
     if err:
-        return jsonify(error=err[0]), err[1]
+        # The payment is captured but the order could not be created (e.g. a
+        # stock race). This must never fail silently — log loudly with the
+        # payment id so it can be reconciled or refunded, and tell the customer
+        # their money was received.
+        current_app.logger.critical(
+            "PAID_BUT_NO_ORDER razorpay_payment_id=%s user=%s reason=%s",
+            rzp_payment, get_jwt_identity(), err[0],
+        )
+        return jsonify(
+            error=(
+                "Your payment was received but the order could not be placed. "
+                "Our team has been notified and will contact you shortly."
+            ),
+            payment_ref=rzp_payment,
+        ), 409
 
     return jsonify(order_number=order.order_number, order_id=order.id), 201

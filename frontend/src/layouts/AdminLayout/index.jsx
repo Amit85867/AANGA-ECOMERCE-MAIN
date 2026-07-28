@@ -22,7 +22,7 @@ import {
   IconQuote,
   IconSparkles,
 } from '@tabler/icons-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import logoImg from '@/assets/images/logo-main.png'
 
 const NAV = [
@@ -46,14 +46,28 @@ const NAV = [
 ]
 
 export default function AdminLayout() {
-  const { admin, isAuthenticated, logout } = useAdminStore()
+  const { admin, isAuthenticated, initializing, restoreSession, logout } = useAdminStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // The admin token is no longer persisted, so on a reload we exchange the
+  // httpOnly refresh cookie for a new access token before deciding to redirect.
+  useEffect(() => {
+    if (initializing) restoreSession()
+  }, [initializing, restoreSession])
+
+  if (initializing) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <p className="text-sm text-gray-400">Loading…</p>
+      </div>
+    )
+  }
+
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/admin/login')
   }
 
