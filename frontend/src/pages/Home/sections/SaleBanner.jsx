@@ -1,66 +1,52 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import apiClient from '@/services/apiClient'
+import Button from '@/components/ui/Button'
+import { Container } from '@/components/ui/Display'
 
+/* The promotional block set up under Admin → Promo Banners. */
 export default function SaleBanner() {
   const [promo, setPromo] = useState(null)
-  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     apiClient.get('/cms/promo-banners')
-      .then((r) => {
-        if (r.data.promo_banners?.length) setPromo(r.data.promo_banners[0])
-      })
+      .then((r) => setPromo(r.data.promo_banners?.[0] || null))
       .catch(() => {})
-      .finally(() => setLoaded(true))
   }, [])
 
-  if (!loaded || !promo) return null
-
-  const p = promo
-  const items = p.items || []
-
-  const titleParts = p.subtitle
-    ? p.title.split(p.subtitle)
-    : [p.title]
+  if (!promo) return null
+  const items = promo.items || []
 
   return (
-    <div className="bg-ink text-white px-8 lg:px-12 py-14 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-      <div>
-        {p.badge_text && (
-          <div className="text-[10px] tracking-[3px] text-gold uppercase font-semibold">{p.badge_text}</div>
-        )}
-        <h2 className="font-serif text-4xl lg:text-[44px] leading-[1.1] mt-3">
-          {p.subtitle && titleParts.length > 1 ? (
-            <>
-              {titleParts[0]}<span className="text-gold-light">{p.subtitle}</span>{titleParts[1]}
-            </>
-          ) : (
-            p.title
+    <Container as="section" className="pb-14 lg:pb-20" aria-labelledby="promo-heading">
+      <div className="grid items-center gap-10 rounded-block bg-primary px-6 py-10 text-on-primary sm:px-10 lg:grid-cols-2 lg:px-14 lg:py-14">
+        <div>
+          {promo.badge_text && (
+            <p className="inline-block rounded-full bg-accent px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em]">
+              {promo.badge_text}
+            </p>
           )}
-        </h2>
-        {p.description && (
-          <p className="text-[13px] text-white/55 leading-[1.8] mt-3 max-w-[360px]">{p.description}</p>
-        )}
-        {p.link_url && (
-          <Link
-            to={p.link_url}
-            className="inline-flex items-center gap-2 px-7 py-3 mt-6 text-xs tracking-[1.5px] uppercase font-semibold bg-gold text-ink hover:bg-gold-light transition-colors rounded-sm"
-          >
-            {p.link_text || 'Shop Now'}
-          </Link>
+          <h2 id="promo-heading" className="display mt-4 text-3xl leading-tight sm:text-4xl lg:text-5xl">{promo.title}</h2>
+          {promo.description && (
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80">{promo.description}</p>
+          )}
+          {promo.link_url && (
+            <Button to={promo.link_url} size="lg" className="mt-7 !bg-white !text-black hover:!bg-white/90">
+              {promo.link_text || 'Shop now'}
+            </Button>
+          )}
+        </div>
+
+        {items.length > 0 && (
+          <ul className="grid grid-cols-2 gap-3">
+            {items.map((item) => (
+              <li key={item.label} className="rounded-card border border-white/15 bg-white/5 p-5 text-center">
+                <p className="display text-3xl">{item.pct}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.08em] text-white/80">{item.label}</p>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-      {items.length > 0 && (
-        <div className="grid grid-cols-2 gap-3">
-          {items.map((item, i) => (
-            <div key={i} className="bg-white/5 border border-white/10 p-5 text-center">
-              <div className="font-serif text-[32px] font-bold text-gold-light">{item.pct}</div>
-              <div className="text-[10px] text-white/45 tracking-[1px] mt-0.5 uppercase">{item.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </Container>
   )
 }

@@ -1,44 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import apiClient from '@/services/apiClient'
+import { Container } from '@/components/ui/Display'
+import { useProductStore } from '@/store/useProductStore'
 
+const chip =
+  'shrink-0 rounded-full border px-5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
+
+/* A quick-jump row of every category, scrollable on small screens. */
 export default function CategoryStrip() {
-  const [categories, setCategories] = useState([])
+  const categories = useProductStore((s) => s.categories)
+  const fetchCategories = useProductStore((s) => s.fetchCategories)
 
-  useEffect(() => {
-    apiClient.get('/categories')
-      .then((r) => {
-        const roots = r.data.categories || []
-        const flat = []
-        const flatten = (cats) => {
-          for (const c of cats) {
-            flat.push(c)
-            if (c.children?.length) flatten(c.children)
-          }
-        }
-        flatten(roots)
-        setCategories(flat)
-      })
-      .catch(() => {})
-  }, [])
+  useEffect(() => { fetchCategories() }, [fetchCategories])
 
-  const chips = ['All', ...categories.map((c) => c.name)]
+  const flat = categories.flatMap((c) => [c, ...(c.children || [])])
+  if (flat.length === 0) return null
 
   return (
-    <div className="flex gap-4 px-8 lg:px-12 py-10 overflow-x-auto scrollbar-none">
-      {chips.map((c, i) => (
-        <Link
-          key={c}
-          to={i === 0 ? '/shop' : `/shop?category=${categories[i - 1]?.slug || ''}`}
-          className={`shrink-0 px-6 py-2.5 border-[1.5px] rounded-full text-xs font-medium transition-colors ${
-            i === 0
-              ? 'border-gold bg-gold text-white'
-              : 'border-line text-ink hover:border-gold hover:bg-gold hover:text-white'
-          }`}
-        >
-          {c}
-        </Link>
-      ))}
-    </div>
+    <nav aria-label="Categories" className="border-y border-hairline/60 bg-card">
+      <Container className="flex gap-2 overflow-x-auto py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <Link to="/shop" className={`${chip} border-primary bg-primary text-on-primary`}>All</Link>
+        {flat.map((c) => (
+          <Link key={c.id} to={`/shop?category=${c.slug}`} className={`${chip} border-hairline text-fg hover:border-primary`}>
+            {c.name}
+          </Link>
+        ))}
+      </Container>
+    </nav>
   )
 }

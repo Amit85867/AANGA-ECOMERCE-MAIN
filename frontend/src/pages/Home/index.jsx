@@ -25,7 +25,7 @@ export default function Home() {
         url: origin || undefined,
         potentialAction: {
           '@type': 'SearchAction',
-          target: origin ? `${origin}/shop?search={search_term_string}` : undefined,
+          target: origin ? `${origin}/shop?q={search_term_string}` : undefined,
           'query-input': 'required name=search_term_string',
         },
       },

@@ -1,47 +1,46 @@
 import { useEffect, useState } from 'react'
 import { IconShieldCheck } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
-import { useSetting } from '@/store/useSettingsStore'
+import { Container } from '@/components/ui/Display'
 import { FEATURE_ICONS } from '@/utils/featureIcons'
 
+/*
+ * The store's promises (delivery, returns, authenticity…), set up under
+ * Admin → Why Choose. A compact strip rather than a full section: it sits
+ * right under the hero to answer the first objections without pushing the
+ * products down the page.
+ */
 export default function WhyChoose() {
   const [features, setFeatures] = useState([])
-  const [loaded, setLoaded] = useState(false)
-  const s = useSetting()
 
   useEffect(() => {
     apiClient.get('/cms/features')
       .then(({ data }) => setFeatures(data.features || []))
       .catch(() => {})
-      .finally(() => setLoaded(true))
   }, [])
 
-  if (!loaded || features.length === 0) return null
+  if (features.length === 0) return null
 
   return (
-    <div className="bg-surface px-8 lg:px-12 py-14">
-      <div className="text-center mb-10">
-        <div className="text-[10px] tracking-[3px] text-gold uppercase font-semibold mb-2">{s('why_choose_tag', 'Our Promise')}</div>
-        <h2 className="font-serif text-[34px] font-bold">{s('why_choose_title', 'Why Choose AANGA')}</h2>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {features.map((f) => {
+    <Container as="section" className="pt-10 lg:pt-14" aria-label="Why shop with us">
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
+        {features.slice(0, 8).map((f) => {
           const Icon = FEATURE_ICONS[f.icon] || IconShieldCheck
           return (
-            <div key={f.id} className="bg-white p-7 border border-line hover:border-gold transition-colors">
-              <div className="w-12 h-12 bg-ink flex items-center justify-center mb-4 overflow-hidden">
-                {f.image_url ? (
-                  <img src={f.image_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <Icon size={20} className="text-gold" />
-                )}
+            <li key={f.id} className="flex gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-fill text-fg">
+                {f.image_url
+                  ? <img src={f.image_url} alt="" width="44" height="44" loading="lazy" className="h-full w-full object-cover" />
+                  : <Icon size={20} stroke={1.5} aria-hidden="true" />}
               </div>
-              <div className="font-serif text-base font-bold mb-2">{f.title}</div>
-              {f.description && <p className="text-xs text-gray leading-[1.7]">{f.description}</p>}
-            </div>
+              <div>
+                <h3 className="text-sm font-semibold text-fg">{f.title}</h3>
+                {f.description && <p className="mt-1 text-xs leading-relaxed text-muted">{f.description}</p>}
+              </div>
+            </li>
           )
         })}
-      </div>
-    </div>
+      </ul>
+    </Container>
   )
 }
