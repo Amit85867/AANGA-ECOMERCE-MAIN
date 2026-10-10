@@ -7,8 +7,11 @@ from app.models.cms import SiteSetting
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.schemas.admin import AdminSiteSettingBulkIn
+from app.services import maintenance
 
 _bulk_in = AdminSiteSettingBulkIn()
+
+_RESERVED_KEYS = (maintenance.FLAG_KEY, maintenance.MESSAGE_KEY)
 
 
 def _serialize_setting(s):
@@ -25,8 +28,23 @@ def _serialize_setting(s):
 @admin_bp.route("/site-settings", methods=["GET"])
 @admin_required
 def admin_list_settings():
-    settings = SiteSetting.query.order_by(SiteSetting.group_name, SiteSetting.key).all()
-    return jsonify(settings=[_serialize_setting(s) for s in settings]), 200
+    return jsonify(settings=[_serialize_setting(s) for s in _editable_settings()]), 200
+
+
+def _editable_settings():
+    """Everything except the maintenance switch.
+
+    That one closes the whole storefront and belongs to master admins on the
+    System page. Left in this form, any admin saving an unrelated setting would
+    write back whatever value their page had loaded — reopening (or closing) the
+    store by accident.
+    """
+    return (
+        SiteSetting.query
+        .filter(SiteSetting.key.notin_(_RESERVED_KEYS))
+        .order_by(SiteSetting.group_name, SiteSetting.key)
+        .all()
+    )
 
 
 @admin_bp.route("/site-settings", methods=["PUT"])
@@ -36,6 +54,12 @@ def update_settings_bulk():
         data = _bulk_in.load(request.get_json())
     except ValidationError as err:
         return jsonify(errors=err.messages), 422
+
+    reserved = [item["key"] for item in data["settings"] if item["key"] in _RESERVED_KEYS]
+    if reserved:
+        return jsonify(
+            error="Maintenance mode is changed on the System page, not here."
+        ), 422
 
     for item in data["settings"]:
         setting = SiteSetting.query.filter_by(key=item["key"]).first()
@@ -55,15 +79,14 @@ def update_settings_bulk():
             db.session.add(setting)
 
     db.session.commit()
-    settings = SiteSetting.query.order_by(SiteSetting.group_name, SiteSetting.key).all()
-    return jsonify(settings=[_serialize_setting(s) for s in settings]), 200
+    return jsonify(settings=[_serialize_setting(s) for s in _editable_settings()]), 200
 
 
 @admin_bp.route("/site-settings/<int:setting_id>", methods=["DELETE"])
 @admin_required
 def delete_setting(setting_id):
     setting = db.session.get(SiteSetting, setting_id)
-    if not setting:
+    if not setting or setting.key in _RESERVED_KEYS:
         return jsonify(error="Setting not found"), 404
 
     db.session.delete(setting)

@@ -1,12 +1,14 @@
 """Admin product management: CRUD products, variants, images."""
 from flask import request, jsonify
 from marshmallow import ValidationError
-from sqlalchemy.orm import joinedload
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.extensions import db
 from app.models.catalogue import Product, ProductVariant, ProductImage, Category
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import apply_sort, page_meta, paginate
 from app.schemas.admin import AdminProductIn, AdminVariantIn, AdminImageIn
 
 _product_in = AdminProductIn()
@@ -57,39 +59,53 @@ def _serialize_product(p):
     }
 
 
+_PRODUCT_SORTS = {
+    "created_at": Product.created_at,
+    "name": Product.name,
+    "selling_price": Product.selling_price,
+}
+
+
 @admin_bp.route("/products", methods=["GET"])
 @admin_required
 def list_products():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
-    search = request.args.get("q")
-    category_id = request.args.get("category_id", type=int)
-    active_only = request.args.get("active", "").lower()
-
+    # selectinload, not joinedload: joining two collections multiplies rows
+    # (variants x images) before the page limit is applied.
     q = Product.query.options(
         joinedload(Product.category),
-        joinedload(Product.variants),
-        joinedload(Product.images),
+        selectinload(Product.variants),
+        selectinload(Product.images),
     )
 
+    search = (request.args.get("q") or "").strip()
     if search:
-        q = q.filter(Product.name.ilike(f"%{search}%"))
-    if category_id:
-        q = q.filter_by(category_id=category_id)
-    if active_only == "true":
-        q = q.filter_by(is_active=True)
-    elif active_only == "false":
-        q = q.filter_by(is_active=False)
+        like = f"%{search}%"
+        q = q.filter(or_(Product.name.ilike(like), Product.slug.ilike(like)))
 
-    paginated = q.order_by(Product.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    category_id = request.args.get("category_id", type=int)
+    if category_id:
+        q = q.filter(Product.category_id == category_id)
+
+    active = request.args.get("active", "").lower()
+    if active in ("true", "false"):
+        q = q.filter(Product.is_active.is_(active == "true"))
+
+    if request.args.get("featured", "").lower() == "true":
+        q = q.filter(Product.is_featured.is_(True))
+
+    # "out" = at least one variant with nothing left; "low" = at or under 5.
+    stock = request.args.get("stock", "").lower()
+    if stock in ("out", "low"):
+        level = ProductVariant.stock_qty <= 0 if stock == "out" else and_(
+            ProductVariant.stock_qty > 0, ProductVariant.stock_qty <= 5
+        )
+        q = q.filter(Product.variants.any(level))
+
+    page = paginate(apply_sort(q, _PRODUCT_SORTS, "created_at"))
 
     return jsonify(
-        products=[_serialize_product(p) for p in paginated.items],
-        page=paginated.page,
-        pages=paginated.pages,
-        total=paginated.total,
+        products=[_serialize_product(p) for p in page.items],
+        **page_meta(page),
     ), 200
 
 

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
+import { toast } from '@/components/ui/Toast'
+import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { notifyError } from '@/components/admin/helpers'
 import { IconArrowLeft } from '@tabler/icons-react'
 
 export default function AdminUserDetail() {
@@ -8,24 +11,38 @@ export default function AdminUserDetail() {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const fetchUser = () => {
-    adminApi
+    setError(null)
+    return adminApi
       .get(`/admin/users/${id}`)
       .then((r) => setUser(r.data))
-      .catch(() => {})
+      .catch((err) =>
+        setError(
+          err.response?.status === 404
+            ? 'This customer does not exist.'
+            : err.response?.data?.error || 'Could not load this customer.',
+        ),
+      )
       .finally(() => setLoading(false))
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchUser() }, [id])
 
   const toggle = async (field, value) => {
-    await adminApi.patch(`/admin/users/${id}`, { [field]: value })
-    fetchUser()
+    try {
+      await adminApi.patch(`/admin/users/${id}`, { [field]: value })
+      toast.success('Customer updated.')
+      fetchUser()
+    } catch (err) {
+      notifyError(err, 'Could not update this customer.')
+    }
   }
 
-  if (loading) return <div className="py-20 text-center text-gray-400">Loading...</div>
-  if (!user) return <div className="py-20 text-center text-gray-400">User not found</div>
+  if (loading) return <TableSkeleton rows={5} columns={3} />
+  if (error || !user) return <ErrorState message={error || 'This customer does not exist.'} onRetry={fetchUser} />
 
   return (
     <div>

@@ -4,7 +4,7 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataSt
 import { toast } from '@/components/ui/Toast'
 import { confirm } from '@/components/admin/confirm'
 import { notifyError } from '@/components/admin/helpers'
-import { IconPlus, IconEdit, IconTrash, IconArrowUp, IconArrowDown, IconPhoto } from '@tabler/icons-react'
+import { IconPlus, IconEdit, IconTrash, IconPhoto } from '@tabler/icons-react'
 
 export default function AdminBanners() {
   const [banners, setBanners] = useState([])
@@ -61,7 +61,7 @@ export default function AdminBanners() {
     try {
       const r = await adminApi.post('/admin/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       setForm((f) => ({ ...f, [field]: r.data.url }))
-    } catch (err) {
+    } catch {
       toast.error('Upload failed')
     }
     setUploading(false)

@@ -586,3 +586,97 @@ def test_user_update_rejects_values_of_the_wrong_type(app, client):
     assert ok.status_code == 200
     db.session.expire_all()
     assert user.account_type.value == "wholesale"
+
+
+# ── Search, filter and sort on the big lists ──────────────────
+
+def test_orders_list_search_filter_sort(app, client):
+    asha = make_user(email="asha@example.com", full_name="Asha Rao")
+    small, _ = _order(user=asha, price=300, quantity=1)
+    big, _ = _order(price=900, quantity=2)
+    big.status = OrderStatus.delivered
+    db.session.commit()
+    headers = admin_headers()
+    ids = lambda url: [o["id"] for o in client.get(url, headers=headers).get_json()["orders"]]  # noqa: E731
+
+    # Found by customer name or email, not only by order number.
+    assert ids("/api/admin/orders?q=asha") == [small.id]
+    assert ids("/api/admin/orders?q=asha@example.com") == [small.id]
+    assert ids(f"/api/admin/orders?q={big.order_number}") == [big.id]
+    assert ids("/api/admin/orders?status=delivered") == [big.id]
+    assert ids("/api/admin/orders?sort=total_amount&dir=asc") == [small.id, big.id]
+    assert ids("/api/admin/orders?sort=total_amount&dir=desc") == [big.id, small.id]
+    assert ids("/api/admin/orders?from=2999-01-01") == []
+    # An unknown sort column falls back instead of erroring or leaking columns.
+    assert client.get("/api/admin/orders?sort=password_hash", headers=headers).status_code == 200
+
+
+def test_orders_list_does_not_query_per_row(app, client):
+    from sqlalchemy import event
+
+    for _ in range(5):
+        _order()
+    headers = admin_headers()
+    statements = []
+
+    def _count(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    event.listen(db.engine, "before_cursor_execute", _count)
+    try:
+        body = client.get("/api/admin/orders", headers=headers).get_json()
+    finally:
+        event.remove(db.engine, "before_cursor_execute", _count)
+
+    assert len(body["orders"]) == 5
+    assert body["orders"][0]["customer_name"] == "Test User"
+    assert len(statements) <= 5, len(statements)
+
+
+def test_products_list_stock_filter_and_sort(app, client):
+    make_product(name="Alpha Kurta", slug="alpha", price=900, stock=0)
+    make_product(name="Beta Saree", slug="beta", price=300, stock=3)
+    make_product(name="Gamma Tee", slug="gamma", price=600, stock=40)
+    headers = admin_headers()
+    names = lambda url: [p["name"] for p in client.get(url, headers=headers).get_json()["products"]]  # noqa: E731
+
+    assert names("/api/admin/products?stock=out") == ["Alpha Kurta"]
+    assert names("/api/admin/products?stock=low") == ["Beta Saree"]
+    assert names("/api/admin/products?sort=selling_price&dir=asc") == [
+        "Beta Saree", "Gamma Tee", "Alpha Kurta",
+    ]
+    assert names("/api/admin/products?sort=name&dir=asc")[0] == "Alpha Kurta"
+    assert names("/api/admin/products?q=gamma") == ["Gamma Tee"]
+
+
+def test_returns_list_shows_what_the_admin_needs_to_decide(app, client):
+    order, variant, return_id = _requested_return(client, paid=True)
+    headers = admin_headers()
+
+    body = client.get("/api/admin/returns?status=open", headers=headers).get_json()
+
+    row = body["returns"][0]
+    assert row["order_number"] == order.order_number
+    assert row["item_total"] == 1000 and row["quantity"] == 2
+    assert row["prepaid"] is True
+    assert client.get(
+        f"/api/admin/returns?q={order.order_number}", headers=headers
+    ).get_json()["total"] == 1
+    assert client.get("/api/admin/returns?q=nobody", headers=headers).get_json()["total"] == 0
+
+    client.patch(f"/api/admin/returns/{return_id}", headers=headers, json={"status": "rejected"})
+    assert client.get("/api/admin/returns?status=open", headers=headers).get_json()["total"] == 0
+
+
+def test_the_settings_form_cannot_flip_maintenance_mode(app, client):
+    headers = admin_headers()
+    client.put("/api/admin/system/maintenance", headers=headers, json={"enabled": True})
+
+    listed = client.get("/api/admin/site-settings", headers=headers).get_json()["settings"]
+    assert "maintenance_mode" not in [s["key"] for s in listed]
+
+    resp = client.put("/api/admin/site-settings", headers=headers, json={
+        "settings": [{"key": "maintenance_mode", "value": "false"}],
+    })
+    assert resp.status_code == 422
+    assert client.get("/api/admin/system/maintenance", headers=headers).get_json()["enabled"] is True

@@ -73,6 +73,14 @@ apiClient.interceptors.response.use(
         setAccessToken(null)
       }
     }
+    // The store was closed while this tab was open. Announced as an event
+    // rather than by importing the settings store, which itself imports this
+    // client.
+    if (error.response?.status === 503 && error.response.data?.maintenance) {
+      window.dispatchEvent(
+        new CustomEvent('aanga:maintenance', { detail: error.response.data.error }),
+      )
+    }
     return Promise.reject(describeApiError(error))
   },
 )

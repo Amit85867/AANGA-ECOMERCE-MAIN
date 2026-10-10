@@ -1,88 +1,96 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { IconNews, IconTrash } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
+import { toast } from '@/components/ui/Toast'
 import { confirm } from '@/components/admin/confirm'
-import { IconTrash } from '@tabler/icons-react'
+import DataState, { TableSkeleton } from '@/components/admin/DataState'
+import Pagination from '@/components/admin/Pagination'
+import useAdminList from '@/components/admin/useAdminList'
+import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
+import { formatDate, inputCls, notifyError } from '@/components/admin/helpers'
 
 export default function AdminNewsletter() {
-  const [subscribers, setSubscribers] = useState([])
-  const [page, setPage] = useState(1)
-  const [pages, setPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [q, setQ] = useState('')
+  const [active, setActive] = useState('true')
+  const [busy, setBusy] = useState(null)
+  const list = useAdminList('/admin/newsletter', 'subscribers', { q, active }, { perPage: 50 })
 
-  const fetch = (pg = 1) => {
-    setLoading(true)
-    adminApi.get('/admin/newsletter', { params: { page: pg, per_page: 50, active: 'true' } })
-      .then((r) => {
-        setSubscribers(r.data.subscribers)
-        setPage(r.data.page)
-        setPages(r.data.pages)
-        setTotal(r.data.total)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { fetch() }, [])
-
-  const remove = async (id) => {
-    if (!(await confirm({ title: 'Remove this subscriber?', message: 'They will stop receiving the newsletter.', confirmLabel: 'Remove', danger: true }))) return
-    await adminApi.delete(`/admin/newsletter/${id}`)
-    fetch(page)
+  const remove = async (subscriber) => {
+    const sure = await confirm({
+      title: 'Remove this subscriber?',
+      message: `${subscriber.email} is deleted from the list and will stop receiving the newsletter.`,
+      confirmLabel: 'Remove',
+      danger: true,
+    })
+    if (!sure) return
+    setBusy(subscriber.id)
+    try {
+      await adminApi.delete(`/admin/newsletter/${subscriber.id}`)
+      toast.success('Subscriber removed.')
+      list.reload()
+    } catch (err) {
+      notifyError(err, 'Could not remove this subscriber.')
+    }
+    setBusy(null)
   }
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-gray-900">Newsletter Subscribers ({total})</h1>
+      <PageHeading title="Newsletter" subtitle={`${list.total.toLocaleString('en-IN')} matching subscribers`} />
 
-      {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
-      ) : subscribers.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No subscribers</div>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-                  <th className="px-6 py-3 font-medium">Email</th>
-                  <th className="px-6 py-3 font-medium">Subscribed</th>
-                  <th className="px-6 py-3 font-medium">Status</th>
-                  <th className="px-6 py-3 font-medium"></th>
+      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <SearchInput value={q} onChange={setQ} placeholder="Search by email" />
+        <select value={active} onChange={(e) => setActive(e.target.value)} aria-label="Subscription" className={`${inputCls} w-auto`}>
+          <option value="true">Subscribed</option>
+          <option value="false">Including unsubscribed</option>
+        </select>
+      </div>
+
+      <DataState
+        loading={list.loading && list.rows.length === 0}
+        error={list.error}
+        onRetry={list.reload}
+        empty={list.rows.length === 0}
+        filtered={Boolean(q)}
+        skeleton={<TableSkeleton rows={8} columns={3} />}
+        emptyIcon={IconNews}
+        emptyTitle="No subscribers yet"
+        emptyHint="People who sign up from the home page will appear here."
+      >
+        <div className={`overflow-x-auto rounded-xl border border-gray-200 bg-white ${list.loading ? 'opacity-60' : ''}`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+                <th className="px-6 py-3 font-medium">Email</th>
+                <th className="px-6 py-3 font-medium">Status</th>
+                <th className="px-6 py-3 font-medium">Subscribed</th>
+                <th className="px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.rows.map((s) => (
+                <tr key={s.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                  <td className="px-6 py-3 text-gray-900">{s.email}</td>
+                  <td className="px-6 py-3">
+                    <Badge tone={s.is_active ? 'green' : 'gray'}>{s.is_active ? 'Subscribed' : 'Unsubscribed'}</Badge>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-3 text-gray-500">{formatDate(s.subscribed_at)}</td>
+                  <td className="px-6 py-3 text-right">
+                    <button
+                      type="button" onClick={() => remove(s)} disabled={busy === s.id}
+                      aria-label={`Remove ${s.email}`}
+                      className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    >
+                      <IconTrash size={16} />
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {subscribers.map((s) => (
-                  <tr key={s.id} className="border-b border-gray-50 last:border-0">
-                    <td className="px-6 py-3 text-gray-900">{s.email}</td>
-                    <td className="px-6 py-3 text-gray-400">{new Date(s.subscribed_at).toLocaleDateString('en-IN')}</td>
-                    <td className="px-6 py-3">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${s.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {s.is_active ? 'Active' : 'Unsubscribed'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3">
-                      <button onClick={() => remove(s.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
-                        <IconTrash size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {pages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-2">
-              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => fetch(p)} className={`h-9 min-w-9 rounded-lg px-3 text-sm ${p === page ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                  {p}
-                </button>
               ))}
-            </div>
-          )}
-        </>
-      )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={list.page} pages={list.pages} total={list.total} onChange={list.setPage} noun="subscribers" />
+      </DataState>
     </div>
   )
 }

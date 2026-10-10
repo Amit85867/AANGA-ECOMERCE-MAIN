@@ -1,100 +1,91 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { IconMail } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
+import { toast } from '@/components/ui/Toast'
+import DataState, { TableSkeleton } from '@/components/admin/DataState'
+import Pagination from '@/components/admin/Pagination'
+import useAdminList from '@/components/admin/useAdminList'
+import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
+import { formatDateTime, humanize, inputCls, notifyError } from '@/components/admin/helpers'
 
-const MSG_STATUSES = ['unread', 'read', 'replied', 'closed']
-const STATUS_COLORS = {
-  unread: 'bg-red-100 text-red-700',
-  read: 'bg-blue-100 text-blue-700',
-  replied: 'bg-green-100 text-green-700',
-  closed: 'bg-gray-100 text-gray-500',
-}
+const STATUSES = ['unread', 'read', 'replied', 'closed']
+const TONE = { unread: 'amber', read: 'blue', replied: 'green', closed: 'gray' }
 
 export default function AdminMessages() {
-  const [messages, setMessages] = useState([])
-  const [page, setPage] = useState(1)
-  const [pages, setPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(null)
+  const list = useAdminList('/admin/contact-messages', 'messages', { q, status })
 
-  const fetch = (pg = 1) => {
-    setLoading(true)
-    const params = { page: pg, per_page: 20 }
-    if (statusFilter) params.status = statusFilter
-    adminApi.get('/admin/contact-messages', { params })
-      .then((r) => {
-        setMessages(r.data.messages)
-        setPage(r.data.page)
-        setPages(r.data.pages)
-        setTotal(r.data.total)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { fetch() }, [statusFilter])
-
-  const updateStatus = async (id, status) => {
-    await adminApi.patch(`/admin/contact-messages/${id}`, { status })
-    fetch(page)
+  const setMessageStatus = async (message, next) => {
+    setBusy(message.id)
+    try {
+      await adminApi.patch(`/admin/contact-messages/${message.id}`, { status: next })
+      toast.success(`Marked ${next}.`)
+      list.reload()
+    } catch (err) {
+      notifyError(err, 'Could not update this message.')
+    }
+    setBusy(null)
   }
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Contact Messages ({total})</h1>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none">
-          <option value="">All statuses</option>
-          {MSG_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+      <PageHeading title="Messages" subtitle="Sent from the Contact page." />
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <SearchInput value={q} onChange={setQ} placeholder="Name, email or message text" />
+        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status" className={`${inputCls} w-auto`}>
+          <option value="">All messages</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
         </select>
       </div>
 
-      {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
-      ) : messages.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No messages</div>
-      ) : (
-        <div className="space-y-3">
-          {messages.map((msg) => (
-            <div key={msg.id} className="rounded-xl border border-gray-200 bg-white p-5">
+      <DataState
+        loading={list.loading && list.rows.length === 0}
+        error={list.error}
+        onRetry={list.reload}
+        empty={list.rows.length === 0}
+        filtered={list.filtered}
+        skeleton={<TableSkeleton rows={4} columns={4} />}
+        emptyIcon={IconMail}
+        emptyTitle="No messages yet"
+        emptyHint="Messages from the Contact page will appear here."
+      >
+        <ul className={`space-y-3 ${list.loading ? 'opacity-60' : ''}`}>
+          {list.rows.map((m) => (
+            <li
+              key={m.id}
+              className={`rounded-xl border bg-white p-5 ${m.status === 'unread' ? 'border-amber-300' : 'border-gray-200'}`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="font-medium text-gray-900">{msg.name}</div>
-                  <div className="text-sm text-gray-500">{msg.email} {msg.phone && `· ${msg.phone}`}</div>
-                  <div className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs capitalize text-gray-600">{msg.subject.replace(/_/g, ' ')}</div>
+                <div className="min-w-0">
+                  <div className="font-medium text-gray-900">{m.name}</div>
+                  <div className="flex flex-wrap gap-x-4 text-sm">
+                    <a href={`mailto:${m.email}?subject=${encodeURIComponent(`Re: your message to AANGA`)}`} className="text-gray-900 hover:underline">{m.email}</a>
+                    {m.phone && <a href={`tel:${m.phone}`} className="text-gray-900 hover:underline">{m.phone}</a>}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">{humanize(m.subject)} · {formatDateTime(m.sent_at)}</div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[msg.status]}`}>
-                    {msg.status}
-                  </span>
+                  <Badge tone={TONE[m.status]}>{humanize(m.status)}</Badge>
                   <select
-                    value={msg.status}
-                    onChange={(e) => updateStatus(msg.id, e.target.value)}
-                    className="rounded border border-gray-200 px-2 py-1 text-xs"
+                    value={m.status} disabled={busy === m.id} aria-label="Change status"
+                    onChange={(e) => setMessageStatus(m, e.target.value)}
+                    className={`${inputCls} w-auto py-1.5 text-xs`}
                   >
-                    {MSG_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {STATUSES.map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
                   </select>
                 </div>
               </div>
-              <p className="mt-3 text-sm text-gray-700">{msg.message}</p>
-              <div className="mt-2 text-xs text-gray-400">
-                {new Date(msg.sent_at).toLocaleString('en-IN')}
-                {msg.replied_at && <span> &middot; Replied {new Date(msg.replied_at).toLocaleString('en-IN')}</span>}
-              </div>
-            </div>
+              <p className="mt-3 whitespace-pre-line border-t border-gray-100 pt-3 text-sm leading-relaxed text-gray-800">
+                {m.message}
+              </p>
+            </li>
           ))}
-
-          {pages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
-              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => fetch(p)} className={`h-9 min-w-9 rounded-lg px-3 text-sm ${p === page ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+        </ul>
+        <Pagination page={list.page} pages={list.pages} total={list.total} onChange={list.setPage} noun="messages" />
+      </DataState>
     </div>
   )
 }

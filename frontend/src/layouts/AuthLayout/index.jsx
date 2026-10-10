@@ -3,9 +3,11 @@ import { IconArrowLeft } from '@tabler/icons-react'
 import { ROUTES } from '@/utils/constants'
 import logoMain from '@/assets/images/logo-main.png'
 import logoTitle from '@/assets/images/logo-title.png'
+import MaintenanceGate from '@/components/layout/MaintenanceGate'
 
 export default function AuthLayout() {
   return (
+    <MaintenanceGate>
     <div className="min-h-screen flex flex-col bg-surface">
       <nav className="bg-paper border-b border-line h-[60px] flex items-center px-6">
         <Link to={ROUTES.HOME} className="flex items-center gap-2">
@@ -21,5 +23,6 @@ export default function AuthLayout() {
         <Outlet />
       </div>
     </div>
+    </MaintenanceGate>
   )
 }

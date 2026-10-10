@@ -1,8 +1,10 @@
 """Admin order management: list, detail, update status, add tracking, manage returns."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import request, jsonify, current_app
 from marshmallow import ValidationError
+from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.models.order import Order, OrderItem, OrderTracking, Return
@@ -20,14 +22,14 @@ from app.routes.admin.decorators import admin_required
 from app.schemas.admin import AdminOrderStatusIn, AdminTrackingIn, AdminReturnUpdateIn
 from app.services import audit
 from app.services.order_service import refund_order_if_prepaid
+from app.utils.pagination import apply_sort, page_meta, paginate, parse_day
 
 _status_in = AdminOrderStatusIn()
 _tracking_in = AdminTrackingIn()
 _return_in = AdminReturnUpdateIn()
 
 
-def _serialize_order_list(o):
-    user = db.session.get(User, o.user_id)
+def _serialize_order_list(o, customer_name, customer_email):
     return {
         "id": o.id,
         "order_number": o.order_number,
@@ -36,41 +38,66 @@ def _serialize_order_list(o):
         "payment_method": o.payment_method.value,
         "payment_status": o.payment_status.value,
         "item_count": sum(i.quantity for i in o.items),
-        "customer_name": user.full_name if user else "Unknown",
-        "customer_email": user.email if user else None,
+        "customer_name": customer_name or "Unknown",
+        "customer_email": customer_email,
         "placed_at": o.placed_at.isoformat(),
         "expected_delivery": o.expected_delivery.isoformat() if o.expected_delivery else None,
     }
 
 
+_ORDER_SORTS = {
+    "placed_at": Order.placed_at,
+    "total_amount": Order.total_amount,
+    "order_number": Order.order_number,
+}
+
+
 @admin_bp.route("/orders", methods=["GET"])
 @admin_required
 def admin_list_orders():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
+    # The customer comes along in the same query and items in one more, instead
+    # of two extra queries per row.
+    q = (
+        db.session.query(Order, User.full_name, User.email)
+        .outerjoin(User, Order.user_id == User.id)
+        .options(selectinload(Order.items))
+    )
+
     status = request.args.get("status")
-    search = request.args.get("q")
-
-    q = Order.query
-
     if status:
         try:
-            q = q.filter_by(status=OrderStatus(status))
+            q = q.filter(Order.status == OrderStatus(status))
         except ValueError:
             pass
 
-    if search:
-        q = q.filter(Order.order_number.ilike(f"%{search}%"))
+    payment_status = request.args.get("payment_status")
+    if payment_status:
+        try:
+            q = q.filter(Order.payment_status == PaymentStatus(payment_status))
+        except ValueError:
+            pass
 
-    paginated = q.order_by(Order.placed_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = f"%{search}%"
+        q = q.filter(or_(
+            Order.order_number.ilike(like),
+            User.full_name.ilike(like),
+            User.email.ilike(like),
+            User.phone.ilike(like),
+        ))
+
+    since, until = parse_day(request.args.get("from")), parse_day(request.args.get("to"))
+    if since:
+        q = q.filter(Order.placed_at >= since)
+    if until:
+        q = q.filter(Order.placed_at < until + timedelta(days=1))
+
+    page = paginate(apply_sort(q, _ORDER_SORTS, "placed_at"))
 
     return jsonify(
-        orders=[_serialize_order_list(o) for o in paginated.items],
-        page=paginated.page,
-        pages=paginated.pages,
-        total=paginated.total,
+        orders=[_serialize_order_list(o, name, email) for o, name, email in page.items],
+        **page_meta(page),
     ), 200
 
 
@@ -234,33 +261,63 @@ def add_tracking_event(order_id):
 
 # ── Returns ───────────────────────────────────────────────────
 
+# A return that has been resolved or rejected is closed: money may already
+# have moved, so it cannot be reopened or resolved a second time.
+_CLOSED_RETURN_STATUSES = {ReturnStatus.resolved, ReturnStatus.rejected}
+
+
+_RETURN_SORTS = {
+    "requested_at": Return.requested_at,
+    "refund_amount": Return.refund_amount,
+}
+
+
 @admin_bp.route("/returns", methods=["GET"])
 @admin_required
 def list_returns():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
-    status = request.args.get("status")
+    q = (
+        db.session.query(Return, Order, User.full_name, User.email)
+        .join(OrderItem, Return.order_item_id == OrderItem.id)
+        .join(Order, OrderItem.order_id == Order.id)
+        .outerjoin(User, Return.user_id == User.id)
+    )
 
-    q = Return.query
-    if status:
+    status = request.args.get("status")
+    if status == "open":
+        q = q.filter(Return.status.notin_(list(_CLOSED_RETURN_STATUSES)))
+    elif status:
         try:
-            q = q.filter_by(status=ReturnStatus(status))
+            q = q.filter(Return.status == ReturnStatus(status))
         except ValueError:
             pass
 
-    paginated = q.order_by(Return.requested_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = f"%{search}%"
+        q = q.filter(or_(
+            Order.order_number.ilike(like),
+            User.full_name.ilike(like),
+            User.email.ilike(like),
+        ))
+
+    page = paginate(apply_sort(q, _RETURN_SORTS, "requested_at"))
 
     items = []
-    for r in paginated.items:
+    for r, order, customer_name, customer_email in page.items:
         oi = r.order_item
-        user = db.session.get(User, r.user_id)
+        paid = float(oi.total_price or float(oi.unit_price) * oi.quantity)
         items.append({
             "id": r.id,
+            "order_id": order.id,
+            "order_number": order.order_number,
             "order_item_id": r.order_item_id,
-            "product_name": oi.variant.product.name if oi else "Unknown",
-            "customer_name": user.full_name if user else "Unknown",
+            "product_name": oi.variant.product.name,
+            "variant": f"{oi.variant.size} · {oi.variant.color_name}",
+            "quantity": oi.quantity,
+            "item_total": paid,
+            "prepaid": order.payment_status == PaymentStatus.paid and bool(order.payment_ref),
+            "customer_name": customer_name or "Unknown",
+            "customer_email": customer_email,
             "reason": r.reason.value,
             "description": r.description,
             "status": r.status.value,
@@ -270,17 +327,7 @@ def list_returns():
             "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
         })
 
-    return jsonify(
-        returns=items,
-        page=paginated.page,
-        pages=paginated.pages,
-        total=paginated.total,
-    ), 200
-
-
-# A return that has been resolved or rejected is closed: money may already
-# have moved, so it cannot be reopened or resolved a second time.
-_CLOSED_RETURN_STATUSES = {ReturnStatus.resolved, ReturnStatus.rejected}
+    return jsonify(returns=items, **page_meta(page)), 200
 
 
 @admin_bp.route("/returns/<int:return_id>", methods=["PATCH"])

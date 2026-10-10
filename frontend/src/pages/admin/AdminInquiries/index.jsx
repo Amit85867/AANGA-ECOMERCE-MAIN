@@ -1,108 +1,121 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { IconBuildingStore } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
+import { toast } from '@/components/ui/Toast'
+import DataState, { TableSkeleton } from '@/components/admin/DataState'
+import Pagination from '@/components/admin/Pagination'
+import useAdminList from '@/components/admin/useAdminList'
+import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
+import { formatDate, humanize, inputCls, notifyError } from '@/components/admin/helpers'
 
-const INQUIRY_STATUSES = ['new', 'contacted', 'qualified', 'converted', 'rejected']
-const STATUS_COLORS = {
-  new: 'bg-blue-100 text-blue-700',
-  contacted: 'bg-yellow-100 text-yellow-700',
-  qualified: 'bg-indigo-100 text-indigo-700',
-  converted: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
+const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'rejected']
+const TONE = { new: 'amber', contacted: 'blue', qualified: 'purple', converted: 'green', rejected: 'red' }
+const VOLUME = {
+  below_10k: 'Below ₹10,000 / month', '10k_50k': '₹10,000 – ₹50,000 / month',
+  '50k_1lac': '₹50,000 – ₹1 lakh / month', above_1lac: 'Above ₹1 lakh / month',
 }
 
-export default function AdminInquiries() {
-  const [inquiries, setInquiries] = useState([])
-  const [page, setPage] = useState(1)
-  const [pages, setPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(null)
+function InquiryCard({ inquiry, onChanged }) {
+  const [notes, setNotes] = useState(inquiry.notes || '')
+  const [busy, setBusy] = useState(false)
 
-  const fetch = (pg = 1) => {
-    setLoading(true)
-    const params = { page: pg, per_page: 20 }
-    if (statusFilter) params.status = statusFilter
-    adminApi.get('/admin/wholesale-inquiries', { params })
-      .then((r) => {
-        setInquiries(r.data.inquiries)
-        setPage(r.data.page)
-        setPages(r.data.pages)
-        setTotal(r.data.total)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { fetch() }, [statusFilter])
-
-  const updateStatus = async (id, status) => {
-    await adminApi.patch(`/admin/wholesale-inquiries/${id}`, { status })
-    fetch(page)
+  const save = async (patch, message) => {
+    setBusy(true)
+    try {
+      await adminApi.patch(`/admin/wholesale-inquiries/${inquiry.id}`, { status: inquiry.status, ...patch })
+      toast.success(message)
+      onChanged()
+    } catch (err) {
+      notifyError(err, 'Could not update this inquiry.')
+    }
+    setBusy(false)
   }
 
   return (
+    <li className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-medium text-gray-900">{inquiry.shop_name}</div>
+          <div className="text-sm text-gray-600">{inquiry.owner_name} · {inquiry.city}, {inquiry.state}</div>
+          <div className="mt-1 flex flex-wrap gap-x-4 text-sm">
+            <a href={`tel:${inquiry.phone}`} className="text-gray-900 hover:underline">{inquiry.phone}</a>
+            <a href={`mailto:${inquiry.email}`} className="text-gray-900 hover:underline">{inquiry.email}</a>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <Badge tone={TONE[inquiry.status]}>{humanize(inquiry.status)}</Badge>
+          <select
+            value={inquiry.status} disabled={busy} aria-label="Change status"
+            onChange={(e) => save({ status: e.target.value }, `Marked ${e.target.value}.`)}
+            className={`${inputCls} w-auto py-1.5 text-xs`}
+          >
+            {STATUSES.map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-gray-100 pt-4 text-sm sm:grid-cols-3">
+        <div><dt className="text-xs text-gray-500">Monthly volume</dt><dd className="text-gray-900">{VOLUME[inquiry.monthly_volume_range] || humanize(inquiry.monthly_volume_range)}</dd></div>
+        <div><dt className="text-xs text-gray-500">GST number</dt><dd className="text-gray-900">{inquiry.gst_number || '—'}</dd></div>
+        <div><dt className="text-xs text-gray-500">Received</dt><dd className="text-gray-900">{formatDate(inquiry.submitted_at)}</dd></div>
+        {inquiry.categories_interest?.length > 0 && (
+          <div className="sm:col-span-3"><dt className="text-xs text-gray-500">Interested in</dt><dd className="text-gray-900">{inquiry.categories_interest.join(', ')}</dd></div>
+        )}
+      </dl>
+
+      <div className="mt-4">
+        <label htmlFor={`notes-${inquiry.id}`} className="text-xs text-gray-500">Internal notes</label>
+        <div className="mt-1 flex gap-2">
+          <textarea
+            id={`notes-${inquiry.id}`} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Called on Monday, sending the catalogue…" className={inputCls}
+          />
+          <button
+            type="button" disabled={busy || notes === (inquiry.notes || '')}
+            onClick={() => save({ notes }, 'Notes saved.')}
+            className="self-start rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-40"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+export default function AdminInquiries() {
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState('')
+  const list = useAdminList('/admin/wholesale-inquiries', 'inquiries', { q, status })
+
+  return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Wholesale Inquiries ({total})</h1>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none">
+      <PageHeading title="Wholesale inquiries" subtitle={`${list.total.toLocaleString('en-IN')} matching inquiries`} />
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <SearchInput value={q} onChange={setQ} placeholder="Shop, owner, email, phone or city" />
+        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status" className={`${inputCls} w-auto`}>
           <option value="">All statuses</option>
-          {INQUIRY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
         </select>
       </div>
 
-      {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
-      ) : inquiries.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No inquiries</div>
-      ) : (
-        <div className="space-y-3">
-          {inquiries.map((inq) => (
-            <div key={inq.id} className="rounded-xl border border-gray-200 bg-white p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="font-medium text-gray-900">{inq.shop_name}</div>
-                  <div className="text-sm text-gray-500">{inq.owner_name} &middot; {inq.phone} &middot; {inq.email}</div>
-                  <div className="text-sm text-gray-400">{inq.city}, {inq.state} &middot; GST: {inq.gst_number || '-'}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[inq.status] || 'bg-gray-100 text-gray-600'}`}>
-                    {inq.status}
-                  </span>
-                  <select
-                    value={inq.status}
-                    onChange={(e) => updateStatus(inq.id, e.target.value)}
-                    className="rounded border border-gray-200 px-2 py-1 text-xs"
-                  >
-                    {INQUIRY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-              <button onClick={() => setExpanded(expanded === inq.id ? null : inq.id)} className="mt-2 text-xs text-[#C8963E] hover:underline">
-                {expanded === inq.id ? 'Less' : 'More details'}
-              </button>
-              {expanded === inq.id && (
-                <div className="mt-3 grid gap-2 border-t border-gray-100 pt-3 text-sm sm:grid-cols-2">
-                  <div><span className="text-gray-400">Volume:</span> <span className="text-gray-700">{inq.monthly_volume_range.replace(/_/g, ' ')}</span></div>
-                  <div><span className="text-gray-400">Categories:</span> <span className="text-gray-700">{inq.categories_interest?.join(', ') || '-'}</span></div>
-                  <div><span className="text-gray-400">Notes:</span> <span className="text-gray-700">{inq.notes || '-'}</span></div>
-                  <div><span className="text-gray-400">Submitted:</span> <span className="text-gray-700">{new Date(inq.submitted_at).toLocaleDateString('en-IN')}</span></div>
-                </div>
-              )}
-            </div>
-          ))}
-
-          {pages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
-              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => fetch(p)} className={`h-9 min-w-9 rounded-lg px-3 text-sm ${p === page ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <DataState
+        loading={list.loading && list.rows.length === 0}
+        error={list.error}
+        onRetry={list.reload}
+        empty={list.rows.length === 0}
+        filtered={list.filtered}
+        skeleton={<TableSkeleton rows={4} columns={4} />}
+        emptyIcon={IconBuildingStore}
+        emptyTitle="No wholesale inquiries yet"
+        emptyHint="Requests from the Wholesale page will appear here."
+      >
+        <ul className={`space-y-3 ${list.loading ? 'opacity-60' : ''}`}>
+          {list.rows.map((i) => <InquiryCard key={`${i.id}-${i.status}-${i.notes}`} inquiry={i} onChanged={list.reload} />)}
+        </ul>
+        <Pagination page={list.page} pages={list.pages} total={list.total} onChange={list.setPage} noun="inquiries" />
+      </DataState>
     </div>
   )
 }

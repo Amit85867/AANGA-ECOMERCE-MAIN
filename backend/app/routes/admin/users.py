@@ -10,6 +10,7 @@ from app.models.order import Order
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.services import audit
+from app.utils.pagination import apply_sort, paginate
 
 
 class AdminUserUpdateIn(Schema):
@@ -25,13 +26,16 @@ class AdminUserUpdateIn(Schema):
 
 _user_update_in = AdminUserUpdateIn()
 
+_USER_SORTS = {
+    "created_at": User.created_at,
+    "full_name": User.full_name,
+}
+
 
 @admin_bp.route("/users", methods=["GET"])
 @admin_required
 def admin_list_users():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
-    search = request.args.get("q")
+    search = (request.args.get("q") or "").strip()
     account_type = request.args.get("account_type")
 
     q = User.query
@@ -43,12 +47,14 @@ def admin_list_users():
             | (User.phone.ilike(f"%{search}%"))
         )
 
-    if account_type:
-        q = q.filter_by(account_type=account_type)
+    if account_type in ("retail", "wholesale"):
+        q = q.filter(User.account_type == AccountType(account_type))
 
-    paginated = q.order_by(User.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    active = request.args.get("active", "").lower()
+    if active in ("true", "false"):
+        q = q.filter(User.is_active.is_(active == "true"))
+
+    paginated = paginate(apply_sort(q, _USER_SORTS, "created_at"))
 
     # One grouped query for the whole page, not a COUNT per row.
     order_counts = dict(

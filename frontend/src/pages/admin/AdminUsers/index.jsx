@@ -1,123 +1,132 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { IconUsers } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
-import { IconSearch, IconEye } from '@tabler/icons-react'
+import { toast } from '@/components/ui/Toast'
+import { confirm } from '@/components/admin/confirm'
+import DataState, { TableSkeleton } from '@/components/admin/DataState'
+import Pagination from '@/components/admin/Pagination'
+import useAdminList from '@/components/admin/useAdminList'
+import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
+import { formatDate, humanize, inputCls, notifyError } from '@/components/admin/helpers'
 
 export default function AdminUsers() {
-  const [users, setUsers] = useState([])
-  const [page, setPage] = useState(1)
-  const [pages, setPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [q, setQ] = useState('')
+  const [accountType, setAccountType] = useState('')
+  const [active, setActive] = useState('')
+  const [sort, setSort] = useState('created_at:desc')
+  const [busy, setBusy] = useState(null)
 
-  const fetchUsers = useCallback(
-    (pg = 1) => {
-      setLoading(true)
-      const params = { page: pg, per_page: 20 }
-      if (search) params.q = search
-      adminApi
-        .get('/admin/users', { params })
-        .then((r) => {
-          setUsers(r.data.users)
-          setPage(r.data.page)
-          setPages(r.data.pages)
-          setTotal(r.data.total)
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false))
-    },
-    [search],
-  )
+  const [sortBy, dir] = sort.split(':')
+  const list = useAdminList('/admin/users', 'users', {
+    q, account_type: accountType, active, sort: sortBy, dir,
+  })
 
-  useEffect(() => { fetchUsers() }, [])
-
-  const handleSearch = (e) => {
-    e.preventDefault()
-    fetchUsers(1)
-  }
-
-  const toggleActive = async (userId, current) => {
-    await adminApi.patch(`/admin/users/${userId}`, { is_active: !current })
-    fetchUsers(page)
+  const toggleActive = async (user) => {
+    // Blocking locks a real person out of their account, so it is confirmed;
+    // unblocking is harmless and is not.
+    if (user.is_active) {
+      const sure = await confirm({
+        title: `Block ${user.full_name}?`,
+        message: 'They will be signed out and unable to sign in or place orders until you unblock them. Their past orders are kept.',
+        confirmLabel: 'Block customer',
+        danger: true,
+      })
+      if (!sure) return
+    }
+    setBusy(user.id)
+    try {
+      await adminApi.patch(`/admin/users/${user.id}`, { is_active: !user.is_active })
+      toast.success(user.is_active ? `${user.full_name} blocked.` : `${user.full_name} unblocked.`)
+      list.reload()
+    } catch (err) {
+      notifyError(err, 'Could not update this customer.')
+    }
+    setBusy(null)
   }
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-gray-900">Users ({total})</h1>
+      <PageHeading title="Customers" subtitle={`${list.total.toLocaleString('en-IN')} matching customers`} />
 
-      <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-        <div className="relative flex-1">
-          <IconSearch size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email, or phone..." className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-[#C8963E]" />
-        </div>
-        <button type="submit" className="rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800">Search</button>
-      </form>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+        <SearchInput value={q} onChange={setQ} placeholder="Name, email or phone" />
+        <select value={accountType} onChange={(e) => setAccountType(e.target.value)} aria-label="Account type" className={`${inputCls} w-auto`}>
+          <option value="">Retail and wholesale</option>
+          <option value="retail">Retail</option>
+          <option value="wholesale">Wholesale</option>
+        </select>
+        <select value={active} onChange={(e) => setActive(e.target.value)} aria-label="Status" className={`${inputCls} w-auto`}>
+          <option value="">Active and blocked</option>
+          <option value="true">Active</option>
+          <option value="false">Blocked</option>
+        </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" className={`${inputCls} w-auto`}>
+          <option value="created_at:desc">Newest first</option>
+          <option value="created_at:asc">Oldest first</option>
+          <option value="full_name:asc">Name A–Z</option>
+        </select>
+      </div>
 
-      {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
-      ) : users.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No users found</div>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-                  <th className="px-6 py-3 font-medium">User</th>
-                  <th className="px-6 py-3 font-medium">Type</th>
-                  <th className="px-6 py-3 font-medium">Auth</th>
-                  <th className="px-6 py-3 font-medium">Orders</th>
-                  <th className="px-6 py-3 font-medium">Status</th>
-                  <th className="px-6 py-3 font-medium">Joined</th>
-                  <th className="px-6 py-3 font-medium">Actions</th>
+      <DataState
+        loading={list.loading && list.rows.length === 0}
+        error={list.error}
+        onRetry={list.reload}
+        empty={list.rows.length === 0}
+        filtered={list.filtered && Boolean(q || accountType || active)}
+        skeleton={<TableSkeleton rows={8} columns={6} />}
+        emptyIcon={IconUsers}
+        emptyTitle="No customers yet"
+        emptyHint="Customers appear here when they create an account."
+      >
+        <div className={`overflow-x-auto rounded-xl border border-gray-200 bg-white ${list.loading ? 'opacity-60' : ''}`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+                <th className="px-6 py-3 font-medium">Customer</th>
+                <th className="px-6 py-3 font-medium">Type</th>
+                <th className="px-6 py-3 font-medium">Signs in with</th>
+                <th className="px-6 py-3 text-right font-medium">Orders</th>
+                <th className="px-6 py-3 font-medium">Status</th>
+                <th className="px-6 py-3 font-medium">Joined</th>
+                <th className="px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.rows.map((u) => (
+                <tr key={u.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                  <td className="px-6 py-3">
+                    <Link to={`/admin/users/${u.id}`} className="font-medium text-gray-900 hover:underline">
+                      {u.full_name}
+                    </Link>
+                    <div className="text-xs text-gray-500">{u.email}{u.phone ? ` · ${u.phone}` : ''}</div>
+                  </td>
+                  <td className="px-6 py-3">
+                    <Badge tone={u.account_type === 'wholesale' ? 'purple' : 'gray'}>{humanize(u.account_type)}</Badge>
+                  </td>
+                  <td className="px-6 py-3 text-gray-600">{humanize(u.auth_provider)}</td>
+                  <td className="px-6 py-3 text-right tabular-nums text-gray-900">{u.order_count}</td>
+                  <td className="px-6 py-3">
+                    <Badge tone={u.is_active ? 'green' : 'red'}>{u.is_active ? 'Active' : 'Blocked'}</Badge>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-3 text-gray-500">{formatDate(u.created_at)}</td>
+                  <td className="px-6 py-3 text-right">
+                    <button
+                      type="button" onClick={() => toggleActive(u)} disabled={busy === u.id}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+                        u.is_active ? 'text-red-700 hover:bg-red-50' : 'text-green-700 hover:bg-green-50'
+                      }`}
+                    >
+                      {busy === u.id ? 'Saving…' : u.is_active ? 'Block' : 'Unblock'}
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-gray-50 last:border-0">
-                    <td className="px-6 py-3">
-                      <div className="font-medium text-gray-900">{u.full_name}</div>
-                      <div className="text-xs text-gray-400">{u.email}</div>
-                    </td>
-                    <td className="px-6 py-3">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${u.account_type === 'wholesale' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                        {u.account_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 capitalize text-gray-500">{u.auth_provider}</td>
-                    <td className="px-6 py-3 text-gray-700">{u.order_count}</td>
-                    <td className="px-6 py-3">
-                      <button
-                        onClick={() => toggleActive(u.id, u.is_active)}
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
-                      >
-                        {u.is_active ? 'Active' : 'Blocked'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-3 text-gray-400">{new Date(u.created_at).toLocaleDateString('en-IN')}</td>
-                    <td className="px-6 py-3">
-                      <Link to={`/admin/users/${u.id}`} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
-                        <IconEye size={16} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {pages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-2">
-              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => fetchUsers(p)} className={`h-9 min-w-9 rounded-lg px-3 text-sm ${p === page ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                  {p}
-                </button>
               ))}
-            </div>
-          )}
-        </>
-      )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={list.page} pages={list.pages} total={list.total} onChange={list.setPage} noun="customers" />
+      </DataState>
     </div>
   )
 }

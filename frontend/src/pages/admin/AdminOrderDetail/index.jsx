@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
 import { toast } from '@/components/ui/Toast'
 import { confirm } from '@/components/admin/confirm'
-import { notifyError } from '@/components/admin/helpers'
+import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { inr, notifyError } from '@/components/admin/helpers'
 import { IconArrowLeft, IconTruckDelivery, IconRefresh } from '@tabler/icons-react'
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled']
@@ -28,11 +29,28 @@ export default function AdminOrderDetail() {
   const [tracking, setTracking] = useState({ status_label: '', description: '', status_type: 'confirmed', courier_name: '', tracking_number: '' })
   const [shipping, setShipping] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState(null)
+  const [savingStatus, setSavingStatus] = useState(false)
+  const [savingEvent, setSavingEvent] = useState(false)
 
   const reload = async () => {
     const r = await adminApi.get(`/admin/orders/${id}`)
     setOrder(r.data)
     setNewStatus(r.data.status)
+  }
+
+  const load = () => {
+    setLoading(true)
+    setError(null)
+    reload()
+      .catch((err) =>
+        setError(
+          err.response?.status === 404
+            ? 'This order does not exist.'
+            : err.response?.data?.error || 'Could not load this order.',
+        ),
+      )
+      .finally(() => setLoading(false))
   }
 
   const shipViaShiprocket = async () => {
@@ -60,40 +78,64 @@ export default function AdminOrderDetail() {
     setSyncing(false)
   }
 
-  useEffect(() => {
-    adminApi
-      .get(`/admin/orders/${id}`)
-      .then((r) => {
-        setOrder(r.data)
-        setNewStatus(r.data.status)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [id])
 
   const updateStatus = async () => {
-    try {
-      await adminApi.patch(`/admin/orders/${id}/status`, { status: newStatus })
-      setOrder((o) => ({ ...o, status: newStatus }))
-    } catch (err) {
-      notifyError(err, 'Update failed')
+    if (savingStatus || newStatus === order.status) return
+
+    // Cancelling restores stock and, for a prepaid order, sends the money
+    // back — say so before it happens.
+    if (newStatus === 'cancelled') {
+      const prepaid = order.payment_status === 'paid'
+      const sure = await confirm({
+        title: `Cancel order ${order.order_number}?`,
+        message: prepaid
+          ? `${inr(order.total_amount)} is refunded to the customer through Razorpay and the items go back into stock. A cancelled order cannot be reopened.`
+          : 'The items go back into stock. A cancelled order cannot be reopened.',
+        confirmLabel: prepaid ? `Cancel and refund ${inr(order.total_amount)}` : 'Cancel order',
+        cancelLabel: 'Keep order',
+        danger: true,
+      })
+      if (!sure) {
+        setNewStatus(order.status)
+        return
+      }
     }
+
+    setSavingStatus(true)
+    try {
+      const { data } = await adminApi.patch(`/admin/orders/${id}/status`, { status: newStatus })
+      if (data.refunded === false) {
+        toast.error('Order cancelled, but the refund did not go through. Refund it in the Razorpay Dashboard.')
+      } else {
+        toast.success(data.refunded ? 'Order cancelled and payment refunded.' : 'Order status updated.')
+      }
+      await reload()
+    } catch (err) {
+      notifyError(err, 'Could not update the status.')
+      setNewStatus(order.status)
+    }
+    setSavingStatus(false)
   }
 
   const addTracking = async (e) => {
     e.preventDefault()
+    if (savingEvent) return
+    setSavingEvent(true)
     try {
       await adminApi.post(`/admin/orders/${id}/tracking`, tracking)
-      const r = await adminApi.get(`/admin/orders/${id}`)
-      setOrder(r.data)
+      toast.success('Tracking event added.')
+      await reload()
       setTracking({ status_label: '', description: '', status_type: 'confirmed', courier_name: '', tracking_number: '' })
     } catch (err) {
-      notifyError(err, 'Failed')
+      notifyError(err, 'Could not add the tracking event.')
     }
+    setSavingEvent(false)
   }
 
-  if (loading) return <div className="py-20 text-center text-gray-400">Loading...</div>
-  if (!order) return <div className="py-20 text-center text-gray-400">Order not found</div>
+  if (loading) return <TableSkeleton rows={6} columns={4} />
+  if (error || !order) return <ErrorState message={error || 'This order does not exist.'} onRetry={load} />
 
   const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#C8963E]'
 
@@ -144,7 +186,7 @@ export default function AdminOrderDetail() {
               <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} className={inputCls}>
                 {ORDER_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
-              <button onClick={updateStatus} className="rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800">Update</button>
+              <button onClick={updateStatus} disabled={savingStatus || newStatus === order.status} className="disabled:cursor-not-allowed disabled:opacity-50 rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800">Update</button>
             </div>
           </div>
 
@@ -172,7 +214,7 @@ export default function AdminOrderDetail() {
               <input value={tracking.description} onChange={(e) => setTracking((t) => ({ ...t, description: e.target.value }))} placeholder="Description" className={inputCls} />
               <input value={tracking.courier_name} onChange={(e) => setTracking((t) => ({ ...t, courier_name: e.target.value }))} placeholder="Courier name" className={inputCls} />
               <input value={tracking.tracking_number} onChange={(e) => setTracking((t) => ({ ...t, tracking_number: e.target.value }))} placeholder="Tracking number" className={inputCls} />
-              <button type="submit" className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">Add Event</button>
+              <button type="submit" disabled={savingEvent} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800 disabled:opacity-60">{savingEvent ? 'Adding…' : 'Add Event'}</button>
             </form>
           </div>
         </div>
