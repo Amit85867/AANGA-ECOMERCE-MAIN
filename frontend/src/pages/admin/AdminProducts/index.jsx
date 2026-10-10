@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { IconEdit, IconEyeOff, IconPackage, IconPlus } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { confirm } from '@/components/admin/confirm'
 import DataState, { TableSkeleton } from '@/components/admin/DataState'
 import Pagination from '@/components/admin/Pagination'
@@ -76,7 +76,7 @@ export default function AdminProducts() {
       <PageHeading title="Products" subtitle={`${list.total.toLocaleString('en-IN')} matching products`}>
         <Link
           to="/admin/products/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#C8963E] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#b88534]"
+          className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-dark"
         >
           <IconPlus size={18} /> Add product
         </Link>

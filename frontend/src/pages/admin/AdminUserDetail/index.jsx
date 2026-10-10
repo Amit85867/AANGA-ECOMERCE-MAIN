@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
 import { notifyError } from '@/components/admin/helpers'
 import { IconArrowLeft } from '@tabler/icons-react'
@@ -101,7 +101,7 @@ export default function AdminUserDetail() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {user.addresses.map((a) => (
                   <div key={a.id} className="rounded-lg border border-gray-100 p-3 text-sm">
-                    <div className="mb-1 font-medium text-gray-900">{a.label} {a.is_default && <span className="text-xs text-[#C8963E]">(Default)</span>}</div>
+                    <div className="mb-1 font-medium text-gray-900">{a.label} {a.is_default && <span className="text-xs text-gold">(Default)</span>}</div>
                     <div className="text-gray-600">{a.full_name}</div>
                     <div className="text-gray-500">{a.city}, {a.state} {a.pin_code}</div>
                   </div>

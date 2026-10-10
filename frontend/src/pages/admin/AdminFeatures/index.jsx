@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { confirm } from '@/components/admin/confirm'
 import { notifyError } from '@/components/admin/helpers'
 import {
@@ -90,7 +90,7 @@ export default function AdminFeatures() {
     }
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
   const labelCls = 'block text-xs font-medium text-gray-500 mb-1'
   const PreviewIcon = FEATURE_ICONS[form.icon] || IconShieldCheck
 
@@ -101,7 +101,7 @@ export default function AdminFeatures() {
           <h1 className="text-2xl font-semibold text-gray-900">Why Choose (Feature Cards)</h1>
           <p className="mt-1 text-sm text-gray-500">The promise cards shown on the homepage. Use an icon, or upload an image to replace it.</p>
         </div>
-        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-[#C8963E] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#b88534]">
+        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-dark">
           <IconPlus size={18} /> Add Card
         </button>
       </div>
@@ -113,7 +113,7 @@ export default function AdminFeatures() {
             <div>
               <label className={labelCls}>Icon</label>
               <div className="flex items-center gap-2">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#0A0A0A]"><PreviewIcon size={18} className="text-[#C8963E]" /></span>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ink"><PreviewIcon size={18} className="text-gold" /></span>
                 <select value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className={inputCls}>
                   {ICON_NAMES.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
@@ -143,7 +143,7 @@ export default function AdminFeatures() {
             </div>
           </div>
           <div className="mt-5 flex gap-2">
-            <button type="submit" disabled={uploading || saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-50">{uploading ? 'Uploading…' : editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={uploading || saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-gold px-5 py-2 text-sm font-medium text-white hover:bg-gold-dark disabled:opacity-50">{uploading ? 'Uploading…' : editing ? 'Update' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>
@@ -161,8 +161,8 @@ export default function AdminFeatures() {
             const Icon = FEATURE_ICONS[f.icon] || IconShieldCheck
             return (
               <div key={f.id} className="flex items-start gap-4 rounded-xl border border-gray-200 bg-white p-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#0A0A0A]">
-                  {f.image_url ? <img src={f.image_url} alt="" className="h-full w-full object-cover" /> : <Icon size={20} className="text-[#C8963E]" />}
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-ink">
+                  {f.image_url ? <img src={f.image_url} alt="" className="h-full w-full object-cover" /> : <Icon size={20} className="text-gold" />}
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">

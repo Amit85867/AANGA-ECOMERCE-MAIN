@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { confirm } from '@/components/admin/confirm'
 import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
 import { inr, notifyError } from '@/components/admin/helpers'
@@ -137,7 +137,7 @@ export default function AdminOrderDetail() {
   if (loading) return <TableSkeleton rows={6} columns={4} />
   if (error || !order) return <ErrorState message={error || 'This order does not exist.'} onRetry={load} />
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-gold'
 
   return (
     <div>
@@ -196,7 +196,7 @@ export default function AdminOrderDetail() {
               <div className="mb-4 space-y-2">
                 {order.tracking.map((t) => (
                   <div key={t.id} className="flex items-start gap-3 rounded-lg border border-gray-50 p-3">
-                    <div className="mt-0.5 h-2 w-2 rounded-full bg-[#C8963E]" />
+                    <div className="mt-0.5 h-2 w-2 rounded-full bg-gold" />
                     <div>
                       <div className="text-sm font-medium text-gray-900">{t.status_label}</div>
                       {t.description && <div className="text-xs text-gray-500">{t.description}</div>}
@@ -272,7 +272,7 @@ export default function AdminOrderDetail() {
             ) : (
               <>
                 <p className="mb-3 text-xs text-gray-500">Create a Shiprocket shipment to auto-assign a courier and AWB, then push updates to the customer's tracking page.</p>
-                <button onClick={shipViaShiprocket} disabled={shipping} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#C8963E] py-2.5 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-60">
+                <button onClick={shipViaShiprocket} disabled={shipping} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold py-2.5 text-sm font-medium text-white hover:bg-gold-dark disabled:opacity-60">
                   <IconTruckDelivery size={16} /> {shipping ? 'Creating…' : 'Ship via Shiprocket'}
                 </button>
               </>

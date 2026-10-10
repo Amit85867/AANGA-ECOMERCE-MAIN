@@ -22,31 +22,31 @@ export default function Returns() {
       <PageHeader title="Returns & Exchange" crumbs={[{ label: 'Home', to: '/' }, { label: 'Returns' }]} />
 
       {/* Steps */}
-      <section className="px-6 lg:px-12 py-10">
+      <section className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10">
         <div className="text-center mb-8">
-          <h2 className="font-serif text-2xl font-bold">Easy 3-Step Process</h2>
-          <p className="text-xs text-gray mt-1">Hassle-free returns within 7 days</p>
+          <h2 className="display text-2xl font-bold">Easy 3-Step Process</h2>
+          <p className="text-xs text-muted mt-1">Hassle-free returns within 7 days</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {STEPS.map((s) => (
-            <div key={s.num} className="bg-surface p-6 text-center relative">
-              <div className="absolute top-4 right-4 text-[10px] tracking-[2px] text-gold font-bold">{s.num}</div>
-              <div className="w-12 h-12 bg-cream mx-auto flex items-center justify-center mb-4"><s.icon size={22} className="text-gold" /></div>
-              <h3 className="font-serif text-lg font-bold">{s.title}</h3>
-              <p className="text-xs text-gray leading-[1.8] mt-2">{s.desc}</p>
+            <div key={s.num} className="bg-fill p-6 text-center relative">
+              <div className="absolute top-4 right-4 text-xs tracking-[0.08em] text-fg font-bold">{s.num}</div>
+              <div className="w-12 h-12 bg-fill mx-auto flex items-center justify-center mb-4"><s.icon size={22} className="text-fg" /></div>
+              <h3 className="display text-lg font-bold">{s.title}</h3>
+              <p className="text-xs text-muted leading-relaxed mt-2">{s.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Conditions */}
-      <section className="px-6 lg:px-12 pb-10">
-        <div className="border border-line p-6 lg:p-8">
-          <h3 className="font-serif text-lg font-bold mb-4">Return Conditions</h3>
+      <section className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pb-10">
+        <div className="border border-hairline/60 p-6 lg:p-8">
+          <h3 className="display text-lg font-bold mb-4">Return Conditions</h3>
           <ul className="space-y-2.5">
             {CONDITIONS.map((c) => (
-              <li key={c} className="flex items-start gap-3 text-[13px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-gold mt-1.5 shrink-0" />
+              <li key={c} className="flex items-start gap-3 text-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                 {c}
               </li>
             ))}
@@ -55,10 +55,10 @@ export default function Returns() {
       </section>
 
       {/* Exchange Note */}
-      <section className="px-6 lg:px-12 pb-10">
-        <div className="bg-cream p-6 text-center">
-          <h3 className="font-serif text-lg font-bold">Prefer an Exchange?</h3>
-          <p className="text-xs text-gray mt-1 max-w-lg mx-auto">
+      <section className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pb-10">
+        <div className="bg-fill p-6 text-center">
+          <h3 className="display text-lg font-bold">Prefer an Exchange?</h3>
+          <p className="text-xs text-muted mt-1 max-w-lg mx-auto">
             If you'd like a different size or color, choose "Exchange" instead of "Return" in your order page.
             Exchanges are processed faster and don't incur any additional shipping charges.
           </p>

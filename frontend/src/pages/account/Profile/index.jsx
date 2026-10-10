@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import apiClient from '@/services/apiClient'
 import { useAuthStore } from '@/store/useAuthStore'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'

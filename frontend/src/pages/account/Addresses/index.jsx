@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { IconMapPin, IconPlus } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Overlay'

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import apiClient from '@/services/apiClient'
 
-export const useProductStore = create((set, get) => ({
+export const useProductStore = create((set) => ({
   products: [],
   product: null,
   categories: [],

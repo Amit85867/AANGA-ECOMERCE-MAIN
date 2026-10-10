@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { IconBrandGoogle } from '@tabler/icons-react'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import Button from '@/components/ui/Button'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useFeatures } from '@/store/useFeaturesStore'

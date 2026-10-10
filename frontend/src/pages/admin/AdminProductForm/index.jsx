@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
 import { confirm } from '@/components/admin/confirm'
 import { notifyError } from '@/components/admin/helpers'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
 import { IconPlus, IconTrash, IconArrowLeft, IconUpload, IconLink } from '@tabler/icons-react'
 
@@ -215,7 +215,7 @@ export default function AdminProductForm() {
   if (loadError) return <ErrorState message={loadError} onRetry={() => window.location.reload()} />
 
   const inputCls =
-    'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+    'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
 
   return (
     <div>
@@ -311,7 +311,7 @@ export default function AdminProductForm() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-lg bg-[#C8963E] py-3 text-sm font-semibold text-white hover:bg-[#b88534] disabled:opacity-50"
+            className="w-full rounded-lg bg-gold py-3 text-sm font-semibold text-white hover:bg-gold-dark disabled:opacity-50"
           >
             {saving ? 'Saving...' : isEdit ? 'Update Product' : 'Create Product'}
           </button>
@@ -423,7 +423,7 @@ export default function AdminProductForm() {
                       className="h-24 w-24 rounded-lg border object-cover"
                     />
                     {img.is_primary && (
-                      <span className="absolute left-1 top-1 rounded bg-[#C8963E] px-1.5 py-0.5 text-[10px] text-white">
+                      <span className="absolute left-1 top-1 rounded bg-gold px-1.5 py-0.5 text-[10px] text-white">
                         Primary
                       </span>
                     )}

@@ -51,7 +51,7 @@ export function SaveButton({ saving, children, savingLabel = 'Saving…', classN
       type="submit"
       disabled={saving || props.disabled}
       aria-busy={saving}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#b88534] disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gold-dark disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
       {...props}
     >
       {saving && <IconLoader2 size={16} className="animate-spin" />}

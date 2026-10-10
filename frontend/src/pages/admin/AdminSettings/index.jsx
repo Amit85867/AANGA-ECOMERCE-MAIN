@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
 import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { confirm } from '@/components/admin/confirm'
 import { notifyError } from '@/components/admin/helpers'
 import { useAdminStore } from '@/store/useAdminStore'
@@ -60,13 +60,13 @@ export default function AdminSettings() {
     return <div className="py-20 text-center text-gray-400">Master admin access required</div>
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Admin Settings</h1>
-        <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-2 rounded-lg bg-[#C8963E] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#b88534]">
+        <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-dark">
           <IconPlus size={18} /> Add Admin
         </button>
       </div>
@@ -85,7 +85,7 @@ export default function AdminSettings() {
             </select>
           </div>
           <div className="mt-4 flex gap-2">
-            <button type="submit" disabled={saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">{saving ? 'Creating…' : 'Create'}</button>
+            <button type="submit" disabled={saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-gold px-5 py-2 text-sm font-medium text-white hover:bg-gold-dark">{saving ? 'Creating…' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>

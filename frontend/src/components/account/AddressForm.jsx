@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import apiClient from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Checkbox } from '@/components/ui/Field'

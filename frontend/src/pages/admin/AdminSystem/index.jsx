@@ -4,7 +4,7 @@ import {
   IconRefresh, IconTool,
 } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { confirm } from '@/components/admin/confirm'
 import { CardSkeleton, ErrorState } from '@/components/admin/DataState'
 import { PageHeading } from '@/components/admin/controls'

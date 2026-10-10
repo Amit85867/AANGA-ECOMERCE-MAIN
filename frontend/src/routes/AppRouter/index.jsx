@@ -3,36 +3,36 @@ import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
 import DashboardLayout from '@/layouts/DashboardLayout'
-import AdminLayout from '@/layouts/AdminLayout'
 import { RouteError } from '@/components/ErrorBoundary'
-
 import Home from '@/pages/Home'
 import Shop from '@/pages/Shop'
 import ProductDetail from '@/pages/ProductDetail'
-import Cart from '@/pages/Cart'
-import Checkout from '@/pages/Checkout'
-import Wishlist from '@/pages/Wishlist'
-import OrderTracking from '@/pages/OrderTracking'
-import Contact from '@/pages/Contact'
-import About from '@/pages/About'
-import Offers from '@/pages/Offers'
-import FAQ from '@/pages/FAQ'
-import Wholesale from '@/pages/Wholesale'
-import Returns from '@/pages/Returns'
-import Privacy from '@/pages/Privacy'
-import Terms from '@/pages/Terms'
-import NotFound from '@/pages/NotFound'
-import StyleGuide from '@/pages/StyleGuide'
-import Login from '@/pages/auth/Login'
-import Register from '@/pages/auth/Register'
-import ForgotPassword from '@/pages/auth/ForgotPassword'
-import ResetPassword from '@/pages/auth/ResetPassword'
-import Orders from '@/pages/account/Orders'
-import OrderDetail from '@/pages/account/OrderDetail'
-import AccountReturns from '@/pages/account/Returns'
-import Addresses from '@/pages/account/Addresses'
-import Profile from '@/pages/account/Profile'
-import OrderConfirmed from '@/pages/OrderConfirmed'
+const AdminLayout = lazy(() => import('@/layouts/AdminLayout'))
+
+const Cart = lazy(() => import('@/pages/Cart'))
+const Checkout = lazy(() => import('@/pages/Checkout'))
+const Wishlist = lazy(() => import('@/pages/Wishlist'))
+const OrderTracking = lazy(() => import('@/pages/OrderTracking'))
+const Contact = lazy(() => import('@/pages/Contact'))
+const About = lazy(() => import('@/pages/About'))
+const Offers = lazy(() => import('@/pages/Offers'))
+const FAQ = lazy(() => import('@/pages/FAQ'))
+const Wholesale = lazy(() => import('@/pages/Wholesale'))
+const Returns = lazy(() => import('@/pages/Returns'))
+const Privacy = lazy(() => import('@/pages/Privacy'))
+const Terms = lazy(() => import('@/pages/Terms'))
+const NotFound = lazy(() => import('@/pages/NotFound'))
+const StyleGuide = lazy(() => import('@/pages/StyleGuide'))
+const Login = lazy(() => import('@/pages/auth/Login'))
+const Register = lazy(() => import('@/pages/auth/Register'))
+const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'))
+const ResetPassword = lazy(() => import('@/pages/auth/ResetPassword'))
+const Orders = lazy(() => import('@/pages/account/Orders'))
+const OrderDetail = lazy(() => import('@/pages/account/OrderDetail'))
+const AccountReturns = lazy(() => import('@/pages/account/Returns'))
+const Addresses = lazy(() => import('@/pages/account/Addresses'))
+const Profile = lazy(() => import('@/pages/account/Profile'))
+const OrderConfirmed = lazy(() => import('@/pages/OrderConfirmed'))
 
 // Admin pages are lazy-loaded so ordinary shoppers never download the entire
 // admin panel with the storefront bundle — it loads on demand under /admin.
@@ -63,6 +63,14 @@ const AdminReviews = lazy(() => import('@/pages/admin/AdminReviews'))
 const AdminSystem = lazy(() => import('@/pages/admin/AdminSystem'))
 const AdminAuditLog = lazy(() => import('@/pages/admin/AdminAuditLog'))
 
+// Suspense wrappers. `page` is for storefront routes: it renders inside the
+// layout, so the header and footer stay put while the page's code arrives.
+const page = (Component) => (
+  <Suspense fallback={<div className="min-h-[60vh]" aria-busy="true" />}>
+    <Component />
+  </Suspense>
+)
+
 // Suspense wrapper for the lazily-loaded admin routes.
 const admin = (Component) => (
   <Suspense
@@ -80,29 +88,29 @@ const router = createBrowserRouter([
       { path: '/', element: <Home /> },
       { path: '/shop', element: <Shop /> },
       { path: '/product/:slug', element: <ProductDetail /> },
-      { path: '/cart', element: <Cart /> },
-      { path: '/checkout', element: <Checkout /> },
-      { path: '/order-confirmed/:id', element: <OrderConfirmed /> },
-      { path: '/wishlist', element: <Wishlist /> },
-      { path: '/track-order', element: <OrderTracking /> },
-      { path: '/contact', element: <Contact /> },
-      { path: '/about', element: <About /> },
-      { path: '/offers', element: <Offers /> },
-      { path: '/faq', element: <FAQ /> },
-      { path: '/wholesale', element: <Wholesale /> },
-      { path: '/returns', element: <Returns /> },
-      { path: '/privacy-policy', element: <Privacy /> },
-      { path: '/terms', element: <Terms /> },
+      { path: '/cart', element: page(Cart) },
+      { path: '/checkout', element: page(Checkout) },
+      { path: '/order-confirmed/:id', element: page(OrderConfirmed) },
+      { path: '/wishlist', element: page(Wishlist) },
+      { path: '/track-order', element: page(OrderTracking) },
+      { path: '/contact', element: page(Contact) },
+      { path: '/about', element: page(About) },
+      { path: '/offers', element: page(Offers) },
+      { path: '/faq', element: page(FAQ) },
+      { path: '/wholesale', element: page(Wholesale) },
+      { path: '/returns', element: page(Returns) },
+      { path: '/privacy-policy', element: page(Privacy) },
+      { path: '/terms', element: page(Terms) },
     ],
   },
   {
     element: <AuthLayout />,
     errorElement: <RouteError />,
     children: [
-      { path: '/login', element: <Login /> },
-      { path: '/register', element: <Register /> },
-      { path: '/forgot-password', element: <ForgotPassword /> },
-      { path: '/reset-password', element: <ResetPassword /> },
+      { path: '/login', element: page(Login) },
+      { path: '/register', element: page(Register) },
+      { path: '/forgot-password', element: page(ForgotPassword) },
+      { path: '/reset-password', element: page(ResetPassword) },
     ],
   },
   {
@@ -110,18 +118,18 @@ const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { path: '/account', element: <Navigate to="/account/orders" replace /> },
-      { path: '/account/orders', element: <Orders /> },
-      { path: '/account/orders/:id', element: <OrderDetail /> },
-      { path: '/account/returns', element: <AccountReturns /> },
-      { path: '/account/addresses', element: <Addresses /> },
-      { path: '/account/profile', element: <Profile /> },
+      { path: '/account/orders', element: page(Orders) },
+      { path: '/account/orders/:id', element: page(OrderDetail) },
+      { path: '/account/returns', element: page(AccountReturns) },
+      { path: '/account/addresses', element: page(Addresses) },
+      { path: '/account/profile', element: page(Profile) },
     ],
   },
   // Internal design-system reference (not linked from the storefront).
-  { path: '/style-guide', element: <StyleGuide /> },
+  { path: '/style-guide', element: page(StyleGuide) },
   { path: '/admin/login', element: admin(AdminLogin) },
   {
-    element: <AdminLayout />,
+    element: page(AdminLayout),
     errorElement: <RouteError />,
     children: [
       { index: true, path: '/admin', element: admin(AdminDashboard) },
@@ -152,7 +160,7 @@ const router = createBrowserRouter([
       { path: '/admin/audit-log', element: admin(AdminAuditLog) },
     ],
   },
-  { path: '*', element: <NotFound /> },
+  { path: '*', element: page(NotFound) },
 ])
 
 export default function AppRouter() {

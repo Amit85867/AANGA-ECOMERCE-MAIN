@@ -74,7 +74,7 @@ function RevenueChart({ series }) {
         {series.map((point) => (
           <div key={point.date} className="group relative flex h-full flex-1 items-end">
             <div
-              className="w-full rounded-t bg-[#C8963E]/80 transition-colors group-hover:bg-[#C8963E]"
+              className="w-full rounded-t bg-gold/80 transition-colors group-hover:bg-gold"
               style={{ height: `${Math.max((point.revenue / max) * 100, point.revenue > 0 ? 2 : 0)}%` }}
             />
             <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-xs text-white shadow-lg group-hover:block">
@@ -199,7 +199,7 @@ export default function AdminDashboard() {
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi
-              icon={IconCurrencyRupee} tone="bg-[#C8963E]"
+              icon={IconCurrencyRupee} tone="bg-gold"
               label={`Revenue · ${rangeLabel}`} value={inr(data.revenue.range)}
               sub={`${data.orders.paid_range} order${data.orders.paid_range === 1 ? '' : 's'} · avg ${inr(data.orders.average_value)}`}
             />
@@ -265,7 +265,7 @@ export default function AdminDashboard() {
             <section className="overflow-hidden rounded-xl border border-gray-200 bg-white xl:col-span-2">
               <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
                 <h2 className="font-medium text-gray-900">Recent orders</h2>
-                <Link to="/admin/orders" className="text-sm font-medium text-[#8a6420] hover:underline">
+                <Link to="/admin/orders" className="text-sm font-medium text-gray-900 underline underline-offset-2 hover:underline">
                   View all
                 </Link>
               </div>

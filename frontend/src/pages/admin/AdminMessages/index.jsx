@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { IconMail } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import DataState, { TableSkeleton } from '@/components/admin/DataState'
 import Pagination from '@/components/admin/Pagination'
 import useAdminList from '@/components/admin/useAdminList'

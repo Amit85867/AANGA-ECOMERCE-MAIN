@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import apiClient, { getAccessToken } from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 
 // Tokens are no longer persisted — the in-memory access token is the signal.
 const hasToken = () => !!getAccessToken()

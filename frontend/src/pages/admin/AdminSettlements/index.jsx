@@ -45,7 +45,7 @@ export default function AdminSettlements() {
           href={RAZORPAY_DASHBOARD_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#0A0A0A] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#C8963E]"
+          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gold"
         >
           <IconExternalLink size={18} stroke={1.5} />
           Open Razorpay Dashboard
@@ -95,7 +95,7 @@ export default function AdminSettlements() {
       ) : (
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center gap-2 border-b border-gray-100 px-6 py-4">
-            <IconCurrencyRupee size={18} stroke={1.5} className="text-[#C8963E]" />
+            <IconCurrencyRupee size={18} stroke={1.5} className="text-gold" />
             <h2 className="font-medium text-gray-900">Recent settlements</h2>
           </div>
           {settlements.length === 0 ? (

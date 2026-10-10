@@ -19,16 +19,16 @@ export default function FAQ() {
   return (
     <>
       <PageHeader title="Frequently Asked Questions" crumbs={[{ label: 'Home', to: '/' }, { label: 'FAQ' }]} />
-      <section className="px-6 lg:px-12 py-10 max-w-3xl mx-auto">
+      <section className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 max-w-3xl mx-auto">
         <div className="space-y-2">
           {FAQS.map((f, i) => (
-            <div key={i} className="border border-line">
+            <div key={i} className="border border-hairline/60">
               <button onClick={() => setOpen(open === i ? -1 : i)} className="w-full flex items-center justify-between p-4 text-left">
                 <span className="font-medium text-sm pr-4">{f.q}</span>
-                <IconChevronDown size={16} className={`shrink-0 text-gray transition-transform duration-200 ${open === i ? 'rotate-180' : ''}`} />
+                <IconChevronDown size={16} className={`shrink-0 text-muted transition-transform duration-200 ${open === i ? 'rotate-180' : ''}`} />
               </button>
               <div className={`overflow-hidden transition-all duration-200 ${open === i ? 'max-h-40' : 'max-h-0'}`}>
-                <p className="px-4 pb-4 text-[13px] text-gray leading-[1.8]">{f.a}</p>
+                <p className="px-4 pb-4 text-sm text-muted leading-relaxed">{f.a}</p>
               </div>
             </div>
           ))}

@@ -1,122 +1,151 @@
 import { useState } from 'react'
-import { IconTruckDelivery, IconDiscount2, IconHeadset, IconPackages } from '@tabler/icons-react'
-import PageHeader from '@/components/ui/PageHeader'
+import {
+  IconCircleCheck, IconDiscount2, IconHeadset, IconPackages, IconTruckDelivery,
+} from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
+import Input from '@/components/ui/Input'
+import { Select } from '@/components/ui/Field'
+import { Container, PageTitle } from '@/components/ui/Display'
+import Seo from '@/components/Seo'
 
 const FEATURES = [
-  { icon: IconDiscount2, title: 'Bulk Discounts', desc: 'Up to 40% off on orders of 50+ items' },
-  { icon: IconTruckDelivery, title: 'Free Shipping', desc: 'Free delivery on all wholesale orders' },
-  { icon: IconHeadset, title: 'Dedicated Support', desc: 'Priority assistance for wholesale partners' },
-  { icon: IconPackages, title: 'Custom Orders', desc: 'Customize sizes, colors, and branding' },
+  { icon: IconDiscount2, title: 'Bulk discounts', desc: 'Up to 40% off on orders of 50+ items' },
+  { icon: IconTruckDelivery, title: 'Free shipping', desc: 'Free delivery on all wholesale orders' },
+  { icon: IconHeadset, title: 'Dedicated support', desc: 'Priority assistance for wholesale partners' },
+  { icon: IconPackages, title: 'Custom orders', desc: 'Sizes, colours and branding to order' },
 ]
 
 const VOLUME_RANGES = [
-  { value: 'below_10k', label: 'Below ₹10,000 / month' },
-  { value: '10k_50k', label: '₹10,000 – ₹50,000 / month' },
-  { value: '50k_1lac', label: '₹50,000 – ₹1 Lakh / month' },
-  { value: 'above_1lac', label: 'Above ₹1 Lakh / month' },
+  ['below_10k', 'Below ₹10,000 a month'],
+  ['10k_50k', '₹10,000 – ₹50,000 a month'],
+  ['50k_1lac', '₹50,000 – ₹1 lakh a month'],
+  ['above_1lac', 'Above ₹1 lakh a month'],
 ]
 
-export default function Wholesale() {
-  const [form, setForm] = useState({ owner_name: '', shop_name: '', email: '', phone: '', city: '', state: '', gst_number: '', monthly_volume_range: '' })
-  const [submitting, setSubmitting] = useState(false)
-  const update = (k, v) => setForm({ ...form, [k]: v })
+const EMPTY = {
+  owner_name: '', shop_name: '', email: '', phone: '', city: '', state: '', gst_number: '', monthly_volume_range: '',
+}
 
-  const handleSubmit = async (e) => {
+function validate(form) {
+  const errors = {}
+  if (form.owner_name.trim().length < 2) errors.owner_name = 'Enter your name.'
+  if (form.shop_name.trim().length < 2) errors.shop_name = 'Enter the shop or business name.'
+  if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) errors.email = 'Enter a valid email address.'
+  if (!/^\+?\d{10,15}$/.test(form.phone.replace(/[\s\-()]/g, ''))) errors.phone = 'Enter a valid phone number.'
+  if (!form.city.trim()) errors.city = 'Enter the city.'
+  if (!form.state.trim()) errors.state = 'Enter the state.'
+  if (!form.monthly_volume_range) errors.monthly_volume_range = 'Choose an expected monthly volume.'
+  return errors
+}
+
+export default function Wholesale() {
+  const [form, setForm] = useState(EMPTY)
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  const field = (name) => ({
+    name: `wholesale-${name}`,
+    value: form[name],
+    error: errors[name],
+    onChange: (e) => {
+      setForm((f) => ({ ...f, [name]: e.target.value }))
+      if (errors[name]) setErrors((er) => ({ ...er, [name]: undefined }))
+    },
+  })
+
+  const submit = async (e) => {
     e.preventDefault()
-    if (!form.monthly_volume_range) return toast.error('Please select your monthly volume')
+    if (submitting) return
+    const found = validate(form)
+    setErrors(found)
+    if (Object.keys(found).length) return
+
     setSubmitting(true)
     try {
-      await apiClient.post('/wholesale', form)
-      toast.success('Inquiry submitted! Our team will reach out shortly.')
-      setForm({ owner_name: '', shop_name: '', email: '', phone: '', city: '', state: '', gst_number: '', monthly_volume_range: '' })
+      await apiClient.post('/wholesale', {
+        ...form,
+        owner_name: form.owner_name.trim(), shop_name: form.shop_name.trim(), email: form.email.trim(),
+        phone: form.phone.replace(/[\s\-()]/g, ''), city: form.city.trim(), state: form.state.trim(),
+        gst_number: form.gst_number.trim() || null,
+      })
+      setSent(true)
+      setForm(EMPTY)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not submit inquiry')
+      setErrors({
+        form: err.response?.status === 429
+          ? 'You have sent several inquiries recently. Please try again in a while.'
+          : err.response?.data?.error || 'We could not submit your inquiry. Please try again.',
+      })
     }
     setSubmitting(false)
   }
 
   return (
     <>
-      <PageHeader title="Wholesale Inquiry" crumbs={[{ label: 'Home', to: '/' }, { label: 'Wholesale' }]} />
-      <section className="px-6 lg:px-12 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-10">
-          {/* Left */}
+      <Seo title="Wholesale" description="Wholesale pricing for retailers and businesses — bulk discounts, free shipping and dedicated support." />
+      <Container className="pb-20">
+        <PageTitle
+          title="Wholesale"
+          subtitle="Stock AANGA in your shop. Tell us about your business and our team will be in touch with pricing."
+          crumbs={[{ label: 'Home', to: '/' }, { label: 'Wholesale' }]}
+        />
+
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div>
-            <h2 className="font-serif text-2xl font-bold mb-2">Partner With AANGA</h2>
-            <p className="text-[13px] text-gray leading-[1.8] mb-8">
-              Join 200+ retailers and businesses who trust AANGA for quality wholesale fashion.
-              We offer competitive pricing, flexible MOQs, and dedicated account management.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {FEATURES.map((f) => (
-                <div key={f.title} className="bg-surface p-4">
-                  <f.icon size={22} className="text-gold mb-2" />
-                  <div className="font-semibold text-sm">{f.title}</div>
-                  <div className="text-[11px] text-gray mt-0.5">{f.desc}</div>
-                </div>
+            <ul className="grid gap-4 sm:grid-cols-2">
+              {FEATURES.map(({ icon: Icon, title, desc }) => (
+                <li key={title} className="rounded-card bg-fill p-5">
+                  <Icon size={24} stroke={1.5} className="text-fg" aria-hidden="true" />
+                  <h2 className="mt-3 text-sm font-semibold text-fg">{title}</h2>
+                  <p className="mt-1 text-sm text-muted">{desc}</p>
+                </li>
               ))}
-            </div>
-            <div className="mt-8 bg-ink p-5 text-center">
-              <div className="text-[10px] tracking-[2px] text-gold uppercase font-semibold">Minimum Order</div>
-              <div className="text-white font-serif text-2xl font-bold mt-1">10 Pieces</div>
-              <div className="text-white/50 text-xs mt-1">Mix & match across categories</div>
+            </ul>
+            <div className="mt-4 rounded-card bg-primary p-6 text-center text-on-primary">
+              <p className="text-xs uppercase tracking-[0.1em] text-white/80">Minimum order</p>
+              <p className="display mt-1 text-2xl">10 pieces</p>
+              <p className="mt-1 text-sm text-white/80">Mix and match across categories</p>
             </div>
           </div>
 
-          {/* Form */}
-          <div className="bg-surface p-6 lg:p-8">
-            <h3 className="font-serif text-lg font-bold mb-5">Submit Inquiry</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Your Name *</label>
-                  <input type="text" required value={form.owner_name} onChange={(e) => update('owner_name', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="Full name" />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Business Name *</label>
-                  <input type="text" required value={form.shop_name} onChange={(e) => update('shop_name', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="Company / Shop name" />
-                </div>
+          <Card className="p-6 sm:p-8">
+            {sent ? (
+              <div className="py-8 text-center" role="status">
+                <IconCircleCheck size={44} stroke={1.25} className="mx-auto text-fg" aria-hidden="true" />
+                <h2 className="display mt-4 text-xl text-fg">Inquiry received</h2>
+                <p className="mt-2 text-sm text-muted">Thank you. Our wholesale team will contact you within two working days.</p>
+                <Button variant="secondary" className="mt-6" onClick={() => setSent(false)}>Submit another</Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Email *</label>
-                  <input type="email" required value={form.email} onChange={(e) => update('email', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="you@business.com" />
+            ) : (
+              <form onSubmit={submit} className="space-y-4" noValidate>
+                <h2 className="display text-xl text-fg">Tell us about your business</h2>
+                {errors.form && (
+                  <p role="alert" className="rounded-card bg-danger-soft px-4 py-3 text-sm text-danger">{errors.form}</p>
+                )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input label="Your name" autoComplete="name" {...field('owner_name')} />
+                  <Input label="Shop or business name" autoComplete="organization" {...field('shop_name')} />
+                  <Input label="Email" type="email" autoComplete="email" {...field('email')} />
+                  <Input label="Phone" type="tel" autoComplete="tel" {...field('phone')} />
+                  <Input label="City" autoComplete="address-level2" {...field('city')} />
+                  <Input label="State" autoComplete="address-level1" {...field('state')} />
                 </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Phone *</label>
-                  <input type="tel" required value={form.phone} onChange={(e) => update('phone', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="10-digit mobile" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">City *</label>
-                  <input type="text" required value={form.city} onChange={(e) => update('city', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="City" />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">State *</label>
-                  <input type="text" required value={form.state} onChange={(e) => update('state', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="State" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">GST Number</label>
-                  <input type="text" value={form.gst_number} onChange={(e) => update('gst_number', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="Optional" />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Monthly Volume *</label>
-                  <select value={form.monthly_volume_range} onChange={(e) => update('monthly_volume_range', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white">
-                    <option value="">Select range</option>
-                    {VOLUME_RANGES.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <button type="submit" disabled={submitting} className="px-8 py-3.5 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors disabled:opacity-60">{submitting ? 'Submitting…' : 'Submit Inquiry'}</button>
-            </form>
-          </div>
+                <Input label="GST number (optional)" {...field('gst_number')} />
+                <Select label="Expected monthly volume" {...field('monthly_volume_range')}>
+                  <option value="">Choose a range</option>
+                  {VOLUME_RANGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+                <Button type="submit" size="lg" disabled={submitting}>
+                  {submitting ? 'Submitting…' : 'Submit inquiry'}
+                </Button>
+              </form>
+            )}
+          </Card>
         </div>
-      </section>
+      </Container>
     </>
   )
 }

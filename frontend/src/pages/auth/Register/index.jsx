@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Checkbox } from '@/components/ui/Field'

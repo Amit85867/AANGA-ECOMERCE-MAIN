@@ -12,17 +12,17 @@ const RECHECK_MS = 60_000
 
 function MaintenancePage({ message, onRetry, checking }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-surface px-6 py-16 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-fill px-6 py-16 text-center">
       <div className="flex items-center gap-2">
         <img src={logoMain} alt="" className="h-11 w-11 object-contain" />
         <img src={logoTitle} alt="AANGA" className="h-9 object-contain" />
       </div>
 
-      <div className="mt-12 flex h-16 w-16 items-center justify-center rounded-full bg-paper border border-line text-gold">
+      <div className="mt-12 flex h-16 w-16 items-center justify-center rounded-full bg-bg border border-hairline/60 text-fg">
         <IconTool size={28} stroke={1.5} />
       </div>
-      <h1 className="font-serif text-3xl font-bold mt-6">We’ll be right back</h1>
-      <p className="text-sm text-gray mt-3 max-w-md leading-[1.8]" role="status">
+      <h1 className="display text-3xl font-bold mt-6">We’ll be right back</h1>
+      <p className="text-sm text-muted mt-3 max-w-md leading-relaxed" role="status">
         {message || DEFAULT_MESSAGE}
       </p>
 
@@ -30,11 +30,11 @@ function MaintenancePage({ message, onRetry, checking }) {
         type="button"
         onClick={onRetry}
         disabled={checking}
-        className="mt-8 px-7 py-3 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors disabled:opacity-60"
+        className="mt-8 px-7 py-3 bg-primary text-on-primary text-xs tracking-[0.08em] uppercase font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
       >
         {checking ? 'Checking…' : 'Try again'}
       </button>
-      <p className="text-xs text-gray mt-4">This page checks again by itself every minute.</p>
+      <p className="text-xs text-muted mt-4">This page checks again by itself every minute.</p>
     </div>
   )
 }

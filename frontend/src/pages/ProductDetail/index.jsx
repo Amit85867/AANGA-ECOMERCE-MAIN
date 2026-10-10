@@ -6,7 +6,7 @@ import {
 import { useProductStore } from '@/store/useProductStore'
 import { useCartStore } from '@/store/useCartStore'
 import { useWishlistStore } from '@/store/useWishlistStore'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import apiClient from '@/services/apiClient'
 import ProductCard from '@/components/ui/ProductCard'
 import Button from '@/components/ui/Button'

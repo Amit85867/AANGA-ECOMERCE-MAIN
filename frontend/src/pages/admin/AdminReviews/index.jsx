@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { IconRosetteDiscountCheck, IconStar, IconStarFilled, IconTrash } from '@tabler/icons-react'
 import adminApi from '@/services/adminApi'
-import { toast } from '@/components/ui/Toast'
+import { toast } from '@/components/ui/toastStore'
 import { confirm } from '@/components/admin/confirm'
 import DataState, { TableSkeleton } from '@/components/admin/DataState'
 import Pagination from '@/components/admin/Pagination'
@@ -11,7 +11,7 @@ import { formatDate, inputCls, notifyError } from '@/components/admin/helpers'
 
 function Stars({ rating }) {
   return (
-    <span className="inline-flex text-[#C8963E]" role="img" aria-label={`${rating} out of 5`}>
+    <span className="inline-flex text-gold" role="img" aria-label={`${rating} out of 5`}>
       {[1, 2, 3, 4, 5].map((n) =>
         n <= rating ? <IconStarFilled key={n} size={14} /> : <IconStar key={n} size={14} className="text-gray-300" />,
       )}

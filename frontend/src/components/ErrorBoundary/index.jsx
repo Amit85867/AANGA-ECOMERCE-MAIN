@@ -10,15 +10,15 @@ import { reportError } from '@/services/monitoring'
  */
 function Fallback({ notFound = false }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-paper px-6 py-16">
+    <div className="min-h-screen flex items-center justify-center bg-bg px-6 py-16">
       <div className="max-w-md text-center" role="alert">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-line text-gold">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-hairline/60 text-fg">
           <IconAlertTriangle size={26} stroke={1.5} />
         </div>
-        <h1 className="font-serif text-2xl font-bold mt-5">
+        <h1 className="display text-2xl font-bold mt-5">
           {notFound ? 'Page not found' : 'Something went wrong'}
         </h1>
-        <p className="text-sm text-gray mt-2 leading-[1.8]">
+        <p className="text-sm text-muted mt-2 leading-relaxed">
           {notFound
             ? 'The page you are looking for does not exist or has moved.'
             : 'This page hit an unexpected problem. It has been reported to us. Reloading usually fixes it.'}
@@ -28,7 +28,7 @@ function Fallback({ notFound = false }) {
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-ink text-white text-xs tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors"
+              className="px-6 py-3 bg-primary text-on-primary text-xs tracking-[0.08em] uppercase font-bold hover:bg-primary/90 transition-colors"
             >
               Reload page
             </button>
@@ -37,7 +37,7 @@ function Fallback({ notFound = false }) {
               state may be what is broken, so leave through a full navigation. */}
           <a
             href="/"
-            className="px-6 py-3 border border-line text-xs tracking-[2px] uppercase font-bold hover:border-ink transition-colors"
+            className="px-6 py-3 border border-hairline/60 text-xs tracking-[0.08em] uppercase font-bold hover:border-primary transition-colors"
           >
             Go to home
           </a>
