@@ -7,7 +7,7 @@ import DataState, { TableSkeleton } from '@/components/admin/DataState'
 import Pagination from '@/components/admin/Pagination'
 import useAdminList from '@/components/admin/useAdminList'
 import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
-import { formatDate, inputCls, notifyError } from '@/components/admin/helpers'
+import { countOf, formatDate, inputCls, notifyError } from '@/components/admin/helpers'
 
 export default function AdminNewsletter() {
   const [q, setQ] = useState('')
@@ -36,7 +36,7 @@ export default function AdminNewsletter() {
 
   return (
     <div>
-      <PageHeading title="Newsletter" subtitle={`${list.total.toLocaleString('en-IN')} matching subscribers`} />
+      <PageHeading title="Newsletter" subtitle={`${countOf(list.total, 'subscribers')} found`} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
         <SearchInput value={q} onChange={setQ} placeholder="Search by email" />

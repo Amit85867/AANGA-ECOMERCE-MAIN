@@ -54,6 +54,13 @@ DELETE FROM public.audit_log             WHERE actor_label LIKE '%@local.test';
 
 DELETE FROM public.users WHERE id IN (SELECT id FROM qa_users);
 
+-- The product and category the admin walkthrough created (slug "qa-walkthrough-…").
+-- No order can reference them: the product was deactivated before anyone could buy it.
+DELETE FROM public.product_images   WHERE product_id IN (SELECT id FROM public.products WHERE slug LIKE 'qa-walkthrough-%');
+DELETE FROM public.product_variants WHERE product_id IN (SELECT id FROM public.products WHERE slug LIKE 'qa-walkthrough-%');
+DELETE FROM public.products         WHERE slug LIKE 'qa-walkthrough-%';
+DELETE FROM public.categories       WHERE slug LIKE 'qa-walkthrough-%';
+
 SELECT 'QA accounts remaining: ' || count(*) FROM public.users WHERE email LIKE '%@local.test';
 
 COMMIT;

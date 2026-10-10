@@ -167,8 +167,8 @@ export default function AdminTestimonials() {
                 <p className="mt-1 text-sm text-gray-600 line-clamp-2">{t.quote}</p>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => openEdit(t)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                <button onClick={() => handleDelete(t.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                <button type="button" onClick={() => openEdit(t)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                <button type="button" onClick={() => handleDelete(t.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
               </div>
             </div>
           ))}

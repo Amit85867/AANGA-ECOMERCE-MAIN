@@ -164,8 +164,8 @@ export default function AdminCoupons() {
                   <td className="px-6 py-3 text-gray-400">{c.expires_at ? new Date(c.expires_at).toLocaleDateString('en-IN') : 'Never'}</td>
                   <td className="px-6 py-3">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(c)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                      <button onClick={() => handleDelete(c.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                      <button type="button" onClick={() => openEdit(c)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                      <button type="button" onClick={() => handleDelete(c.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
                     </div>
                   </td>
                 </tr>

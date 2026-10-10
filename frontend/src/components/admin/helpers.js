@@ -10,8 +10,14 @@ export function notifyError(err, fallback = 'Something went wrong. Please try ag
   toast.error(err?.response?.data?.error || fallback)
 }
 
-export const inr = (value) =>
-  `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+// Whole rupees stay whole (₹999); anything else shows paise in full (₹99.90).
+export const inr = (value) => {
+  const amount = Number(value || 0)
+  return `₹${amount.toLocaleString('en-IN', {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`
+}
 
 export const formatDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
@@ -36,3 +42,9 @@ export const RETURN_STATUS_TONE = {
 
 export const humanize = (value) =>
   String(value || '').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+
+/* "1 customer", "2 customers", "1 entry" — the noun is given in the plural. */
+export function countOf(total, plural) {
+  const one = plural.endsWith('ies') ? `${plural.slice(0, -3)}y` : plural.replace(/s$/, '')
+  return `${Number(total || 0).toLocaleString('en-IN')} ${total === 1 ? one : plural}`
+}

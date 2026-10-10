@@ -1,4 +1,5 @@
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
+import { countOf } from './helpers'
 
 /* 1 … 4 5 [6] 7 8 … 20 — never a button per page. */
 function pageList(page, pages) {
@@ -25,7 +26,7 @@ export default function Pagination({ page, pages, total, onChange, noun = 'resul
     >
       <p className="text-sm text-gray-500">
         Page <span className="font-medium text-gray-900">{page}</span> of {pages || 1} ·{' '}
-        {total.toLocaleString('en-IN')} {noun}
+        {countOf(total, noun)}
       </p>
       {pages > 1 && (
         <div className="flex items-center gap-1">

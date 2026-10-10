@@ -1,7 +1,13 @@
 /* Formatting shared by the storefront. */
 
-export const inr = (value) =>
-  `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+// Whole rupees stay whole (₹999); anything else shows paise in full (₹99.90).
+export const inr = (value) => {
+  const amount = Number(value || 0)
+  return `₹${amount.toLocaleString('en-IN', {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`
+}
 
 export const formatDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''

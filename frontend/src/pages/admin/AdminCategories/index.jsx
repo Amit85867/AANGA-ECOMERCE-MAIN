@@ -33,10 +33,10 @@ function CategoryRow({ cat, depth = 0, onEdit, onDelete }) {
         </td>
         <td className="px-6 py-3">
           <div className="flex gap-1">
-            <button onClick={() => onEdit(cat)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+            <button type="button" onClick={() => onEdit(cat)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
               <IconEdit size={16} />
             </button>
-            <button onClick={() => onDelete(cat)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
+            <button type="button" onClick={() => onDelete(cat)} aria-label="Deactivate" title="Deactivate" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
               <IconTrash size={16} />
             </button>
           </div>

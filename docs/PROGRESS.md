@@ -145,8 +145,10 @@ Browser verification is Phase 7.
 - [ ] Admin sign-ins are not written to the audit log (only changes are).
 - [ ] Order status has no transition rules: an admin can move a delivered order
   back to pending. Decide the allowed transitions before enforcing them.
-- [ ] Admin status changes do not add a tracking event, so the customer's
-  timeline only shows events an admin adds by hand.
+- [x] Admin status changes now add the matching tracking event, and a
+  delivered cash-on-delivery order is marked paid. Found in Phase 7: without
+  the "delivered" event the 7-day return window was counted from the
+  estimated date instead of the real one. Two tests added.
 
 ## Phase 4 — Modern corporate UI (theme frozen)
 
@@ -170,13 +172,15 @@ errors, no horizontal overflow at 360px) and Lighthouse.
 - [x] Legacy palette and serif font removed; logos 2.8 MB -> 28 kB (WebP).
 - [x] Accessibility (Lighthouse mobile): home 100, listing 100, product 100.
 - [ ] **Performance target not met.** Lighthouse mobile, production build served
-  compressed, real (devtools) throttling: home 80, listing 70, product 76
-  (target 90). CLS is 0.01-0.02 and TBT under 200 ms; the gap is LCP
-  (4.3-7.4 s), i.e. the product image arriving after the JavaScript. Thumbnails
-  (`_480.webp`, generated on upload, backfilled locally with
-  `backend/db/make_thumbnails.py`) are wired into product cards but
-  **Lighthouse has not been re-run since**, and the product-detail and hero
-  images do not use them yet.
+  compressed, real (devtools) throttling, final run: home 81, listing 78,
+  product 86 (target 90). CLS is about 0.01 and TBT under 200 ms; the gap is
+  LCP (3.8-5.1 s). Done to get here: 480px and 800px image copies generated on
+  upload (backfill with `backend/db/make_thumbnails.py`) and used by cards,
+  gallery and hero; the landing page's API request and main image start from
+  `index.html` before the JavaScript runs; fonts load after the page; static
+  header shell; no layout shift. What is left is the cost of rendering in the
+  browser at all — reaching 90 needs the three landing pages prerendered or
+  server-rendered, which is a larger change and an owner decision.
 - [ ] Content claims to check with the owner: FAQ mentions a COD charge, a
   Rs 5,000 COD limit and express delivery that the store does not implement.
 - [ ] `/style-guide` page not updated for the new components.
@@ -255,12 +259,54 @@ frontend by `vite build` and `oxlint` (0 errors).
 
 ## Phase 7 — End-to-end verification and browser demo
 
-- [ ] Start the full stack locally.
-- [ ] Customer walkthrough in Chrome (payment and pincode steps need the deferred credentials).
-- [ ] Admin walkthrough in Chrome.
-- [ ] Console and network clean on every page; mobile width checked.
-- [ ] GIFs of both flows.
-- [ ] Final summary: changes per phase, test counts, Lighthouse scores, BLOCKED items, manual steps left.
+Run in Chrome against the local stack (Vite dev server, Flask, Postgres in
+Docker) with throwaway `@local.test` accounts. Backend suite afterwards: 339
+passed; `oxlint` and `vite build` clean.
+
+- [x] Full stack started locally.
+- [x] Customer walkthrough: home → shop (size M filter: 30 → 15 products, price
+  sort) → product → add to bag signed out (sent to sign-in) → sign in → add to
+  bag → cart (quantity, totals) → three-step checkout → COD order placed →
+  confirmation page → orders → **cancel order** → **return an item** on a
+  delivered order → my returns → **write a review** → wishlist → address
+  add / edit / remove → profile save → sign out → account pages redirect to
+  sign-in. Session survives a full reload with nothing in localStorage. New
+  account registration works.
+- [x] Admin walkthrough, every destructive action clicked through its confirm
+  dialog: coupon create / edit / delete; announcement, hero banner, promo
+  banner, testimonial, feature card and offer create / delete; category create /
+  deactivate; product create, two variants, image upload, stock edit, image
+  delete, variant delete, product deactivate (storefront then 404s it); order
+  marked delivered; order cancelled; return resolved; return rejected; review
+  removed; customer blocked (their sign-in is refused with 403) and unblocked;
+  admin created and deleted; **maintenance mode on** (storefront API 503,
+  customer sees the maintenance page, admin stays usable) **and off**;
+  Test connections; settlements; audit log shows the actions; sign out.
+- [x] Console: no errors. Network: every `/api` call 2xx except the expected
+  ones (503 during maintenance, 403 for the blocked customer, 404 for the
+  deactivated product, 502 from "Ship via Shiprocket" with its "not
+  configured" message). 360px width was checked in Phase 4.
+- [x] Fixed from the walkthrough: money shown as ₹99.9 (now ₹99.90); icon-only
+  edit/delete buttons on eight admin screens had no accessible name; "1
+  customers" style counts; "nothing matches these filters" shown on an
+  unfiltered empty list; sign-in after "add to bag" now returns to the product;
+  delivery estimate no longer shown on an order being returned; tracking event
+  and COD payment status on admin status change (see Phase 3).
+- [x] GIFs: `aanga_admin_walkthrough.gif` and `aanga_customer_walkthrough.gif`
+  in the browser's Downloads folder. They are screen tours of the final state;
+  the actions themselves were driven by script and are listed above.
+- **DEFERRED** — online payment (Razorpay test mode) and the live pincode /
+  courier steps. Checked instead: "Pay online" is shown as unavailable at
+  checkout, the delivery checker is hidden, Settlements and System Health say
+  "Not configured". Re-run these two steps once the keys are in `backend/.env`.
+- [ ] Not fixed, small: admin create forms on the CMS screens use placeholders
+  instead of visible labels; a deactivated category still appears in the
+  product form's category list; "Return an item" stays visible on an order
+  whose only item is already being returned (the dialog then offers nothing).
+- [x] QA data left in the local database on purpose (see Phase 6). The
+  temporary QA admin is removed; `backend/db/qa_cleanup.sql` also removes the
+  walkthrough's product and category.
+- [x] Final summary given to the owner.
 
 ## Discovered along the way
 

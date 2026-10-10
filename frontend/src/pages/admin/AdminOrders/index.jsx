@@ -6,7 +6,7 @@ import Pagination from '@/components/admin/Pagination'
 import useAdminList from '@/components/admin/useAdminList'
 import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
 import {
-  ORDER_STATUS_TONE, formatDateTime, humanize, inputCls, inr,
+  ORDER_STATUS_TONE, countOf, formatDateTime, humanize, inputCls, inr,
 } from '@/components/admin/helpers'
 
 const STATUSES = [
@@ -38,7 +38,7 @@ export default function AdminOrders() {
 
   return (
     <div>
-      <PageHeading title="Orders" subtitle={`${list.total.toLocaleString('en-IN')} matching orders`} />
+      <PageHeading title="Orders" subtitle={`${countOf(list.total, 'orders')} found`} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto]">
         <SearchInput value={q} onChange={setQ} placeholder="Order number, customer name, email or phone" />

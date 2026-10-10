@@ -180,7 +180,7 @@ export default function AdminPromoBanners() {
                   <input value={item.pct} onChange={(e) => updateItem(idx, 'pct', e.target.value)} placeholder="e.g. 50%" className={inputCls + ' max-w-[120px]'} />
                   <input value={item.label} onChange={(e) => updateItem(idx, 'label', e.target.value)} placeholder="e.g. On Jackets" className={inputCls} />
                   {form.items.length > 1 && (
-                    <button type="button" onClick={() => removeItem(idx)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                    <button type="button" onClick={() => removeItem(idx)} aria-label="Remove item" title="Remove item" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
                       <IconX size={16} />
                     </button>
                   )}
@@ -254,8 +254,8 @@ export default function AdminPromoBanners() {
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(p)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                      <button onClick={() => handleDelete(p.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                      <button type="button" onClick={() => openEdit(p)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                      <button type="button" onClick={() => handleDelete(p.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
                     </div>
                   </td>
                 </tr>

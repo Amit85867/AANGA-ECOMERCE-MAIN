@@ -6,7 +6,7 @@ import DataState, { TableSkeleton } from '@/components/admin/DataState'
 import Pagination from '@/components/admin/Pagination'
 import useAdminList from '@/components/admin/useAdminList'
 import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
-import { formatDate, humanize, inputCls, notifyError } from '@/components/admin/helpers'
+import { countOf, formatDate, humanize, inputCls, notifyError } from '@/components/admin/helpers'
 
 const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'rejected']
 const TONE = { new: 'amber', contacted: 'blue', qualified: 'purple', converted: 'green', rejected: 'red' }
@@ -90,7 +90,7 @@ export default function AdminInquiries() {
 
   return (
     <div>
-      <PageHeading title="Wholesale inquiries" subtitle={`${list.total.toLocaleString('en-IN')} matching inquiries`} />
+      <PageHeading title="Wholesale inquiries" subtitle={`${countOf(list.total, 'inquiries')} found`} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
         <SearchInput value={q} onChange={setQ} placeholder="Shop, owner, email, phone or city" />

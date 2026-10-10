@@ -176,3 +176,33 @@ def test_failed_refund_still_cancels_and_reports(app, client):
     updated = db.session.get(Order, order.id)
     assert updated.status == OrderStatus.cancelled
     assert updated.payment_status == PaymentStatus.paid  # unchanged, needs follow-up
+
+
+def test_admin_status_change_leaves_a_tracking_event(app, client):
+    """The customer's order page and the return window both read tracking
+    events, so marking an order delivered must record one."""
+    headers = _admin_headers(client)
+    order, _ = _placed_order()
+
+    for status in ("shipped", "delivered"):
+        resp = client.patch(
+            f"/api/admin/orders/{order.id}/status", json={"status": status}, headers=headers,
+        )
+        assert resp.status_code == 200
+
+    db.session.expire_all()
+    order = db.session.get(Order, order.id)
+    types = [t.status_type.value for t in order.tracking]
+    assert "dispatched" in types
+    assert types.count("delivered") == 1
+
+
+def test_delivered_cod_order_is_marked_paid(app, client):
+    headers = _admin_headers(client)
+    order, _ = _placed_order()
+    assert order.payment_status == PaymentStatus.pending
+
+    client.patch(f"/api/admin/orders/{order.id}/status", json={"status": "delivered"}, headers=headers)
+
+    db.session.expire_all()
+    assert db.session.get(Order, order.id).payment_status == PaymentStatus.paid

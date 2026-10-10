@@ -172,8 +172,8 @@ export default function AdminFeatures() {
                   <p className="mt-0.5 text-sm text-gray-500 line-clamp-2">{f.description}</p>
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => openEdit(f)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                  <button onClick={() => handleDelete(f.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                  <button type="button" onClick={() => openEdit(f)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                  <button type="button" onClick={() => handleDelete(f.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
                 </div>
               </div>
             )

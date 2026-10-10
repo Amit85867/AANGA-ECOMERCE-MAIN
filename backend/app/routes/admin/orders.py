@@ -12,6 +12,7 @@ from app.models.catalogue import ProductImage
 from app.models.user import User
 from app.models.enums import (
     OrderStatus,
+    PaymentMethod,
     PaymentStatus,
     TrackingStatusType,
     ReturnStatus,
@@ -28,6 +29,17 @@ from app.utils.pagination import apply_sort, page_meta, paginate, parse_day
 _status_in = AdminOrderStatusIn()
 _tracking_in = AdminTrackingIn()
 _return_in = AdminReturnUpdateIn()
+
+# order status -> (label, description, tracking type) shown on the customer's order page
+_STATUS_EVENTS = {
+    OrderStatus.confirmed: ("Order Confirmed", "We have confirmed your order.", TrackingStatusType.confirmed),
+    OrderStatus.packed: ("Packed", "Your order is packed and ready to ship.", TrackingStatusType.packed),
+    OrderStatus.shipped: ("Shipped", "Your order is on its way.", TrackingStatusType.dispatched),
+    OrderStatus.out_for_delivery: (
+        "Out for Delivery", "Your order will reach you today.", TrackingStatusType.out_for_delivery),
+    OrderStatus.delivered: ("Delivered", "Your order has been delivered.", TrackingStatusType.delivered),
+    OrderStatus.cancelled: ("Order Cancelled", "This order was cancelled.", TrackingStatusType.returned),
+}
 
 
 def _serialize_order_list(o, customer_name, customer_email):
@@ -209,6 +221,24 @@ def update_order_status(order_id):
         summary=f"Order {order.order_number}: {previous_status.value} → {new_status.value}",
         changes={"from": previous_status.value, "to": new_status.value},
     )
+
+    # The customer follows the order through its tracking events, and the
+    # return window is counted from the "delivered" one — so a status change
+    # always leaves an event behind.
+    event = _STATUS_EVENTS.get(new_status)
+    if event:
+        label, description, status_type = event
+        db.session.add(OrderTracking(
+            order_id=order.id, status_label=label, description=description, status_type=status_type,
+        ))
+
+    # Cash on delivery is collected at the door.
+    if (
+        new_status == OrderStatus.delivered
+        and order.payment_method == PaymentMethod.cod
+        and order.payment_status == PaymentStatus.pending
+    ):
+        order.payment_status = PaymentStatus.paid
 
     refunded = None
     if new_status == OrderStatus.cancelled:

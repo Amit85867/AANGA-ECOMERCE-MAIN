@@ -184,7 +184,8 @@ export default function ProductDetail() {
     setAdding(false)
     if (res?.needsAuth) {
       toast.info('Please sign in to add items to your bag')
-      navigate('/login')
+      // come back to this product after signing in
+      navigate('/login', { state: { from: window.location.pathname } })
       return false
     }
     return res?.ok

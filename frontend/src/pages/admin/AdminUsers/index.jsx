@@ -8,7 +8,7 @@ import DataState, { TableSkeleton } from '@/components/admin/DataState'
 import Pagination from '@/components/admin/Pagination'
 import useAdminList from '@/components/admin/useAdminList'
 import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
-import { formatDate, humanize, inputCls, notifyError } from '@/components/admin/helpers'
+import { countOf, formatDate, humanize, inputCls, notifyError } from '@/components/admin/helpers'
 
 export default function AdminUsers() {
   const [q, setQ] = useState('')
@@ -47,7 +47,7 @@ export default function AdminUsers() {
 
   return (
     <div>
-      <PageHeading title="Customers" subtitle={`${list.total.toLocaleString('en-IN')} matching customers`} />
+      <PageHeading title="Customers" subtitle={`${countOf(list.total, 'customers')} found`} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
         <SearchInput value={q} onChange={setQ} placeholder="Name, email or phone" />

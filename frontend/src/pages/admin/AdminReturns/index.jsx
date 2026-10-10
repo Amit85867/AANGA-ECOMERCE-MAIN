@@ -52,7 +52,7 @@ function ReturnCard({ ret, onChanged }) {
         : `This was a cash-on-delivery order, so nothing can be refunded online. Pay ${inr(value)} to the customer yourself, then confirm.`
     const sure = await confirm({
       title: `Resolve return for ${ret.order_number}?`,
-      message: `${moneyLine}${restock ? ` ${ret.quantity} unit${ret.quantity === 1 ? '' : 's'} go back into stock.` : ''}`,
+      message: `${moneyLine}${restock ? ` ${ret.quantity} ${ret.quantity === 1 ? 'unit goes' : 'units go'} back into stock.` : ''}`,
       confirmLabel: refunding && ret.prepaid ? `Refund ${inr(value)}` : 'Resolve return',
       danger: refunding && ret.prepaid,
     })

@@ -182,8 +182,8 @@ export default function AdminOffers() {
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(o)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                      <button onClick={() => handleDelete(o.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                      <button type="button" onClick={() => openEdit(o)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                      <button type="button" onClick={() => handleDelete(o.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
                     </div>
                   </td>
                 </tr>

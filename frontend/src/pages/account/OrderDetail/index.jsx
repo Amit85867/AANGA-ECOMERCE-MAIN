@@ -215,7 +215,7 @@ export default function OrderDetail() {
           </div>
           <p className="mt-2 text-sm text-muted">
             Placed {formatDateTime(order.placed_at)}
-            {order.expected_delivery && !['delivered', 'cancelled', 'returned'].includes(order.status) && (
+            {order.expected_delivery && !['delivered', 'cancelled', 'return_requested', 'returned'].includes(order.status) && (
               <> · Expected by <span className="font-medium text-fg">{formatDate(order.expected_delivery)}</span></>
             )}
           </p>

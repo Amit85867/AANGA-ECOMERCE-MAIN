@@ -172,7 +172,7 @@ export default function AdminOrderDetail() {
                       <span>{item.color_name}</span>
                     </div>
                     <div className="mt-1 text-sm text-gray-700">
-                      ₹{item.unit_price.toLocaleString('en-IN')} x {item.quantity} = ₹{item.total_price.toLocaleString('en-IN')}
+                      {inr(item.unit_price)} x {item.quantity} = {inr(item.total_price)}
                     </div>
                   </div>
                 </div>
@@ -249,12 +249,12 @@ export default function AdminOrderDetail() {
               <div className="flex justify-between"><span className="text-gray-500">Status</span><span className="capitalize text-gray-900">{order.payment_status}</span></div>
               {order.payment_ref && <div className="flex justify-between"><span className="text-gray-500">Ref</span><span className="text-gray-900">{order.payment_ref}</span></div>}
               <hr className="my-2" />
-              <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>₹{order.subtotal.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Discount</span><span className="text-green-600">-₹{order.discount_amount.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">GST</span><span>₹{order.gst_amount.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Delivery</span><span>₹{order.delivery_charge.toLocaleString('en-IN')}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{inr(order.subtotal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Discount</span><span className="text-green-600">-{inr(order.discount_amount)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">GST</span><span>{inr(order.gst_amount)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Delivery</span><span>{inr(order.delivery_charge)}</span></div>
               <hr className="my-2" />
-              <div className="flex justify-between font-semibold"><span>Total</span><span>₹{order.total_amount.toLocaleString('en-IN')}</span></div>
+              <div className="flex justify-between font-semibold"><span>Total</span><span>{inr(order.total_amount)}</span></div>
             </div>
           </div>
 

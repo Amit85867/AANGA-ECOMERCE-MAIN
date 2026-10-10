@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
 import { toast } from '@/components/ui/toastStore'
 import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
-import { notifyError } from '@/components/admin/helpers'
+import { inr, notifyError } from '@/components/admin/helpers'
 import { IconArrowLeft } from '@tabler/icons-react'
 
 export default function AdminUserDetail() {
@@ -84,7 +84,7 @@ export default function AdminUserDetail() {
                     <tr key={o.id} className="border-b border-gray-50">
                       <td className="py-2 font-medium text-gray-900">{o.order_number}</td>
                       <td className="py-2 capitalize text-gray-500">{o.status.replace(/_/g, ' ')}</td>
-                      <td className="py-2">₹{o.total_amount.toLocaleString('en-IN')}</td>
+                      <td className="py-2">{inr(o.total_amount)}</td>
                       <td className="py-2 text-gray-400">{new Date(o.placed_at).toLocaleDateString('en-IN')}</td>
                     </tr>
                   ))}

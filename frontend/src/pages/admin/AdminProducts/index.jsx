@@ -8,7 +8,7 @@ import DataState, { TableSkeleton } from '@/components/admin/DataState'
 import Pagination from '@/components/admin/Pagination'
 import useAdminList from '@/components/admin/useAdminList'
 import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
-import { inputCls, inr, notifyError } from '@/components/admin/helpers'
+import { countOf, inputCls, inr, notifyError } from '@/components/admin/helpers'
 
 const SORTS = [
   ['created_at:desc', 'Newest first'],
@@ -73,7 +73,7 @@ export default function AdminProducts() {
 
   return (
     <div>
-      <PageHeading title="Products" subtitle={`${list.total.toLocaleString('en-IN')} matching products`}>
+      <PageHeading title="Products" subtitle={`${countOf(list.total, 'products')} found`}>
         <Link
           to="/admin/products/new"
           className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-dark"

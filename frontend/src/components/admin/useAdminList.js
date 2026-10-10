@@ -73,6 +73,7 @@ export default function useAdminList(url, key, params = {}, { perPage = 20 } = {
     error,
     setPage,
     reload: () => load(page),
-    filtered: Object.values(params).some((v) => v !== '' && v != null),
+    // sort order is not a filter: an empty list sorted by date is still just empty
+    filtered: Object.entries(params).some(([k, v]) => k !== 'sort' && k !== 'dir' && v !== '' && v != null),
   }
 }
