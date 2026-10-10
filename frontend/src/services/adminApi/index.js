@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { describeApiError } from '@/utils/apiError'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -81,7 +82,7 @@ adminApi.interceptors.response.use(
         window.location.href = '/admin/login'
       }
     }
-    return Promise.reject(err)
+    return Promise.reject(describeApiError(err))
   },
 )
 

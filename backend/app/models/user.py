@@ -100,5 +100,8 @@ class Address(db.Model):
     pin_code = db.Column(db.CHAR(6), nullable=False)
     is_default = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
+    # Set instead of deleting/rewriting a row an order still points at; see
+    # routes/addresses.py.
+    archived_at = db.Column(db.DateTime(timezone=True))
 
     user = db.relationship("User", back_populates="addresses")

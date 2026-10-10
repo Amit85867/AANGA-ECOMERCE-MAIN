@@ -119,7 +119,9 @@ def create_order_from_cart(user_id, address_id, payment_method_value,
     if not cart or not cart.items:
         return None, ("Cart is empty", 422)
 
-    address = Address.query.filter_by(id=address_id, user_id=user_id).first()
+    address = Address.query.filter_by(
+        id=address_id, user_id=user_id, archived_at=None
+    ).first()
     if not address:
         return None, ("Address not found", 404)
 

@@ -347,7 +347,8 @@ CREATE TABLE public.addresses (
     state text NOT NULL,
     pin_code character(6) NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    archived_at timestamp with time zone
 );
 
 

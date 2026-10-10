@@ -202,7 +202,7 @@ docker compose -f $ComposeFile exec -T db `
 # is written with IF NOT EXISTS guards throughout.
 Write-Step 'Applying outstanding migrations'
 
-$pendingMigrations = @('migrations_orders_idempotency.sql')
+$pendingMigrations = @('migrations_orders_idempotency.sql', 'migrations_address_archive.sql')
 foreach ($m in $pendingMigrations) {
     $src = Join-Path $BackendDir $m
     if (-not (Test-Path $src)) { Write-Warn "skipped (not found): $m"; continue }

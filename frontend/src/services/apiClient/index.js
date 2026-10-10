@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { describeApiError } from '@/utils/apiError'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -72,7 +73,7 @@ apiClient.interceptors.response.use(
         setAccessToken(null)
       }
     }
-    return Promise.reject(error)
+    return Promise.reject(describeApiError(error))
   },
 )
 
