@@ -6,12 +6,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# The dockerized Postgres from backend/docker-compose.yml. Used as the
+# development fallback, and recognised by _validate_config so a production app
+# that forgot to set DATABASE_URL fails on boot rather than on first query.
+DEV_DATABASE_URL = "postgresql://aanga:aanga@localhost:55433/aanga"
+
 
 class BaseConfig:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
-    # SQLAlchemy
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///dev.db")
+    # SQLAlchemy. The fallback points at the dockerized Postgres from
+    # backend/docker-compose.yml — the schema is Postgres-native (UUID PKs, PG
+    # enums, generated columns, triggers), so a SQLite fallback would only fail
+    # in confusing ways. Production must set DATABASE_URL explicitly.
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", DEV_DATABASE_URL)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 

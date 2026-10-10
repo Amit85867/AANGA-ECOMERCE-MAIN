@@ -4,10 +4,11 @@ import os
 import click
 from flask import Flask, jsonify
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
 
-from config import get_config
+from config import DEV_DATABASE_URL, get_config
 from app.extensions import db, migrate, jwt, cors, limiter
 
 
@@ -139,7 +140,17 @@ def _validate_config(app):
 
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI") or ""
     if db_uri.startswith("sqlite"):
-        problems.append("DATABASE_URL is unset (falling back to SQLite)")
+        problems.append(
+            "DATABASE_URL points at SQLite — the schema is Postgres-native "
+            "(enums, generated columns, triggers) and will not work"
+        )
+    elif db_uri == DEV_DATABASE_URL:
+        # Seeing the fallback verbatim means DATABASE_URL was never set. Without
+        # this the app would boot happily and only fail on the first query.
+        problems.append(
+            "DATABASE_URL is unset (falling back to the local docker-compose "
+            "database)"
+        )
 
     # Uploads would land on an ephemeral filesystem and be lost on redeploy,
     # silently breaking every product image.
@@ -223,16 +234,28 @@ def _auto_seed_admin(app):
 
     with app.app_context():
         from app.models.admin import Admin
-        if not Admin.query.filter_by(email=email).first():
-            admin = Admin(
-                email=email,
-                password_hash=generate_password_hash(password),
-                full_name="Master Admin",
-                role="master",
+        try:
+            if not Admin.query.filter_by(email=email).first():
+                admin = Admin(
+                    email=email,
+                    password_hash=generate_password_hash(password),
+                    full_name="Master Admin",
+                    role="master",
+                )
+                db.session.add(admin)
+                db.session.commit()
+                app.logger.info(f"Auto-seeded master admin: {email}")
+        except SQLAlchemyError:
+            # Seeding is a convenience, not a startup requirement. Letting this
+            # raise means a database that is merely slow to accept connections
+            # (a cold managed instance, a container still starting) takes the
+            # whole app down instead of booting and serving /api/health.
+            db.session.rollback()
+            app.logger.warning(
+                "Could not auto-seed the master admin — the database was not "
+                "reachable at startup. Run `flask seed-admin` once it is up.",
+                exc_info=True,
             )
-            db.session.add(admin)
-            db.session.commit()
-            app.logger.info(f"Auto-seeded master admin: {email}")
 
 
 def _register_cli(app):

@@ -1,6 +1,13 @@
 # Environment & secrets
 .env
 *.env.local
+.env.*
+*.env.bak
+*.bak
+
+# Database dumps (may contain customer data — never commit)
+backend/db/backups/*
+!backend/db/backups/.gitkeep
 
 # Python
 __pycache__/

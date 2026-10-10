@@ -6,7 +6,10 @@
 # Runs on host port 55432 to avoid clashing with any local Postgres.
 services:
   test-db:
-    image: postgres:latest
+    # Pinned to the same major as the dev/production container (and the
+    # Supabase server schema.sql was dumped from), so tests cannot pass on a
+    # Postgres version the real database never runs.
+    image: postgres:17
     container_name: aanga-test-pg
     environment:
       POSTGRES_PASSWORD: test

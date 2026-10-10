@@ -1,20 +1,24 @@
 # AANGA — Deployment runbook
 
-Backend: Flask + gunicorn (Docker). Frontend: static Vite build. Database +
-object storage: Supabase (managed Postgres + Storage). Target hosts: Render /
-Railway (backend), any static host / CDN (frontend).
+Backend: Flask + gunicorn (Docker). Frontend: static Vite build. Database:
+**dockerized Postgres** (`backend/docker-compose.yml`) — see
+[DATABASE.md](DATABASE.md). Object storage: Supabase Storage (still). Target
+hosts: Render / Railway (backend), any static host / CDN (frontend).
 
 ## 1. Prerequisites (one-time)
 
-1. **Supabase project** — Postgres + a **public** Storage bucket named
-   `product-images` (Storage → New bucket).
-2. **Apply outstanding SQL migrations** to the live database, in order. These
-   are plain `.sql` files under `backend/`; run them in the Supabase SQL editor:
-   - `migrations_password_resets.sql`, `migrations_cms.sql`,
-     `migrations_cms_components.sql` (already applied on 2026-07-19 — skip if done)
-   - **`migrations_orders_idempotency.sql`** — adds `orders.idempotency_key`
-     and the partial unique indexes on `payment_ref` / `idempotency_key`. Check
-     for duplicate `payment_ref` values first (query in the file header).
+1. **Postgres** — `docker compose -f backend/docker-compose.yml up -d db`, which
+   builds the full schema on first boot. Migrating existing data off Supabase is
+   a single command; the whole procedure, plus backups, is in
+   **[DATABASE.md](DATABASE.md)**.
+2. **Supabase Storage** — a **public** bucket named `product-images`
+   (Storage → New bucket). Only Storage is still Supabase; the database has
+   moved. The app refuses to boot in production without it.
+3. **SQL migrations** — a container built from `schema.sql` already includes
+   every migration under `backend/`. They matter only when restoring a dump
+   taken from the old Supabase database, and `db/migrate-from-supabase.ps1`
+   re-applies the outstanding ones (`migrations_orders_idempotency.sql`)
+   automatically after the restore.
 3. **Razorpay** live keys (or leave blank for COD-only).
 4. **Resend** account + a verified sending domain for `EMAIL_FROM`.
 5. **Redis** instance (Render/Railway add-on) for rate limiting across >1
@@ -30,8 +34,9 @@ production** (`_validate_config`) unless these are real:
 |---|---|
 | `FLASK_ENV=production` | selects `ProductionConfig` |
 | `SECRET_KEY`, `JWT_SECRET_KEY` | ≥32 random chars each, distinct |
-| `DATABASE_URL` | Supabase Postgres URI (not SQLite) |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | required — disk is ephemeral |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | drive the `db` container; `POSTGRES_PORT` defaults to 55433 |
+| `DATABASE_URL` | Postgres URI built from the three above (not SQLite) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Storage only — required, disk is ephemeral |
 | `FRONTEND_ORIGIN` | storefront origin (CORS + cookies) |
 | `SITE_URL` | public storefront origin (sitemap/OG); defaults to `FRONTEND_ORIGIN` |
 | `RAZORPAY_KEY_ID/SECRET` | blank ⇒ COD-only |
