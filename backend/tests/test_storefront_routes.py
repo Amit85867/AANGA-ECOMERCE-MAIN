@@ -476,3 +476,42 @@ def test_phone_sign_in_is_refused_in_production_without_an_sms_provider(app, cli
 
     assert sent.status_code == verified.status_code == 503
     assert OTP.query.count() == 0
+
+
+# ── Size and colour filters ───────────────────────────────────
+
+def _variant(product, size, colour, stock=5):
+    from app.models.catalogue import ProductVariant
+    db.session.add(ProductVariant(
+        product_id=product.id, size=size, color_name=colour, color_hex="#123456", stock_qty=stock,
+    ))
+    db.session.commit()
+
+
+def test_size_and_colour_must_match_on_the_same_in_stock_variant(app, client):
+    tee, _ = make_product(slug="tee", size="M", color_name="Red")       # M Red
+    _variant(tee, "L", "Blue")                                           # L Blue
+    shirt, _ = make_product(slug="shirt", size="M", color_name="Blue")  # M Blue
+    sold_out, _ = make_product(slug="sold-out", size="M", color_name="Blue", stock=0)
+    slugs = lambda url: sorted(p["slug"] for p in client.get(url).get_json()["products"])  # noqa: E731
+
+    assert slugs("/api/products?size=M") == ["shirt", "tee"]
+    assert slugs("/api/products?color=blue") == ["shirt", "tee"]
+    # The tee has M and has Blue, but never together.
+    assert slugs("/api/products?size=M&color=Blue") == ["shirt"]
+    assert slugs("/api/products?size=M,L&color=Blue") == ["shirt", "tee"]
+    assert slugs("/api/products?size=XXL") == []
+
+
+def test_facets_list_only_what_can_be_bought(app, client):
+    tee, _ = make_product(slug="tee", price=400, size="M", color_name="Red")
+    _variant(tee, "S", "Red")
+    _variant(tee, "XL", "Olive", stock=0)       # sold out: not offered as a filter
+    make_product(slug="jeans", price=2400, size="32", color_name="Indigo")
+
+    body = client.get("/api/products/facets").get_json()
+
+    assert body["sizes"] == ["S", "M", "32"]    # by convention, not alphabet
+    assert [c["name"] for c in body["colors"]] == ["Indigo", "Red"]
+    assert body["price"] == {"min": 400.0, "max": 2400.0}
+    assert client.get("/api/products/facets?category=nope").get_json()["sizes"] == []

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { IconHeart, IconStarFilled } from '@tabler/icons-react'
 import { useWishlistStore } from '@/store/useWishlistStore'
+import { Price } from '@/components/ui/Display'
 
 export default function ProductCard({ product }) {
   const {
@@ -10,7 +11,6 @@ export default function ProductCard({ product }) {
     category_name,
     mrp,
     selling_price,
-    discount_percent,
     badge_label,
     primary_image,
     colors = [],
@@ -29,7 +29,10 @@ export default function ProductCard({ product }) {
   }
 
   return (
-    <Link to={`/product/${slug}`} className="group block">
+    <Link
+      to={`/product/${slug}`}
+      className="group block rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4"
+    >
       {/* Image — image-first with minimal padding, per the design system */}
       <div className="relative aspect-[3/4] rounded-card overflow-hidden bg-fill">
         {primary_image ? (
@@ -37,6 +40,9 @@ export default function ProductCard({ product }) {
             src={primary_image}
             alt={name}
             loading="lazy"
+            decoding="async"
+            width="600"
+            height="800"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
@@ -46,8 +52,8 @@ export default function ProductCard({ product }) {
         )}
 
         {badge_label && (
-          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-accent text-white
-                           text-[10px] tracking-[0.05em] uppercase font-semibold">
+          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-primary text-on-primary
+                           text-xs tracking-[0.05em] uppercase font-semibold">
             {badge_label}
           </span>
         )}
@@ -56,9 +62,10 @@ export default function ProductCard({ product }) {
           onClick={handleWishlist}
           aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
           aria-pressed={inWishlist}
-          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-card/90 backdrop-blur
+          className="absolute top-2 right-2 w-11 h-11 rounded-full bg-card/90 backdrop-blur
                      flex items-center justify-center shadow-card
-                     transition-transform duration-200 hover:scale-110"
+                     transition-transform duration-200 hover:scale-110
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <IconHeart
             size={17}
@@ -72,30 +79,17 @@ export default function ProductCard({ product }) {
       {/* Metadata — generous padding below the photo */}
       <div className="pt-4">
         {category_name && (
-          <div className="text-[11px] tracking-[0.1em] text-subtle uppercase font-medium">
+          <div className="text-xs tracking-[0.08em] text-subtle uppercase font-medium">
             {category_name}
           </div>
         )}
 
-        <div className="flex items-start justify-between gap-3 mt-1">
-          <h3 className="text-sm font-medium text-fg leading-snug">{name}</h3>
-          <span className="text-sm font-semibold text-fg whitespace-nowrap">
-            &#8377;{selling_price?.toLocaleString('en-IN')}
-          </span>
-        </div>
-
-        {mrp > selling_price && (
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-subtle line-through">
-              &#8377;{mrp?.toLocaleString('en-IN')}
-            </span>
-            <span className="text-xs text-accent font-semibold">{discount_percent}% off</span>
-          </div>
-        )}
+        <h3 className="mt-1 text-sm font-medium text-fg leading-snug line-clamp-2">{name}</h3>
+        <Price price={selling_price} mrp={mrp} size="sm" className="mt-1.5" />
 
         {avg_rating > 0 && (
           <div className="flex items-center gap-1.5 mt-2">
-            <IconStarFilled size={12} className="text-accent" />
+            <IconStarFilled size={12} className="text-fg" aria-hidden="true" />
             <span className="text-xs font-medium text-fg">{Number(avg_rating).toFixed(1)}</span>
             {review_count > 0 && (
               <span className="text-xs text-subtle">({review_count})</span>
@@ -104,7 +98,7 @@ export default function ProductCard({ product }) {
         )}
 
         {colors.length > 0 && (
-          <div className="flex gap-1.5 mt-2.5">
+          <div className="flex gap-1.5 mt-2.5" aria-hidden="true">
             {colors.map((c, i) => (
               <span
                 key={i}

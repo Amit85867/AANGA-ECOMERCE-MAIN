@@ -26,7 +26,7 @@ export const useProductStore = create((set, get) => ({
         loading: false,
         loadingMore: false,
       }))
-    } catch (err) {
+    } catch {
       set({ loading: false, loadingMore: false, error: 'Failed to load products' })
     }
   },
@@ -36,7 +36,7 @@ export const useProductStore = create((set, get) => ({
     try {
       const { data } = await apiClient.get(`/products/${slug}`)
       set({ product: data, loading: false })
-    } catch (err) {
+    } catch {
       set({ loading: false, error: 'Product not found' })
     }
   },

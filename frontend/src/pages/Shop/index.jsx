@@ -1,181 +1,279 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { IconAdjustmentsHorizontal } from '@tabler/icons-react'
+import { IconAdjustmentsHorizontal, IconSearchOff, IconX } from '@tabler/icons-react'
+import apiClient from '@/services/apiClient'
 import { useProductStore } from '@/store/useProductStore'
 import ProductCard from '@/components/ui/ProductCard'
-import PageHeader from '@/components/ui/PageHeader'
+import Button from '@/components/ui/Button'
+import Chip from '@/components/ui/Chip'
+import { Select } from '@/components/ui/Field'
+import { Drawer } from '@/components/ui/Overlay'
+import {
+  Container, EmptyState, ErrorState, PageTitle, ProductCardSkeleton,
+} from '@/components/ui/Display'
+import { inr } from '@/utils/format'
 import Seo from '@/components/Seo'
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
-const FILTER_COLORS = ['#0A0A0A', '#fff', '#8B1A1A', '#1a2a4a', '#C8963E', '#1a3a1a']
-
-const SORT_OPTIONS = [
-  { value: 'newest', label: 'Newest First' },
-  { value: 'popular', label: 'Most Popular' },
-  { value: 'price_asc', label: 'Price: Low to High' },
-  { value: 'price_desc', label: 'Price: High to Low' },
+const SORTS = [
+  ['newest', 'Newest first'],
+  ['price_asc', 'Price: low to high'],
+  ['price_desc', 'Price: high to low'],
 ]
+const PER_PAGE = 12
 
-// Upper bound of the price filter. Must stay above the dearest product or that
-// product becomes unreachable from Shop -- raise it when the catalogue does.
-const PRICE_CEILING = 15000
+const list = (value) => (value ? value.split(',').filter(Boolean) : [])
+const toggle = (items, item) => (items.includes(item) ? items.filter((i) => i !== item) : [...items, item])
+
+function FilterGroup({ title, children }) {
+  return (
+    <fieldset className="border-b border-hairline/60 py-5 first:pt-0 last:border-0">
+      <legend className="float-left w-full mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-fg">{title}</legend>
+      <div className="clear-both">{children}</div>
+    </fieldset>
+  )
+}
+
+function Filters({ filters, facets, categories, set }) {
+  const ceiling = Math.ceil((facets.price.max || 0) / 100) * 100
+  const price = filters.maxPrice || ceiling
+
+  return (
+    <div>
+      <FilterGroup title="Category">
+        <div className="space-y-2.5">
+          {[{ slug: '', name: 'All products' }, ...categories].map((c) => (
+            <label key={c.slug || 'all'} className="flex items-center gap-2.5 text-sm text-fg cursor-pointer">
+              <input
+                type="radio" name="category" className="h-4 w-4 accent-black"
+                checked={filters.category === c.slug}
+                onChange={() => set({ category: c.slug })}
+              />
+              {c.name}
+            </label>
+          ))}
+        </div>
+      </FilterGroup>
+
+      {facets.sizes.length > 0 && (
+        <FilterGroup title="Size">
+          <div className="flex flex-wrap gap-2">
+            {facets.sizes.map((size) => (
+              <Chip
+                key={size} selected={filters.sizes.includes(size)} className="!h-10 !min-w-[2.75rem] !px-3"
+                onClick={() => set({ sizes: toggle(filters.sizes, size) })}
+              >
+                {size}
+              </Chip>
+            ))}
+          </div>
+        </FilterGroup>
+      )}
+
+      {facets.colors.length > 0 && (
+        <FilterGroup title="Colour">
+          <div className="flex flex-wrap gap-3">
+            {facets.colors.map((c) => (
+              <Chip
+                key={c.name} color={c.hex} selected={filters.colors.includes(c.name)}
+                aria-label={c.name} title={c.name}
+                onClick={() => set({ colors: toggle(filters.colors, c.name) })}
+              />
+            ))}
+          </div>
+        </FilterGroup>
+      )}
+
+      {ceiling > 0 && (
+        <FilterGroup title="Price">
+          <label htmlFor="max-price" className="sr-only">Maximum price</label>
+          <input
+            id="max-price" type="range" min={Math.floor(facets.price.min / 100) * 100} max={ceiling} step="100"
+            value={price}
+            onChange={(e) => set({ maxPrice: Number(e.target.value) >= ceiling ? 0 : Number(e.target.value) })}
+            className="w-full accent-black"
+          />
+          <div className="mt-2 flex justify-between text-xs text-muted tabular-nums">
+            <span>{inr(facets.price.min)}</span>
+            <span className="font-medium text-fg">{filters.maxPrice ? `Up to ${inr(price)}` : 'Any price'}</span>
+          </div>
+        </FilterGroup>
+      )}
+    </div>
+  )
+}
 
 export default function Shop() {
-  const [searchParams] = useSearchParams()
-  const { products, loading, loadingMore, total, page, pages, fetchProducts, categories, fetchCategories } = useProductStore()
+  const [params, setParams] = useSearchParams()
+  const {
+    products, loading, loadingMore, error, total, page, pages,
+    fetchProducts, categories, fetchCategories,
+  } = useProductStore()
+  const [facets, setFacets] = useState({ sizes: [], colors: [], price: { min: 0, max: 0 } })
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const [sort, setSort] = useState('newest')
-  // Start at the ceiling so the filter is inert until the shopper moves it.
-  // Defaulting mid-range silently hid every product above it -- the premium
-  // end of the catalogue was unreachable from Shop at all.
-  const [priceRange, setPriceRange] = useState(PRICE_CEILING)
-  const [activeSize, setActiveSize] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState(null)
+  // The URL is the single source of truth for filters: a filtered view can be
+  // shared, bookmarked, and survives Back from a product page.
+  const filters = useMemo(() => ({
+    q: params.get('q') || '',
+    category: params.get('category') || '',
+    sizes: list(params.get('size')),
+    colors: list(params.get('color')),
+    maxPrice: Number(params.get('max_price')) || 0,
+    sort: params.get('sort') || 'newest',
+  }), [params])
 
-  const buildParams = (pageNum) => {
-    const params = { page: pageNum, per_page: 12, sort }
-    if (priceRange < PRICE_CEILING) params.max_price = priceRange
-    const q = searchParams.get('q')
-    if (q) params.q = q
-    if (selectedCategory) params.category = selectedCategory
-    return params
+  const set = (patch) => {
+    const next = { ...filters, ...patch }
+    const out = {}
+    if (next.q) out.q = next.q
+    if (next.category) out.category = next.category
+    if (next.sizes.length) out.size = next.sizes.join(',')
+    if (next.colors.length) out.color = next.colors.join(',')
+    if (next.maxPrice) out.max_price = String(next.maxPrice)
+    if (next.sort !== 'newest') out.sort = next.sort
+    // Replace, so each filter click is not its own Back-button step.
+    setParams(out, { replace: true })
   }
 
-  useEffect(() => {
-    fetchCategories()
-  }, [fetchCategories])
+  const query = useMemo(() => {
+    const out = { per_page: PER_PAGE, sort: filters.sort }
+    if (filters.q) out.q = filters.q
+    if (filters.category) out.category = filters.category
+    if (filters.sizes.length) out.size = filters.sizes.join(',')
+    if (filters.colors.length) out.color = filters.colors.join(',')
+    if (filters.maxPrice) out.max_price = filters.maxPrice
+    return out
+  }, [filters])
 
-  // Any filter/sort/search change resets back to the first page (replace).
-  useEffect(() => {
-    fetchProducts(buildParams(1))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, priceRange, selectedCategory, searchParams, fetchProducts])
+  useEffect(() => { fetchCategories() }, [fetchCategories])
 
-  const loadMore = () => fetchProducts(buildParams(page + 1), true)
+  useEffect(() => {
+    fetchProducts({ ...query, page: 1 })
+  }, [query, fetchProducts])
+
+  // Sizes and colours on offer depend on the category being browsed.
+  useEffect(() => {
+    apiClient
+      .get('/products/facets', { params: filters.category ? { category: filters.category } : {} })
+      .then(({ data }) => setFacets(data))
+      .catch(() => {}) // filters are an enhancement; the grid works without them
+  }, [filters.category])
+
+  const flatCategories = useMemo(
+    () => categories.flatMap((c) => [c, ...(c.children || [])]),
+    [categories],
+  )
+  const categoryName = flatCategories.find((c) => c.slug === filters.category)?.name
+
+  const active = [
+    filters.q && { key: 'q', label: `“${filters.q}”`, clear: { q: '' } },
+    filters.category && { key: 'cat', label: categoryName || filters.category, clear: { category: '' } },
+    ...filters.sizes.map((s) => ({ key: `s-${s}`, label: `Size ${s}`, clear: { sizes: filters.sizes.filter((x) => x !== s) } })),
+    ...filters.colors.map((c) => ({ key: `c-${c}`, label: c, clear: { colors: filters.colors.filter((x) => x !== c) } })),
+    filters.maxPrice && { key: 'price', label: `Up to ${inr(filters.maxPrice)}`, clear: { maxPrice: 0 } },
+  ].filter(Boolean)
+  const clearAll = () => setParams(filters.sort !== 'newest' ? { sort: filters.sort } : {}, { replace: true })
+
+  const title = filters.q ? `Results for “${filters.q}”` : categoryName || 'All products'
+  const panel = <Filters filters={filters} facets={facets} categories={flatCategories} set={set} />
 
   return (
     <>
       <Seo
-        title="Shop All Products"
+        title={categoryName || 'Shop All Products'}
         description="Browse the full AANGA collection — clothing, accessories and more for men, women and kids, with fast delivery across India."
       />
-      <PageHeader title="All Products" crumbs={[{ label: 'Home', to: '/' }, { label: 'Shop' }]} />
-      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] flex-1">
-        {/* Sidebar */}
-        <aside className="border-r border-line p-5 bg-white hidden lg:block">
-          <div className="text-[11px] tracking-[2px] uppercase font-bold mb-4 pb-3 border-b border-line flex items-center gap-1.5">
-            <IconAdjustmentsHorizontal size={14} /> Filters
-          </div>
+      <Container className="pb-16">
+        <PageTitle title={title} crumbs={[{ label: 'Home', to: '/' }, { label: 'Shop' }]} />
 
-          <div className="mb-5">
-            <h4 className="text-[11px] font-semibold mb-2.5 tracking-[0.5px] uppercase text-gray">Category</h4>
-            <label className="flex items-center gap-2 mb-1.5 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="category"
-                checked={!selectedCategory}
-                onChange={() => setSelectedCategory(null)}
-                className="accent-gold"
-              /> All
-            </label>
-            {categories.map((c) => (
-              <label key={c.id} className="flex items-center gap-2 mb-1.5 text-xs cursor-pointer">
-                <input
-                  type="radio"
-                  name="category"
-                  checked={selectedCategory === c.slug}
-                  onChange={() => setSelectedCategory(c.slug)}
-                  className="accent-gold"
-                /> {c.name}
-              </label>
-            ))}
-          </div>
+        <div className="grid gap-10 lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <aside className="hidden lg:block" aria-label="Filters">
+            <div className="sticky top-28">{panel}</div>
+          </aside>
 
-          <div className="mb-5">
-            <h4 className="text-[11px] font-semibold mb-2.5 tracking-[0.5px] uppercase text-gray">Price Range</h4>
-            <input type="range" min="0" max={PRICE_CEILING} step="100" value={priceRange} onChange={(e) => setPriceRange(Number(e.target.value))} className="w-full accent-gold mb-1.5" />
-            <div className="flex justify-between text-[11px] text-gray">
-              <span>&#8377;0</span>
-              <span>{priceRange >= PRICE_CEILING ? 'Any' : `₹${priceRange.toLocaleString('en-IN')}`}</span>
-            </div>
-          </div>
-
-          <div className="mb-5">
-            <h4 className="text-[11px] font-semibold mb-2.5 tracking-[0.5px] uppercase text-gray">Size</h4>
-            <div className="flex flex-wrap gap-1.5">
-              {SIZES.map((s) => (
-                <button key={s} onClick={() => setActiveSize(activeSize === s ? null : s)} className={`w-9 h-9 text-[11px] font-medium border transition-colors ${activeSize === s ? 'border-gold bg-gold text-ink' : 'border-line hover:border-gold'}`}>{s}</button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-5">
-            <h4 className="text-[11px] font-semibold mb-2.5 tracking-[0.5px] uppercase text-gray">Colour</h4>
-            <div className="flex flex-wrap gap-2">
-              {FILTER_COLORS.map((c) => (
-                <button key={c} className="w-6 h-6 rounded-full border-[3px] border-transparent hover:border-gold transition-colors" style={{ background: c, boxShadow: c === '#fff' ? 'inset 0 0 0 1px #ddd' : 'none' }} />
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        {/* Main */}
-        <div className="p-6 lg:p-8">
-          <div className="flex items-center justify-between mb-5">
-            <span className="text-xs text-gray">
-              {loading ? 'Loading…' : `Showing ${products.length} of ${total} products`}
-            </span>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-              className="py-2 px-3 border border-line text-xs bg-white text-ink cursor-pointer"
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {loading ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="border border-line rounded overflow-hidden animate-pulse">
-                  <div className="aspect-[3/4] bg-surface" />
-                  <div className="p-3.5 space-y-2">
-                    <div className="h-3 bg-surface rounded w-1/2" />
-                    <div className="h-4 bg-surface rounded w-3/4" />
-                    <div className="h-4 bg-surface rounded w-1/3" />
-                  </div>
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted" aria-live="polite">
+                {loading ? 'Loading products…' : `${total.toLocaleString('en-IN')} product${total === 1 ? '' : 's'}`}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" className="lg:hidden" onClick={() => setDrawerOpen(true)}>
+                  <IconAdjustmentsHorizontal size={16} />
+                  Filters{active.length > 0 && ` (${active.length})`}
+                </Button>
+                <div className="w-48">
+                  <Select aria-label="Sort by" value={filters.sort} onChange={(e) => set({ sort: e.target.value })}>
+                    {SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </Select>
                 </div>
-              ))}
+              </div>
             </div>
-          ) : products.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-gray text-sm">No products found.</p>
-              <p className="text-xs text-gray mt-1">Try adjusting your filters or add products from the admin dashboard.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          )}
 
-          {/* Load more */}
-          {!loading && page < pages && (
-            <div className="flex justify-center mt-10">
-              <button
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="px-8 py-3 text-xs font-semibold uppercase tracking-[1px] border border-ink text-ink hover:bg-ink hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loadingMore ? 'Loading…' : `Load More (${total - products.length} left)`}
-              </button>
+            {active.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {active.map((f) => (
+                  <button
+                    key={f.key} type="button" onClick={() => set(f.clear)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-fill pl-3 pr-2 py-1.5 text-xs font-medium text-fg hover:bg-fill-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    {f.label}
+                    <IconX size={12} aria-hidden="true" />
+                    <span className="sr-only">Remove filter</span>
+                  </button>
+                ))}
+                <button type="button" onClick={clearAll} className="text-xs font-medium text-muted underline underline-offset-2 hover:text-fg">
+                  Clear all
+                </button>
+              </div>
+            )}
+
+            <div className="mt-6">
+              {loading ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6">
+                  {Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)}
+                </div>
+              ) : error ? (
+                <ErrorState message="We could not load the products." onRetry={() => fetchProducts({ ...query, page: 1 })} />
+              ) : products.length === 0 ? (
+                <EmptyState
+                  icon={IconSearchOff}
+                  title="Nothing matches"
+                  hint={active.length ? 'Try removing a filter or two.' : 'There are no products here yet. Please check back soon.'}
+                  action={active.length > 0 && <Button variant="secondary" onClick={clearAll}>Clear all filters</Button>}
+                />
+              ) : (
+                <>
+                  <ul className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6">
+                    {products.map((p) => <li key={p.id}><ProductCard product={p} /></li>)}
+                  </ul>
+                  {page < pages && (
+                    <div className="mt-12 flex flex-col items-center gap-3">
+                      <p className="text-xs text-subtle">Showing {products.length} of {total}</p>
+                      <Button
+                        variant="secondary" disabled={loadingMore}
+                        onClick={() => fetchProducts({ ...query, page: page + 1 }, true)}
+                      >
+                        {loadingMore ? 'Loading…' : 'Load more'}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      </Container>
+
+      <Drawer
+        open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Filters"
+        footer={
+          <Button full onClick={() => setDrawerOpen(false)}>
+            Show {total.toLocaleString('en-IN')} product{total === 1 ? '' : 's'}
+          </Button>
+        }
+      >
+        {panel}
+      </Drawer>
     </>
   )
 }

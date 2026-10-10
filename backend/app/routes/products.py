@@ -1,6 +1,6 @@
 """Product listing, detail, and search."""
 from flask import Blueprint, request, jsonify
-from sqlalchemy import func
+from sqlalchemy import and_, func
 
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -15,6 +15,61 @@ products_bp = Blueprint("products", __name__, url_prefix="/api/products")
 
 _list_out = ProductListOut(many=True)
 _detail_out = ProductDetailOut()
+
+
+def _csv(value):
+    """"M,L" -> ["M", "L"]; bounded so a query string cannot build a huge IN list."""
+    return [part.strip() for part in (value or "").split(",") if part.strip()][:20]
+
+
+# Clothing sizes sort by convention, not alphabet: S before M before L.
+_SIZE_ORDER = {s: i for i, s in enumerate(
+    ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "ONE SIZE", "FREE SIZE"]
+)}
+
+
+def _size_key(size):
+    upper = size.upper()
+    if upper in _SIZE_ORDER:
+        return (0, _SIZE_ORDER[upper], "")
+    if upper.replace(".", "", 1).isdigit():
+        return (1, float(upper), "")      # waist / shoe sizes, numerically
+    return (2, 0, upper)
+
+
+@products_bp.route("/facets", methods=["GET"])
+@cached_view(120)
+def product_facets():
+    """The sizes, colours and price range that exist among active products
+    (optionally within one category), so the shop only offers filters that can
+    return something."""
+    variants = (
+        db.session.query(ProductVariant.size, ProductVariant.color_name, ProductVariant.color_hex)
+        .join(Product, ProductVariant.product_id == Product.id)
+        .filter(Product.is_active.is_(True), ProductVariant.stock_qty > 0)
+    )
+    prices = db.session.query(
+        func.min(Product.selling_price), func.max(Product.selling_price)
+    ).filter(Product.is_active.is_(True))
+
+    category_slug = request.args.get("category")
+    if category_slug:
+        variants = variants.join(Category, Product.category_id == Category.id).filter(
+            Category.slug == category_slug)
+        prices = prices.join(Category, Product.category_id == Category.id).filter(
+            Category.slug == category_slug)
+
+    sizes, colours = set(), {}
+    for size, colour_name, colour_hex in variants.distinct().all():
+        sizes.add(size)
+        colours.setdefault(colour_name, colour_hex)
+
+    low, high = prices.one()
+    return jsonify(
+        sizes=sorted(sizes, key=_size_key),
+        colors=[{"name": name, "hex": colours[name]} for name in sorted(colours)],
+        price={"min": float(low or 0), "max": float(high or 0)},
+    ), 200
 
 
 def _build_product_list_item(p, primary_image, colors, avg_rating, review_count):
@@ -66,6 +121,20 @@ def list_products():
 
     if featured_only:
         q = q.filter(Product.is_featured.is_(True))
+
+    # Size and colour live on variants. A product matches when ONE variant has
+    # both the size and the colour asked for and is in stock — "M" and "Blue"
+    # should not match a product that only has M in red and L in blue, nor one
+    # whose blue M sold out.
+    sizes = _csv(request.args.get("size"))
+    colours = _csv(request.args.get("color"))
+    if sizes or colours or request.args.get("in_stock", "").lower() == "true":
+        wanted = [ProductVariant.stock_qty > 0]
+        if sizes:
+            wanted.append(func.lower(ProductVariant.size).in_([s.lower() for s in sizes]))
+        if colours:
+            wanted.append(func.lower(ProductVariant.color_name).in_([c.lower() for c in colours]))
+        q = q.filter(Product.variants.any(and_(*wanted)))
 
     sort_map = {
         "newest": Product.created_at.desc(),
