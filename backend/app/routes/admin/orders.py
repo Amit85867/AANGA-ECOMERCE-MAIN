@@ -21,6 +21,7 @@ from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.schemas.admin import AdminOrderStatusIn, AdminTrackingIn, AdminReturnUpdateIn
 from app.services import audit
+from app.services.catalogue import primary_images
 from app.services.order_service import refund_order_if_prepaid
 from app.utils.pagination import apply_sort, page_meta, paginate, parse_day
 
@@ -111,15 +112,12 @@ def admin_order_detail(order_id):
     user = db.session.get(User, order.user_id)
     addr = order.address
 
+    images = primary_images(oi.variant.product_id for oi in order.items)
+
     items = []
     for oi in order.items:
         variant = oi.variant
         product = variant.product
-        primary = (
-            ProductImage.query
-            .filter_by(product_id=product.id, is_primary=True)
-            .first()
-        )
         items.append({
             "id": oi.id,
             "product_name": product.name,
@@ -127,7 +125,7 @@ def admin_order_detail(order_id):
             "size": variant.size,
             "color_name": variant.color_name,
             "color_hex": variant.color_hex,
-            "image_url": primary.image_url if primary else None,
+            "image_url": images.get(product.id),
             "quantity": oi.quantity,
             "unit_price": float(oi.unit_price),
             "total_price": float(oi.total_price) if oi.total_price else float(oi.unit_price) * oi.quantity,

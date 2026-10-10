@@ -29,9 +29,10 @@ def create_app(config_object=None):
     _register_security_headers(app)
     _register_health(app)
 
-    from app.services import audit, maintenance
+    from app.services import audit, cache, maintenance
     maintenance.init_app(app)
     audit.init_app(app)
+    cache.init_app(app)
     _warn_runtime_config(app)
     _register_cli(app)
     _auto_seed_admin(app)
@@ -221,7 +222,10 @@ def _init_extensions(app):
     limiter.init_app(app)
     cors.init_app(
         app,
-        origins=[app.config["FRONTEND_ORIGIN"]],
+        # Only the storefront's own origin(s) may call the API with
+        # credentials. SITE_URL is the public domain; FRONTEND_ORIGIN usually
+        # equals it and differs only when the app is served from a second host.
+        origins=sorted({app.config["FRONTEND_ORIGIN"], app.config["SITE_URL"]}),
         supports_credentials=True,  # required for the httpOnly refresh cookie
         expose_headers=["X-CSRF-TOKEN"],
     )

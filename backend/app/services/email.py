@@ -9,11 +9,20 @@ key) the message is logged instead, so local development is unchanged.
 Configure with RESEND_API_KEY + EMAIL_FROM. EMAIL_ENABLED is a manual kill
 switch (default on).
 """
+import atexit
+from concurrent.futures import ThreadPoolExecutor
+
 from flask import current_app
 
 import requests
 
 RESEND_API_URL = "https://api.resend.com/emails"
+
+# Two threads are plenty: sending is one short HTTPS call, and a burst simply
+# queues. Threads are joined at interpreter exit, so a graceful worker shutdown
+# still delivers what was queued.
+_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="email")
+atexit.register(_executor.shutdown, wait=True)
 
 # Phone-only accounts get a synthetic email (see auth.verify_otp); never try to
 # deliver to those.
@@ -46,19 +55,40 @@ def send_email(to, subject, html, text=None):
     if text:
         payload["text"] = text
 
+    api_key = current_app.config["RESEND_API_KEY"]
+    if current_app.config.get("EMAIL_ASYNC"):
+        # The request is done as far as the customer is concerned; delivery
+        # happens behind it. The app object is passed so the worker thread can
+        # log through it.
+        app = current_app._get_current_object()
+        _executor.submit(_deliver_in_app, app, api_key, payload)
+        return True
+    return _deliver(api_key, payload, current_app.logger)
+
+
+def _deliver_in_app(app, api_key, payload):
+    with app.app_context():
+        try:
+            _deliver(api_key, payload, app.logger)
+        except Exception:  # noqa: BLE001 - nothing can catch this for us
+            app.logger.exception("Email delivery crashed to=%s", payload.get("to"))
+
+
+def _deliver(api_key, payload, logger):
+    to = payload["to"][0]
     try:
         resp = requests.post(
             RESEND_API_URL,
-            headers={"Authorization": f"Bearer {current_app.config['RESEND_API_KEY']}"},
+            headers={"Authorization": f"Bearer {api_key}"},
             json=payload,
             timeout=15,
         )
     except requests.RequestException:
-        current_app.logger.exception("Email send failed to=%s", to)
+        logger.exception("Email send failed to=%s", to)
         return False
 
     if resp.status_code >= 300:
-        current_app.logger.error(
+        logger.error(
             "Email rejected status=%s to=%s body=%s", resp.status_code, to, resp.text[:300]
         )
         return False

@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from marshmallow import ValidationError
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.marketing import WholesaleInquiry
 from app.models.enums import VolumeRange
 from app.schemas.marketing import WholesaleInquiryIn
@@ -14,6 +14,7 @@ _inquiry_in = WholesaleInquiryIn()
 
 
 @wholesale_bp.route("", methods=["POST"])
+@limiter.limit("10 per hour")
 def submit_inquiry():
     try:
         data = _inquiry_in.load(request.get_json())

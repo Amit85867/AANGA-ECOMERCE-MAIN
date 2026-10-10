@@ -117,7 +117,7 @@ Run `pytest`, then the script, to refresh it.
 | GET | `/api/cms/promo-banners` | public | ✅ | 200 | SaleBanner |
 | GET | `/api/cms/settings` | public | ✅ | 200 | HeroSection, useSettingsStore |
 | GET | `/api/cms/testimonials` | public | ✅ | 200 | Reviews |
-| POST | `/api/contact` | public | ✅ | 201 400 415 422 | Contact |
+| POST | `/api/contact` | public | ✅ | 201 400 415 422 429 | Contact |
 | GET | `/api/health` | public | ✅ | 200 | n/a (platform health check) |
 | POST | `/api/newsletter/subscribe` | public | ✅ | 201 400 415 422 | Newsletter |
 | POST | `/api/newsletter/unsubscribe` | public | ✅ | 200 400 415 422 | n/a (linked from emails) |

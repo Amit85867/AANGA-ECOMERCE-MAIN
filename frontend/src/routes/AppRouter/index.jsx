@@ -4,6 +4,7 @@ import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
 import DashboardLayout from '@/layouts/DashboardLayout'
 import AdminLayout from '@/layouts/AdminLayout'
+import { RouteError } from '@/components/ErrorBoundary'
 
 import Home from '@/pages/Home'
 import Shop from '@/pages/Shop'
@@ -69,6 +70,7 @@ const admin = (Component) => (
 const router = createBrowserRouter([
   {
     element: <MainLayout />,
+    errorElement: <RouteError />,
     children: [
       { path: '/', element: <Home /> },
       { path: '/shop', element: <Shop /> },
@@ -89,6 +91,7 @@ const router = createBrowserRouter([
   },
   {
     element: <AuthLayout />,
+    errorElement: <RouteError />,
     children: [
       { path: '/login', element: <Login /> },
       { path: '/register', element: <Register /> },
@@ -98,6 +101,7 @@ const router = createBrowserRouter([
   },
   {
     element: <DashboardLayout />,
+    errorElement: <RouteError />,
     children: [{ path: '/account', element: <Dashboard /> }],
   },
   // Internal design-system reference (not linked from the storefront).
@@ -105,6 +109,7 @@ const router = createBrowserRouter([
   { path: '/admin/login', element: admin(AdminLogin) },
   {
     element: <AdminLayout />,
+    errorElement: <RouteError />,
     children: [
       { index: true, path: '/admin', element: admin(AdminDashboard) },
       { path: '/admin/products', element: admin(AdminProducts) },

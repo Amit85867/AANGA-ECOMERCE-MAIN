@@ -164,16 +164,48 @@ Browser verification is Phase 7.
 
 ## Phase 5 — Scalability and production readiness
 
-- [ ] Stateless app: no local file storage in production, limits in Redis.
-- [ ] Indexes for common filters / sorts; remove N+1 queries (SQL logging).
-  Known: `GET /api/products` runs 3 extra queries per product; order list / detail
-  load the primary image per item.
-- [ ] SQLAlchemy pool sized against the Postgres connection limit; numbers documented.
-- [ ] Every list endpoint paginated with a capped page size.
-- [ ] Short-TTL cache on catalogue / categories, invalidated on admin edits.
-- [ ] Slow work (email, Shiprocket) off the request path.
-- [ ] JSON logging with request ids; Sentry on frontend and backend.
-- [ ] Security headers, CORS locked to `SITE_URL`, rate limits on auth, checkout, reviews, returns.
+Verified by `tests/test_scalability.py` plus the existing suites (330 passed);
+frontend by `vite build` and `oxlint` (0 errors).
+
+- [x] Stateless — production refuses to start without object storage; auth is
+  JWT; rate limits and the catalogue cache use Redis when configured. Nothing is
+  kept on local disk or in process memory that another instance would need.
+- [x] N+1 queries removed (found with a statement counter, asserted in tests):
+  product list (was 3 per product, now 3 per page), wishlist (4 per item → 4
+  total), cart and order detail (image per line → one), customer and admin order
+  lists, admin user list, admin product list (was a variants × images join).
+- [x] Indexes for the filters and sorts in use — existing indexes reviewed;
+  added `orders(status, placed_at)`, low-stock partial index on variants,
+  `users(created_at)`, `product_reviews(created_at)`, active-address partial
+  index, audit-log indexes (`migrations_admin_ops.sql`, `migrations_address_archive.sql`).
+- [x] Connection pool sized from env (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`), with
+  the formula and a worked example in `docs/DEPLOYMENT.md` §4b. Defaults:
+  2 workers × (5 + 5) = 20 connections per instance. Gunicorn now runs threaded
+  workers (2 × 4).
+- [x] Every list endpoint is paged with a capped page size: admin lists (cap
+  100), customer orders (cap 50), wishlist (cap 200), reviews (cap 50), products
+  (cap 48). Category tree and the customer's address book stay unpaged — they
+  are bounded by nature.
+- [x] Catalogue cache — products, product detail, categories, offers and CMS
+  content cached 30–300s, dropped on any admin write. Redis-backed when
+  available, per-process otherwise; a Redis outage falls back to uncached.
+- [x] Slow work off the request path — email is sent from a background thread
+  pool; delivery-check answers are cached 10 minutes per PIN code. Shiprocket
+  booking stays in the request (the admin needs its answer).
+- [x] Logging — JSON lines with a request id (already present). Sentry on the
+  backend (already present) and now on the frontend: DSN-gated, loaded on
+  demand so the bundle carries none of it when unset, errors only, no PII.
+  Added a React error boundary and router error element — there was none, so
+  any render error blanked the page.
+- [x] Security headers on every response (asserted); CORS limited to
+  `FRONTEND_ORIGIN` / `SITE_URL` (asserted); rate limits on auth, checkout,
+  payments, reviews, returns, contact, wholesale, newsletter and coupon
+  attempts.
+- [ ] Rate limits are keyed by IP address, so shoppers behind one office or
+  mobile-carrier IP share a bucket. Limits are set generously to allow for it;
+  keying signed-in routes by account would be tighter.
+- [ ] No load test has been run. The query-count and caching tests show the
+  shape is right; real capacity numbers need a test against the deployed stack.
 
 ## Phase 6 — Render deployment preparation (no deploy)
 

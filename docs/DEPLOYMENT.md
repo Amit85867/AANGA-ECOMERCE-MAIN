@@ -70,6 +70,59 @@ to `/api/health`** (returns 200 with a DB ping, 503 if the DB is unreachable).
 one gunicorn worker or instance, limits are **not** enforced globally and the
 app logs a warning on boot. Set `RATELIMIT_STORAGE_URI=redis://<host>:6379`.
 
+## 4b. Sizing: workers, threads and database connections
+
+The API is stateless — no local files (uploads go to Supabase Storage), no
+in-process sessions (auth is JWT; rate limits and the catalogue cache live in
+Redis) — so it scales by adding instances. The one shared limit is Postgres
+connections.
+
+**The rule.** Every gunicorn worker keeps its own pool, so the most connections
+the API can open is:
+
+```
+instances x WEB_CONCURRENCY x (DB_POOL_SIZE + DB_MAX_OVERFLOW)
+```
+
+and that, plus the cron job (1) and headroom for migrations and a psql session
+(5), must stay under the database's `max_connections`.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `WEB_CONCURRENCY` | 2 | gunicorn worker processes per instance |
+| `GUNICORN_THREADS` | 4 | concurrent requests per worker (gthread) |
+| `DB_POOL_SIZE` | 5 | connections a worker keeps open |
+| `DB_MAX_OVERFLOW` | 5 | extra connections a worker may open under load |
+
+With the defaults one instance serves 8 requests at once and can open at most
+**2 x (5 + 5) = 20** connections. Keep `GUNICORN_THREADS` at or below
+`DB_POOL_SIZE + DB_MAX_OVERFLOW`, or requests will queue for a connection and
+fail after 10 seconds (`DB_POOL_TIMEOUT`).
+
+Check the real limit on the database you provision rather than trusting a
+plan page:
+
+```sql
+SHOW max_connections;
+SELECT count(*) FROM pg_stat_activity;   -- in use right now
+```
+
+Worked example for a limit of 100: 3 instances x 2 workers x 10 = 60, + 1 cron
++ 5 headroom = 66. A fourth instance (86) still fits; a fifth does not without
+lowering `DB_MAX_OVERFLOW`.
+
+**What is cached.** Product lists and detail, categories, offers and CMS content
+are cached for 30–300 seconds and dropped on any admin edit. With Redis the drop
+is immediate everywhere; without Redis each worker holds its own copy and an edit
+can take up to a minute to appear on other workers. Prices and stock are always
+re-checked against the database at add-to-cart and at checkout, so a stale
+listing can never sell at a stale price.
+
+**What runs in the background.** Emails are sent from a small thread pool
+inside the worker, so a slow mail provider does not delay checkout. Shiprocket
+booking is an admin action that needs its answer and stays in the request;
+delivery-check answers are cached for ten minutes per PIN code.
+
 ## 4a. Scheduled job — `reconcile-payments`
 
 The Razorpay webhook deliberately ignores a capture younger than 15 minutes

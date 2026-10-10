@@ -340,6 +340,7 @@ def _mark_payment_status(payment_id, status):
 
 
 @payments_bp.route("/create-order", methods=["POST"])
+@limiter.limit("30 per hour")
 @jwt_required()
 def create_payment_order():
     key_id, key_secret = _keys()
@@ -381,6 +382,7 @@ def create_payment_order():
 
 
 @payments_bp.route("/verify", methods=["POST"])
+@limiter.limit("60 per hour")
 @jwt_required()
 def verify_payment():
     key_id, key_secret = _keys()

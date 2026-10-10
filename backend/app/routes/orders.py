@@ -3,15 +3,18 @@ from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.orm import selectinload
 from marshmallow import ValidationError
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.order import Order, OrderItem, OrderTracking
 from app.models.cart import Cart, CartItem
-from app.models.catalogue import ProductImage
+from app.models.catalogue import ProductVariant
 from app.models.enums import OrderStatus, TrackingStatusType
 from app.schemas.order import PlaceOrderIn, OrderListOut, OrderDetailOut
+from app.services.catalogue import primary_images
 from app.services.order_service import create_order_from_cart, refund_order_if_prepaid
+from app.utils.pagination import page_meta, paginate
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/api/orders")
 
@@ -21,6 +24,7 @@ _detail_out = OrderDetailOut()
 
 
 @orders_bp.route("", methods=["POST"])
+@limiter.limit("30 per hour")
 @jwt_required()
 def place_order():
     try:
@@ -54,12 +58,14 @@ def place_order():
 @orders_bp.route("", methods=["GET"])
 @jwt_required()
 def list_orders():
-    orders = (
+    page = paginate(
         Order.query
+        .options(selectinload(Order.items).joinedload(OrderItem.variant).joinedload(ProductVariant.product))
         .filter_by(user_id=get_jwt_identity())
-        .order_by(Order.placed_at.desc())
-        .all()
+        .order_by(Order.placed_at.desc()),
+        default=20, cap=50,
     )
+    orders = page.items
 
     result = []
     for o in orders:
@@ -81,7 +87,7 @@ def list_orders():
             "expected_delivery": o.expected_delivery,
         })
 
-    return jsonify(orders=_list_out.dump(result)), 200
+    return jsonify(orders=_list_out.dump(result), **page_meta(page)), 200
 
 
 @orders_bp.route("/<int:order_id>", methods=["GET"])
@@ -91,22 +97,19 @@ def order_detail(order_id):
     if not order:
         return jsonify(error="Order not found"), 404
 
+    images = primary_images(oi.variant.product_id for oi in order.items)
+
     items = []
     for oi in order.items:
         variant = oi.variant
         product = variant.product
-        primary = (
-            ProductImage.query
-            .filter_by(product_id=product.id, is_primary=True)
-            .first()
-        )
         items.append({
             "id": oi.id,
             "product_name": product.name,
             "product_slug": product.slug,
             "size": variant.size,
             "color_name": variant.color_name,
-            "image_url": primary.image_url if primary else None,
+            "image_url": images.get(product.id),
             "quantity": oi.quantity,
             "unit_price": float(oi.unit_price),
             "total_price": float(oi.total_price) if oi.total_price else float(oi.unit_price) * oi.quantity,
@@ -158,6 +161,7 @@ def order_detail(order_id):
 
 
 @orders_bp.route("/<int:order_id>/cancel", methods=["POST"])
+@limiter.limit("30 per hour")
 @jwt_required()
 def cancel_order(order_id):
     order = Order.query.filter_by(id=order_id, user_id=get_jwt_identity()).first()

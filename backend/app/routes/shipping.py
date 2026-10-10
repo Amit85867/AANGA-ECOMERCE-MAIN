@@ -13,7 +13,7 @@ import re
 from flask import Blueprint, request, jsonify, current_app
 
 from app.extensions import limiter
-from app.services import shiprocket
+from app.services import cache, shiprocket
 from app.services.shiprocket import ShiprocketError
 
 shipping_bp = Blueprint("shipping", __name__, url_prefix="/api/shipping")
@@ -38,7 +38,13 @@ def serviceability():
     weight = min(max(weight, 0.1), 50)
 
     try:
-        result = shiprocket.check_serviceability(pincode, cod=cod, weight=weight)
+        # A PIN code's couriers do not change minute to minute, and every lookup
+        # is a paid-for upstream call: remember each answer for ten minutes.
+        # A failure raises through and is not remembered.
+        result = cache.get_or_set(
+            f"serviceability:{pincode}:{int(cod)}:{weight}", 600,
+            lambda: shiprocket.check_serviceability(pincode, cod=cod, weight=weight),
+        )
     except ShiprocketError as err:
         # Configuration or upstream problem — not the shopper's fault, and not
         # a reason to break the product page.

@@ -2,7 +2,11 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy import func
 
+from sqlalchemy.orm import joinedload, selectinload
+
 from app.extensions import db
+from app.services.catalogue import card_extras
+from app.services.cache import cached_view
 from app.models.catalogue import Product, ProductImage, ProductVariant, Category
 from app.models.engagement import ProductReview
 from app.schemas.product import ProductListOut, ProductDetailOut
@@ -32,6 +36,7 @@ def _build_product_list_item(p, primary_image, colors, avg_rating, review_count)
 
 
 @products_bp.route("", methods=["GET"])
+@cached_view(60)
 def list_products():
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("per_page", 12, type=int), 48)
@@ -70,36 +75,23 @@ def list_products():
     }
     q = q.order_by(sort_map.get(sort, Product.created_at.desc()))
 
-    paginated = q.paginate(page=page, per_page=per_page, error_out=False)
+    paginated = q.options(joinedload(Product.category)).paginate(
+        page=max(page, 1), per_page=max(per_page, 1), error_out=False
+    )
 
-    items = []
-    for p in paginated.items:
-        primary = (
-            ProductImage.query
-            .filter_by(product_id=p.id, is_primary=True)
-            .first()
-        )
-        colors = (
-            db.session.query(ProductVariant.color_hex)
-            .filter_by(product_id=p.id)
-            .distinct()
-            .all()
-        )
-        stats = (
-            db.session.query(
-                func.avg(ProductReview.rating),
-                func.count(ProductReview.id),
-            )
-            .filter_by(product_id=p.id)
-            .first()
-        )
-        items.append(_build_product_list_item(
+    # Images, colours and ratings for the whole page in three queries, rather
+    # than three per product.
+    extras = card_extras(paginated.items)
+    items = [
+        _build_product_list_item(
             p,
-            primary.image_url if primary else None,
-            [c[0] for c in colors],
-            stats[0] or 0,
-            stats[1],
-        ))
+            extras[p.id]["primary_image"],
+            extras[p.id]["colors"],
+            extras[p.id]["avg_rating"] or 0,
+            extras[p.id]["review_count"],
+        )
+        for p in paginated.items
+    ]
 
     return jsonify(
         products=_list_out.dump(items),
@@ -110,8 +102,18 @@ def list_products():
 
 
 @products_bp.route("/<slug>", methods=["GET"])
+@cached_view(30)
 def product_detail(slug):
-    p = Product.query.filter_by(slug=slug, is_active=True).first()
+    p = (
+        Product.query
+        .options(
+            joinedload(Product.category),
+            selectinload(Product.variants),
+            selectinload(Product.images),
+        )
+        .filter_by(slug=slug, is_active=True)
+        .first()
+    )
     if not p:
         return jsonify(error="Product not found"), 404
 

@@ -30,6 +30,7 @@ os.environ.pop("ADMIN_PASSWORD", None)
 
 from app import create_app  # noqa: E402
 from app.extensions import db as _db, limiter as _limiter  # noqa: E402
+from app.services import cache as _cache, maintenance as _maintenance  # noqa: E402
 
 BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA_SQL = BACKEND_DIR / "schema.sql"
@@ -118,6 +119,10 @@ def _clean_db(app):
     _db.session.commit()
     # Rate-limit counters are per-IP and would otherwise bleed between tests.
     _limiter.reset()
+    # So would cached responses and the maintenance flag: both outlive the rows
+    # they were built from.
+    _cache.reset_for_tests()
+    _maintenance.reset_cache()
     yield
     _db.session.rollback()
     _db.session.remove()

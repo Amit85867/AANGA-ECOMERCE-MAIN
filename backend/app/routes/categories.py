@@ -2,11 +2,13 @@
 from flask import Blueprint, jsonify
 
 from app.models.catalogue import Category
+from app.services.cache import cached_view
 
 categories_bp = Blueprint("categories", __name__, url_prefix="/api/categories")
 
 
 @categories_bp.route("", methods=["GET"])
+@cached_view(300)
 def list_categories():
     cats = (
         Category.query

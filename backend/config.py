@@ -21,7 +21,26 @@ class BaseConfig:
     # in confusing ways. Production must set DATABASE_URL explicitly.
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", DEV_DATABASE_URL)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    # Connection pool, per gunicorn worker. The hard ceiling is Postgres's
+    # max_connections, and every worker holds its own pool, so:
+    #
+    #   workers x (DB_POOL_SIZE + DB_MAX_OVERFLOW)  +  cron job  +  headroom
+    #
+    # must stay under it. The defaults (2 workers x (5 + 5) = 20) fit the
+    # smallest managed Postgres plans. See docs/DEPLOYMENT.md before raising
+    # either number or WEB_CONCURRENCY.
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        # Check a pooled connection is alive before using it: managed
+        # databases drop idle connections and restart for maintenance.
+        "pool_pre_ping": True,
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "5")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "5")),
+        # Fail a request after 10s waiting for a connection rather than
+        # queueing forever behind a saturated pool.
+        "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT", "10")),
+        # Recycle before the platform's idle timeout closes it underneath us.
+        "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "280")),
+    }
 
     # JWT
     # The access token is short-lived and lives only in the client's memory
@@ -79,6 +98,15 @@ class BaseConfig:
     RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
     EMAIL_FROM = os.environ.get("EMAIL_FROM", "AANGA <orders@aanga.in>")
     EMAIL_ENABLED = os.environ.get("EMAIL_ENABLED", "true").lower() == "true"
+    # Hand the HTTP call to a background thread so a slow mail provider never
+    # holds up the checkout response. Off in tests, which assert on the call.
+    EMAIL_ASYNC = os.environ.get("EMAIL_ASYNC", "true").lower() == "true"
+
+    # Short-lived cache for public catalogue responses (app/services/cache.py).
+    # Uses CACHE_REDIS_URL, else RATELIMIT_STORAGE_URI when that is Redis, else
+    # a small per-process cache.
+    CACHE_ENABLED = os.environ.get("CACHE_ENABLED", "true").lower() == "true"
+    CACHE_REDIS_URL = os.environ.get("CACHE_REDIS_URL", "")
 
     # Shiprocket (delivery)
     SHIPROCKET_EMAIL = os.environ.get("SHIPROCKET_EMAIL", "")
@@ -113,6 +141,10 @@ class TestingConfig(BaseConfig):
     # Limiter stays enabled (so its behaviour is actually tested) but the
     # conftest resets counters between tests to keep them isolated.
     RATELIMIT_STORAGE_URI = "memory://"
+    # Tests change rows directly and expect the next read to show it; the cache
+    # and background email are switched on only by the tests that cover them.
+    CACHE_ENABLED = False
+    EMAIL_ASYNC = False
 
 
 config_by_name = {

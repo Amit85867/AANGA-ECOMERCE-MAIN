@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify
 from sqlalchemy import or_, and_
 
 from app.models.cms import HeroBanner, Announcement, PromoBanner, SiteSetting, Testimonial, Feature
+from app.services.cache import cached_view
 
 cms_bp = Blueprint("cms", __name__, url_prefix="/api/cms")
 
@@ -18,6 +19,7 @@ def _is_scheduled_active():
 
 
 @cms_bp.route("/banners", methods=["GET"])
+@cached_view(60)
 def public_banners():
     now = datetime.now(timezone.utc)
     banners = HeroBanner.query.filter(
@@ -48,6 +50,7 @@ def public_banners():
 
 
 @cms_bp.route("/announcements", methods=["GET"])
+@cached_view(60)
 def public_announcements():
     now = datetime.now(timezone.utc)
     items = Announcement.query.filter(
@@ -72,6 +75,7 @@ def public_announcements():
 
 
 @cms_bp.route("/promo-banners", methods=["GET"])
+@cached_view(60)
 def public_promos():
     now = datetime.now(timezone.utc)
     promos = PromoBanner.query.filter(
@@ -97,6 +101,7 @@ def public_promos():
 
 
 @cms_bp.route("/testimonials", methods=["GET"])
+@cached_view(60)
 def public_testimonials():
     items = Testimonial.query.filter(
         Testimonial.is_active.is_(True),
@@ -116,6 +121,7 @@ def public_testimonials():
 
 
 @cms_bp.route("/features", methods=["GET"])
+@cached_view(60)
 def public_features():
     items = Feature.query.filter(
         Feature.is_active.is_(True),
@@ -134,6 +140,7 @@ def public_features():
 
 
 @cms_bp.route("/settings", methods=["GET"])
+@cached_view(60)
 def public_settings():
     settings = SiteSetting.query.all()
     return jsonify(

@@ -5,11 +5,12 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from marshmallow import ValidationError
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.cart import Cart, CartItem
 from app.models.catalogue import Product, ProductVariant, ProductImage
 from app.models.engagement import Coupon
 from app.schemas.cart import CartItemIn, CartItemUpdateIn, ApplyCouponIn, CartOut
+from app.services.catalogue import primary_images
 from app.services.order_service import compute_totals
 
 cart_bp = Blueprint("cart", __name__, url_prefix="/api/cart")
@@ -34,14 +35,12 @@ def _serialize_cart(cart):
     subtotal = 0
     mrp_total = 0
 
+    # One query for every line's image instead of one per line.
+    images = primary_images(ci.variant.product_id for ci in cart.items)
+
     for ci in cart.items:
         variant = ci.variant
         product = variant.product
-        primary_img = (
-            ProductImage.query
-            .filter_by(product_id=product.id, is_primary=True)
-            .first()
-        )
         line_total = float(ci.unit_price) * ci.quantity
         mrp_line = float(product.mrp) * ci.quantity
         subtotal += line_total
@@ -55,7 +54,7 @@ def _serialize_cart(cart):
             "size": variant.size,
             "color_name": variant.color_name,
             "color_hex": variant.color_hex,
-            "image_url": primary_img.image_url if primary_img else None,
+            "image_url": images.get(product.id),
             "quantity": ci.quantity,
             "unit_price": float(ci.unit_price),
             "mrp": float(product.mrp),
@@ -166,6 +165,7 @@ def remove_item(item_id):
 
 
 @cart_bp.route("/coupon", methods=["POST"])
+@limiter.limit("30 per hour")
 @jwt_required()
 def apply_coupon():
     try:

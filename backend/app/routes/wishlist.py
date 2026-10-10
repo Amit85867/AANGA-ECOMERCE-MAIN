@@ -3,30 +3,20 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 
+from sqlalchemy.orm import joinedload
+
 from app.extensions import db
+from app.services.catalogue import card_extras
 from app.models.engagement import Wishlist, ProductReview
 from app.models.catalogue import Product, ProductImage, ProductVariant
 
 wishlist_bp = Blueprint("wishlist", __name__, url_prefix="/api/wishlist")
 
+# A wishlist is a shortlist, not an archive; this also bounds the response.
+MAX_WISHLIST_ITEMS = 200
 
-def _serialize_item(w, product):
-    primary = (
-        ProductImage.query
-        .filter_by(product_id=product.id, is_primary=True)
-        .first()
-    )
-    colors = (
-        db.session.query(ProductVariant.color_hex)
-        .filter_by(product_id=product.id)
-        .distinct()
-        .all()
-    )
-    stats = (
-        db.session.query(func.avg(ProductReview.rating), func.count(ProductReview.id))
-        .filter_by(product_id=product.id)
-        .first()
-    )
+
+def _serialize_item(w, product, extras):
     return {
         "wishlist_id": w.id,
         "product_id": product.id,
@@ -37,10 +27,7 @@ def _serialize_item(w, product):
         "selling_price": float(product.selling_price),
         "discount_percent": product.discount_percent,
         "badge_label": product.badge_label,
-        "primary_image": primary.image_url if primary else None,
-        "colors": [c[0] for c in colors],
-        "avg_rating": round(stats[0], 1) if stats[0] else None,
-        "review_count": stats[1],
+        **extras,
         "added_at": w.added_at.isoformat(),
     }
 
@@ -48,17 +35,19 @@ def _serialize_item(w, product):
 @wishlist_bp.route("", methods=["GET"])
 @jwt_required()
 def get_wishlist():
-    items = (
-        Wishlist.query
-        .filter_by(user_id=get_jwt_identity())
+    # One query for the saved products, three for their card details —
+    # previously four queries per saved item.
+    rows = (
+        db.session.query(Wishlist, Product)
+        .join(Product, Wishlist.product_id == Product.id)
+        .options(joinedload(Product.category))
+        .filter(Wishlist.user_id == get_jwt_identity(), Product.is_active.is_(True))
         .order_by(Wishlist.added_at.desc())
+        .limit(MAX_WISHLIST_ITEMS)
         .all()
     )
-    result = []
-    for w in items:
-        product = db.session.get(Product, w.product_id)
-        if product and product.is_active:
-            result.append(_serialize_item(w, product))
+    extras = card_extras([product for _, product in rows])
+    result = [_serialize_item(w, product, extras[product.id]) for w, product in rows]
 
     return jsonify(items=result, count=len(result)), 200
 
