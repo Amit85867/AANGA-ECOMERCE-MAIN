@@ -123,12 +123,12 @@ function ReturnCard({ ret, onChanged }) {
         </p>
       ) : (
         <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
-          <label className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-gray-600">Progress</span>
+          <label className="flex items-center gap-3 text-sm">
+            <span className="shrink-0 text-gray-600">Progress</span>
             <select
               value={ret.status} disabled={busy}
               onChange={(e) => send({ status: e.target.value }, `Marked ${humanize(e.target.value).toLowerCase()}.`)}
-              className={`${inputCls} w-auto py-1.5`}
+              className={`${inputCls} max-w-xs py-1.5`}
             >
               {PROGRESS.map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
             </select>

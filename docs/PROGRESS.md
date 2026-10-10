@@ -137,6 +137,11 @@ Browser verification is Phase 7.
 - [x] Variant stock is editable in place on the product form.
 - [x] A 403 no longer signs the admin out; only a deactivated account does.
 - [x] `PATCH /api/admin/users/<id>` is schema-validated.
+- [x] Browser check (Chrome, local stack, temporary QA admin since removed):
+  signed in, opened all 17 admin screens — every API call 200, no console
+  errors; dashboard revenue and order count matched the database (3 orders,
+  ₹10,495.80); Returns and System Health rendered as designed. Destructive
+  actions and the maintenance switch were not exercised here — that is Phase 7.
 - [ ] Admin sign-ins are not written to the audit log (only changes are).
 - [ ] Order status has no transition rules: an admin can move a delivered order
   back to pending. Decide the allowed transitions before enforcing them.
