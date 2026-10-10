@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
-  IconHeart, IconTruck, IconRefresh, IconShieldCheck,
-  IconStarFilled, IconMinus, IconPlus, IconChevronDown,
+  IconHeart, IconTruck, IconRefresh, IconShieldCheck, IconChevronDown,
 } from '@tabler/icons-react'
 import { useProductStore } from '@/store/useProductStore'
 import { useCartStore } from '@/store/useCartStore'
@@ -13,6 +12,10 @@ import ProductCard from '@/components/ui/ProductCard'
 import Button from '@/components/ui/Button'
 import Chip from '@/components/ui/Chip'
 import Seo from '@/components/Seo'
+import { QuantityStepper } from '@/components/ui/Field'
+import { Breadcrumbs, Container, Price, Rating } from '@/components/ui/Display'
+import { useFeatures } from '@/store/useFeaturesStore'
+import Reviews from './Reviews'
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -21,7 +24,7 @@ function Accordion({ title, children, defaultOpen = false }) {
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between py-5 text-left"
+        className="w-full flex items-center justify-between py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
       >
         <span className="text-xs font-semibold uppercase tracking-[0.1em] text-fg">{title}</span>
         <IconChevronDown
@@ -61,20 +64,27 @@ export default function ProductDetail() {
     }
   }, [product?.category_slug, slug])
 
+  // A different product starts from a clean selection.
   useEffect(() => {
-    if (product?.variants?.length) {
-      const sizes = [...new Set(product.variants.map((v) => v.size).filter(Boolean))]
-      if (sizes.length && !selectedSize) setSelectedSize(sizes[0])
-      const colors = [...new Map(
-        product.variants.filter((v) => v.color_hex).map((v) => [v.color_hex, v]),
-      ).values()]
-      if (colors.length && !selectedColor) setSelectedColor(colors[0].color_hex)
-    }
-  }, [product])
+    setSelectedSize(null)
+    setSelectedColor(null)
+    setQty(1)
+  }, [slug])
+
+  // Preselect something that can actually be bought: the first variant in
+  // stock, falling back to the first variant when everything is sold out.
+  useEffect(() => {
+    if (!product?.variants?.length || product.slug !== slug) return
+    if (selectedSize || selectedColor) return
+    const first = product.variants.find((v) => v.stock_qty > 0) || product.variants[0]
+    setSelectedSize(first.size || null)
+    setSelectedColor(first.color_hex || null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, slug])
 
   if (loading) {
     return (
-      <section className="max-w-[1280px] mx-auto px-4 md:px-8 lg:px-12 py-12">
+      <section className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-12" aria-busy="true" aria-label="Loading product">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-pulse">
           <div className="aspect-[3/4] bg-fill rounded-card" />
           <div className="space-y-4 pt-4">
@@ -143,24 +153,33 @@ export default function ProductDetail() {
       : {}),
   }
 
-  const resolveVariant = () => {
-    const variants = product.variants || []
-    if (!variants.length) return null
-    return variants.find(
-      (v) =>
-        (sizes.length === 0 || v.size === selectedSize) &&
-        (colors.length === 0 || v.color_hex === selectedColor),
+  const variants = product.variants || []
+  const variantFor = (size, colorHex) =>
+    variants.find(
+      (v) => (sizes.length === 0 || v.size === size) && (colors.length === 0 || v.color_hex === colorHex),
     ) || null
-  }
+  const variant = variantFor(selectedSize, selectedColor)
+  const available = variant?.stock_qty ?? 0
+  const soldOut = !inStock
+  // What the Add button would do right now, in words.
+  const blocked = soldOut
+    ? 'Sold out'
+    : !variant
+      ? 'Not available in this size and colour'
+      : available === 0
+        ? 'This size is sold out'
+        : null
+  // A size is offered as unavailable (struck through) when the chosen colour
+  // has none of it left, instead of failing after the click.
+  const sizeAvailable = (size) => (variantFor(size, selectedColor)?.stock_qty ?? 0) > 0
 
   const handleAddToCart = async () => {
     if (sizes.length > 0 && !selectedSize) return toast.error('Please select a size')
     if (colors.length > 0 && !selectedColor) return toast.error('Please select a colour')
-    const variant = resolveVariant()
-    if (!variant) return toast.error('This combination is unavailable')
+    if (blocked) return toast.error(blocked)
 
     setAdding(true)
-    const res = await addItem({ variant_id: variant.id, quantity: qty })
+    const res = await addItem({ variant_id: variant.id, quantity: Math.min(qty, available) })
     setAdding(false)
     if (res?.needsAuth) {
       toast.info('Please sign in to add items to your bag')
@@ -186,15 +205,16 @@ export default function ProductDetail() {
         type="product"
         jsonLd={productJsonLd}
       />
-      <section className="max-w-[1280px] mx-auto px-4 md:px-8 lg:px-12 py-8 lg:py-12">
-        {/* Breadcrumb — kept slim for navigation and SEO */}
-        <nav aria-label="Breadcrumb" className="text-xs text-subtle mb-8">
-          <Link to="/" className="hover:text-fg transition-colors">Home</Link>
-          <span className="mx-2">/</span>
-          <Link to="/shop" className="hover:text-fg transition-colors">Shop</Link>
-          <span className="mx-2">/</span>
-          <span className="text-muted">{product.name}</span>
-        </nav>
+      <Container as="section" className="py-6 lg:py-10">
+        <Breadcrumbs
+          className="mb-6"
+          items={[
+            { label: 'Home', to: '/' },
+            { label: 'Shop', to: '/shop' },
+            ...(product.category_slug ? [{ label: product.category_name, to: `/shop?category=${product.category_slug}` }] : []),
+            { label: product.name },
+          ]}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14">
           {/* Gallery — image-first grid */}
@@ -211,11 +231,15 @@ export default function ProductDetail() {
                     src={img.image_url}
                     alt={`${product.name} — view ${i + 1}`}
                     loading={i === 0 ? 'eager' : 'lazy'}
+                    fetchPriority={i === 0 ? 'high' : undefined}
+                    decoding="async"
+                    width="900"
+                    height="1200"
                     className="w-full h-full object-cover"
                   />
                   {i === 0 && product.badge_label && (
-                    <span className="absolute top-4 left-4 px-2.5 py-1 rounded-full bg-accent
-                                     text-white text-[10px] tracking-[0.05em] uppercase font-semibold">
+                    <span className="absolute top-4 left-4 px-2.5 py-1 rounded-full bg-primary
+                                     text-on-primary text-xs tracking-[0.05em] uppercase font-semibold">
                       {product.badge_label}
                     </span>
                   )}
@@ -231,7 +255,7 @@ export default function ProductDetail() {
           {/* Info — sticky on desktop */}
           <div className="lg:sticky lg:top-28 lg:self-start">
             {product.category_name && (
-              <div className="text-[11px] tracking-[0.15em] text-accent uppercase font-semibold">
+              <div className="text-xs tracking-[0.12em] text-muted uppercase font-semibold">
                 {product.category_name}
               </div>
             )}
@@ -240,36 +264,24 @@ export default function ProductDetail() {
               {product.name}
             </h1>
 
-            {product.avg_rating > 0 && (
-              <div className="flex items-center gap-2 mt-3">
-                <IconStarFilled size={14} className="text-accent" />
-                <span className="text-sm font-medium text-fg">
-                  {Number(product.avg_rating).toFixed(1)}
+            {product.review_count > 0 && (
+              <a href="#reviews-heading" className="mt-3 inline-flex items-center gap-2 text-sm text-muted hover:text-fg">
+                <Rating value={product.avg_rating} />
+                <span className="underline underline-offset-2">
+                  {Number(product.avg_rating).toFixed(1)} · {product.review_count} review{product.review_count === 1 ? '' : 's'}
                 </span>
-                <span className="text-sm text-subtle">({product.review_count} reviews)</span>
-              </div>
+              </a>
             )}
 
-            <div className="flex items-baseline gap-3 mt-4">
-              <span className="text-2xl font-semibold text-fg">
-                &#8377;{product.selling_price?.toLocaleString('en-IN')}
-              </span>
-              {product.mrp > product.selling_price && (
-                <>
-                  <span className="text-base text-subtle line-through">
-                    &#8377;{product.mrp?.toLocaleString('en-IN')}
-                  </span>
-                  <span className="text-sm text-accent font-semibold">
-                    {product.discount_percent}% off
-                  </span>
-                </>
-              )}
+            <div className="mt-4">
+              <Price price={product.selling_price} mrp={product.mrp} size="lg" />
+              <p className="mt-1 text-xs text-subtle">Inclusive of all taxes</p>
             </div>
 
             {/* Colour */}
             {colors.length > 0 && (
               <div className="mt-8">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted mb-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.1em] text-muted mb-3">
                   Colour: <span className="text-fg">{activeColorName}</span>
                 </div>
                 <div className="flex gap-3">
@@ -278,8 +290,9 @@ export default function ProductDetail() {
                       key={c.hex}
                       color={c.hex}
                       selected={selectedColor === c.hex}
-                      onClick={() => setSelectedColor(c.hex)}
+                      onClick={() => { setSelectedColor(c.hex); setQty(1) }}
                       aria-label={c.name}
+                      title={c.name}
                     />
                   ))}
                 </div>
@@ -290,7 +303,7 @@ export default function ProductDetail() {
             {sizes.length > 0 && (
               <div className="mt-7">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                  <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted">
                     Select size
                   </span>
                   <Link to="/faq" className="text-xs text-muted underline underline-offset-2 hover:text-fg">
@@ -299,7 +312,13 @@ export default function ProductDetail() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {sizes.map((s) => (
-                    <Chip key={s} selected={selectedSize === s} onClick={() => setSelectedSize(s)}>
+                    <Chip
+                      key={s}
+                      selected={selectedSize === s}
+                      disabled={!sizeAvailable(s)}
+                      aria-label={sizeAvailable(s) ? `Size ${s}` : `Size ${s}, sold out`}
+                      onClick={() => { setSelectedSize(s); setQty(1) }}
+                    >
                       {s}
                     </Chip>
                   ))}
@@ -307,36 +326,38 @@ export default function ProductDetail() {
               </div>
             )}
 
-            {/* Quantity + actions */}
-            <div className="flex items-center gap-3 mt-8">
-              <div className="flex items-center rounded-card border border-hairline h-14">
-                <button
-                  onClick={() => setQty(Math.max(1, qty - 1))}
-                  aria-label="Decrease quantity"
-                  className="w-11 h-full flex items-center justify-center text-muted hover:text-fg"
-                >
-                  <IconMinus size={15} />
-                </button>
-                <span className="w-8 text-center text-sm font-medium text-fg">{qty}</span>
-                <button
-                  onClick={() => setQty(qty + 1)}
-                  aria-label="Increase quantity"
-                  className="w-11 h-full flex items-center justify-center text-muted hover:text-fg"
-                >
-                  <IconPlus size={15} />
-                </button>
-              </div>
+            {/* Stock message: says so before the click, not after it. */}
+            <p className="mt-6 text-sm min-h-5" aria-live="polite">
+              {blocked ? (
+                <span className="font-medium text-danger">{blocked}</span>
+              ) : available <= 5 ? (
+                <span className="font-medium text-fg">Only {available} left</span>
+              ) : (
+                <span className="text-muted">In stock</span>
+              )}
+            </p>
 
-              <Button size="lg" onClick={handleAddToCart} disabled={adding} className="flex-1">
-                {adding ? 'Adding…' : 'Add to Bag'}
+            {/* Quantity + actions */}
+            <div className="flex items-center gap-3 mt-3">
+              <QuantityStepper
+                value={Math.min(qty, Math.max(available, 1))}
+                max={Math.max(available, 1)}
+                disabled={Boolean(blocked)}
+                onChange={setQty}
+              />
+
+              <Button size="lg" onClick={handleAddToCart} disabled={adding || Boolean(blocked)} className="flex-1 !h-11">
+                {adding ? 'Adding…' : soldOut ? 'Sold out' : 'Add to bag'}
               </Button>
 
               <button
+                type="button"
                 onClick={() => toggleWishlist(product.id)}
                 aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
                 aria-pressed={inWishlist}
-                className="w-14 h-14 rounded-card border border-hairline flex items-center
-                           justify-center hover:border-primary transition-colors"
+                className="w-11 h-11 shrink-0 rounded-card border border-hairline flex items-center
+                           justify-center hover:border-primary transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <IconHeart
                   size={20}
@@ -349,13 +370,12 @@ export default function ProductDetail() {
 
             <Button
               variant="secondary"
-              size="lg"
               full
               onClick={handleBuyNow}
-              disabled={adding}
+              disabled={adding || Boolean(blocked)}
               className="mt-3"
             >
-              Buy Now
+              Buy now
             </Button>
 
             <DeliveryCheck />
@@ -386,18 +406,25 @@ export default function ProductDetail() {
             </div>
           </div>
         </div>
-      </section>
+      </Container>
 
-      {/* Complete the Look */}
+      <Container className="pb-16">
+        <Reviews
+          productId={product.id}
+          productName={product.name}
+          onChanged={() => fetchProduct(slug)}
+        />
+      </Container>
+
       {related.length > 0 && (
-        <section className="max-w-[1280px] mx-auto px-4 md:px-8 lg:px-12 pb-20">
-          <h2 className="display text-2xl lg:text-3xl text-fg mb-8">Complete the Look</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <Container as="section" className="pb-20" aria-labelledby="related-heading">
+          <h2 id="related-heading" className="display text-2xl lg:text-3xl text-fg mb-8">You may also like</h2>
+          <ul className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6">
             {related.slice(0, 4).map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <li key={p.id}><ProductCard product={p} /></li>
             ))}
-          </div>
-        </section>
+          </ul>
+        </Container>
       )}
     </div>
   )
@@ -416,6 +443,7 @@ function DeliveryCheck() {
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState('')
   const [hidden, setHidden] = useState(false)
+  const { delivery_check: enabled } = useFeatures()
 
   const check = async (e) => {
     e.preventDefault()
@@ -437,7 +465,7 @@ function DeliveryCheck() {
     }
   }
 
-  if (hidden) return null
+  if (hidden || !enabled) return null
 
   return (
     <div className="mt-6 rounded-card border border-hairline p-4">
@@ -455,18 +483,18 @@ function DeliveryCheck() {
           onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
           placeholder="Enter PIN code"
           aria-label="PIN code"
-          className="flex-1 rounded-card border border-hairline px-3 py-2 text-sm outline-none focus:border-primary"
+          className="flex-1 min-w-0 h-11 rounded-card border border-hairline px-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
         />
         <button
           type="submit"
           disabled={checking}
-          className="rounded-card border border-hairline px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:border-primary transition-colors disabled:opacity-50"
+          className="h-11 rounded-card border border-hairline px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           {checking ? 'Checking…' : 'Check'}
         </button>
       </form>
 
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
       {result && !error && (
         result.serviceable ? (

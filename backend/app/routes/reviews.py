@@ -11,6 +11,7 @@ from app.models.order import Order, OrderItem
 from app.models.enums import OrderStatus
 from app.models.user import User
 from app.schemas.product import ReviewIn, ReviewOut
+from app.services import cache
 
 reviews_bp = Blueprint("reviews", __name__, url_prefix="/api/reviews")
 
@@ -102,6 +103,8 @@ def submit_review():
     )
     db.session.add(review)
     db.session.commit()
+    # The product's cached rating and review count are now out of date.
+    cache.invalidate()
 
     return jsonify(
         message="Review submitted",
