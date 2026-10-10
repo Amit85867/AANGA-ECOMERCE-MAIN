@@ -22,4 +22,5 @@ from app.routes.admin import (  # noqa: E402, F401
     shipping,
     testimonials,
     features,
+    settlements,
 )

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { IconShieldCheck } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
 import { useSetting } from '@/store/useSettingsStore'
-import { FEATURE_ICONS } from '@/pages/admin/AdminFeatures'
+import { FEATURE_ICONS } from '@/utils/featureIcons'
 
 export default function WhyChoose() {
   const [features, setFeatures] = useState([])

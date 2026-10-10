@@ -1,31 +1,10 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
 import {
-  IconPlus, IconEdit, IconTrash, IconPhoto,
-  IconShieldCheck, IconTruck, IconRefresh, IconHeadset, IconStar, IconHeart,
-  IconGift, IconDiscount2, IconTag, IconPackage, IconAward, IconThumbUp,
-  IconClock, IconLock, IconSparkles, IconLeaf,
+  IconPlus, IconEdit, IconTrash, IconPhoto, IconShieldCheck,
 } from '@tabler/icons-react'
+import { FEATURE_ICONS } from '@/utils/featureIcons'
 
-// Curated icon set the storefront also knows how to render.
-export const FEATURE_ICONS = {
-  'shield-check': IconShieldCheck,
-  truck: IconTruck,
-  refresh: IconRefresh,
-  headset: IconHeadset,
-  star: IconStar,
-  heart: IconHeart,
-  gift: IconGift,
-  discount: IconDiscount2,
-  tag: IconTag,
-  package: IconPackage,
-  award: IconAward,
-  'thumb-up': IconThumbUp,
-  clock: IconClock,
-  lock: IconLock,
-  sparkles: IconSparkles,
-  leaf: IconLeaf,
-}
 const ICON_NAMES = Object.keys(FEATURE_ICONS)
 
 export default function AdminFeatures() {

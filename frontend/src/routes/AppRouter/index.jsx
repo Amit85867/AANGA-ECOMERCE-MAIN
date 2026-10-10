@@ -38,6 +38,7 @@ const AdminCategories = lazy(() => import('@/pages/admin/AdminCategories'))
 const AdminOrders = lazy(() => import('@/pages/admin/AdminOrders'))
 const AdminOrderDetail = lazy(() => import('@/pages/admin/AdminOrderDetail'))
 const AdminReturns = lazy(() => import('@/pages/admin/AdminReturns'))
+const AdminSettlements = lazy(() => import('@/pages/admin/AdminSettlements'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminUserDetail = lazy(() => import('@/pages/admin/AdminUserDetail'))
 const AdminCoupons = lazy(() => import('@/pages/admin/AdminCoupons'))
@@ -110,6 +111,7 @@ const router = createBrowserRouter([
       { path: '/admin/orders', element: admin(AdminOrders) },
       { path: '/admin/orders/:id', element: admin(AdminOrderDetail) },
       { path: '/admin/returns', element: admin(AdminReturns) },
+      { path: '/admin/settlements', element: admin(AdminSettlements) },
       { path: '/admin/users', element: admin(AdminUsers) },
       { path: '/admin/users/:id', element: admin(AdminUserDetail) },
       { path: '/admin/coupons', element: admin(AdminCoupons) },

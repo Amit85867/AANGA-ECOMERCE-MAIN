@@ -22,6 +22,7 @@ import {
   IconAdjustments,
   IconQuote,
   IconSparkles,
+  IconBuildingBank,
 } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
 import logoImg from '@/assets/images/logo-main.png'
@@ -32,6 +33,7 @@ const NAV = [
   { to: '/admin/categories', icon: IconCategory, label: 'Categories' },
   { to: '/admin/orders', icon: IconShoppingCart, label: 'Orders' },
   { to: '/admin/returns', icon: IconArrowBackUp, label: 'Returns' },
+  { to: '/admin/settlements', icon: IconBuildingBank, label: 'Settlements' },
   { to: '/admin/users', icon: IconUsers, label: 'Users' },
   { to: '/admin/coupons', icon: IconTicket, label: 'Coupons' },
   { to: '/admin/offers', icon: IconGift, label: 'Offers' },
