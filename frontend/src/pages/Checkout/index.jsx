@@ -1,23 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { IconCheck, IconPlus, IconMapPin } from '@tabler/icons-react'
-import PageHeader from '@/components/ui/PageHeader'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { IconCash, IconCreditCard, IconLock, IconPlus, IconShoppingBag } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
 import { orderService } from '@/services/orderService'
 import { useCartStore } from '@/store/useCartStore'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useFeatures } from '@/store/useFeaturesStore'
 import { toast } from '@/components/ui/Toast'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
+import OrderSummary from '@/components/ui/OrderSummary'
+import AddressForm from '@/components/account/AddressForm'
+import AddressBlock from '@/components/account/AddressBlock'
+import {
+  Badge, Container, EmptyState, ErrorState, PageTitle, Skeleton, Stepper,
+} from '@/components/ui/Display'
+import { inr } from '@/utils/format'
+import Seo from '@/components/Seo'
 
-const STEPS = ['Address', 'Payment', 'Confirm']
-const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
-
-const PAYMENT_METHODS = [
-  { id: 'cod', backend: 'cod', label: 'Cash on Delivery', desc: 'Pay when your order arrives', online: false },
-  { id: 'upi', backend: 'upi', label: 'UPI (GPay / PhonePe / Paytm)', desc: 'Pay securely via Razorpay', online: true },
-  { id: 'card', backend: 'credit_card', label: 'Credit / Debit Card', desc: 'Visa, Mastercard, RuPay', online: true },
-  { id: 'netbanking', backend: 'net_banking', label: 'Net Banking', desc: 'All major banks', online: true },
-]
-
+const STEPS = ['Address', 'Payment', 'Review']
 const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com/v1/checkout.js'
 
 function loadRazorpay() {
@@ -31,131 +32,122 @@ function loadRazorpay() {
   })
 }
 
-const emptyAddr = { full_name: '', phone: '', line1: '', line2: '', city: '', state: '', pin_code: '' }
+/* A selectable card backed by a real radio input. */
+function Choice({ name, checked, onChange, disabled, children }) {
+  return (
+    <label
+      className={`flex gap-4 rounded-card border p-4 transition-colors ${
+        disabled
+          ? 'cursor-not-allowed border-hairline/60 opacity-60'
+          : checked
+            ? 'cursor-pointer border-primary ring-1 ring-primary'
+            : 'cursor-pointer border-hairline hover:border-subtle'
+      }`}
+    >
+      <input
+        type="radio" name={name} checked={checked} onChange={onChange} disabled={disabled}
+        className="mt-1 h-4 w-4 shrink-0 accent-black"
+      />
+      <div className="min-w-0 flex-1">{children}</div>
+    </label>
+  )
+}
 
 export default function Checkout() {
   const navigate = useNavigate()
-  const { isAuthenticated, user } = useAuthStore()
-  const { cart, fetchCart, clearLocal } = useCartStore()
-  const codIdempotencyKey = useRef(null)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const initializing = useAuthStore((s) => s.initializing)
+  const user = useAuthStore((s) => s.user)
+  const { cart, loading: cartLoading, fetchCart, clearLocal } = useCartStore()
+  const { online_payments: onlineAvailable, loaded: featuresLoaded } = useFeatures()
+  const idempotencyKey = useRef(null)
 
   const [step, setStep] = useState(0)
+  const [addresses, setAddresses] = useState(null)   // null = not loaded yet
+  const [addressError, setAddressError] = useState(false)
+  const [selectedId, setSelectedId] = useState(null)
+  const [editing, setEditing] = useState(null)       // null | 'new' | address
   const [payment, setPayment] = useState('cod')
-  const [addresses, setAddresses] = useState([])
-  const [selectedAddr, setSelectedAddr] = useState(null)
-  const [showAddrForm, setShowAddrForm] = useState(false)
-  const [addrForm, setAddrForm] = useState(emptyAddr)
-  const [savingAddr, setSavingAddr] = useState(false)
   const [placing, setPlacing] = useState(false)
-  const [placedOrder, setPlacedOrder] = useState(null)
 
-  const loadAddresses = () => {
-    apiClient.get('/addresses').then(({ data }) => {
-      setAddresses(data.addresses)
-      const def = data.addresses.find((a) => a.is_default) || data.addresses[0]
-      if (def) setSelectedAddr(def.id)
-      setShowAddrForm(data.addresses.length === 0)
-    }).catch(() => {})
-  }
+  const loadAddresses = useCallback(() => {
+    setAddressError(false)
+    return apiClient.get('/addresses')
+      .then(({ data }) => {
+        setAddresses(data.addresses)
+        setSelectedId((current) =>
+          data.addresses.some((a) => a.id === current)
+            ? current
+            : (data.addresses.find((a) => a.is_default) || data.addresses[0])?.id ?? null,
+        )
+        if (data.addresses.length === 0) setEditing('new')
+      })
+      .catch(() => setAddressError(true))
+  }, [])
 
   useEffect(() => {
     if (!isAuthenticated) return
     fetchCart()
     loadAddresses()
-  }, [isAuthenticated, fetchCart])
+  }, [isAuthenticated, fetchCart, loadAddresses])
 
-  if (!isAuthenticated) {
-    return (
-      <>
-        <PageHeader title="Checkout" crumbs={[{ label: 'Home', to: '/' }, { label: 'Checkout' }]} />
-        <section className="px-6 lg:px-12 py-20 text-center">
-          <p className="text-gray text-sm">Please sign in to checkout</p>
-          <Link to="/login" className="inline-block mt-4 px-8 py-3 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors">Sign In</Link>
-        </section>
-      </>
-    )
+  if (initializing) {
+    return <Container className="py-16"><Skeleton className="h-96" /></Container>
   }
-
-  // Order success screen
-  if (placedOrder) {
-    return (
-      <>
-        <PageHeader title="Order Confirmed" crumbs={[{ label: 'Home', to: '/' }, { label: 'Order Confirmed' }]} />
-        <section className="px-6 lg:px-12 py-16 text-center max-w-lg mx-auto">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto"><IconCheck size={32} className="text-green-600" /></div>
-          <h2 className="font-serif text-2xl font-bold mt-5">Thank you for your order!</h2>
-          <p className="text-sm text-gray mt-2">Your order <span className="font-semibold text-ink">{placedOrder.order_number}</span> has been placed successfully.</p>
-          <p className="text-xs text-gray mt-1">We'll send updates as it moves through packing and delivery.</p>
-          <div className="flex gap-3 justify-center mt-7">
-            <Link to="/account" className="px-6 py-3 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors">View My Orders</Link>
-            <Link to="/shop" className="px-6 py-3 border border-line text-[11px] tracking-[2px] uppercase font-bold hover:border-ink transition-colors">Continue Shopping</Link>
-          </div>
-        </section>
-      </>
-    )
-  }
+  // Checkout is only reachable signed in; come back here afterwards.
+  if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: '/checkout' }} />
 
   const items = cart?.items || []
-  if (cart && items.length === 0) {
+  const selected = addresses?.find((a) => a.id === selectedId)
+
+  if (cart && items.length === 0 && !placing) {
     return (
-      <>
-        <PageHeader title="Checkout" crumbs={[{ label: 'Home', to: '/' }, { label: 'Checkout' }]} />
-        <section className="px-6 lg:px-12 py-20 text-center">
-          <p className="text-gray text-sm">Your cart is empty</p>
-          <Link to="/shop" className="inline-block mt-4 px-8 py-3 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors">Browse Products</Link>
-        </section>
-      </>
+      <Container className="pb-20">
+        <PageTitle title="Checkout" />
+        <EmptyState
+          icon={IconShoppingBag} title="Your bag is empty"
+          hint="Add something to your bag before checking out."
+          action={<Button to="/shop">Start shopping</Button>}
+        />
+      </Container>
     )
   }
 
-  const handleSaveAddress = async (e) => {
-    e.preventDefault()
-    if (addrForm.pin_code.length !== 6) return toast.error('Pincode must be 6 digits')
-    setSavingAddr(true)
-    try {
-      const { data } = await apiClient.post('/addresses', { ...addrForm, is_default: addresses.length === 0 })
-      setAddresses((prev) => [...prev, data])
-      setSelectedAddr(data.id)
-      setShowAddrForm(false)
-      setAddrForm(emptyAddr)
-      toast.success('Address saved')
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not save address')
-    }
-    setSavingAddr(false)
+  const finish = (order) => {
+    idempotencyKey.current = null
+    clearLocal()
+    navigate(`/order-confirmed/${order.order_id}`, { replace: true })
   }
 
-  const placeCod = async (method) => {
-    // Reuse one key across retries of the same checkout so a double-submit is
-    // deduped server-side; mint a fresh one only after an order is placed.
-    if (!codIdempotencyKey.current) {
-      codIdempotencyKey.current =
-        (crypto.randomUUID && crypto.randomUUID()) || `cod-${Date.now()}-${Math.random()}`
+  const placeCod = async () => {
+    // One key for every retry of this checkout, so a double submit or a retry
+    // after a dropped connection resolves to a single order on the server.
+    if (!idempotencyKey.current) {
+      idempotencyKey.current = crypto.randomUUID?.() || `cod-${Date.now()}-${Math.random()}`
     }
     const { data } = await orderService.create(
-      { address_id: selectedAddr, payment_method: method.backend },
-      codIdempotencyKey.current,
+      { address_id: selectedId, payment_method: 'cod' }, idempotencyKey.current,
     )
-    codIdempotencyKey.current = null
-    clearLocal()
-    setPlacedOrder(data)
+    finish(data)
   }
 
-  const placeOnline = async (method) => {
-    const ok = await loadRazorpay()
-    if (!ok) return toast.error('Could not load payment gateway. Please try again.')
-
-    // 1. Ask the backend to create a Razorpay order for the cart total
+  const placeOnline = async () => {
+    if (!(await loadRazorpay())) {
+      toast.error('Could not load the payment page. Check your connection and try again.')
+      return
+    }
     let init
     try {
-      const { data } = await apiClient.post('/payments/create-order', { address_id: selectedAddr })
-      init = data
+      ({ data: init } = await apiClient.post('/payments/create-order', { address_id: selectedId }))
     } catch (err) {
-      if (err.response?.status === 503) return toast.error('Online payments are not enabled yet. Please use Cash on Delivery.')
-      return toast.error(err.response?.data?.error || 'Could not start payment')
+      toast.error(
+        err.response?.status === 503
+          ? 'Online payment is not available right now. Please choose cash on delivery.'
+          : err.response?.data?.error || 'Could not start the payment.',
+      )
+      return
     }
 
-    // 2. Open Razorpay checkout
     await new Promise((resolve) => {
       const rzp = new window.Razorpay({
         key: init.key_id,
@@ -165,192 +157,232 @@ export default function Checkout() {
         name: 'AANGA',
         description: 'Order payment',
         prefill: { name: user?.full_name || '', email: user?.email || '', contact: user?.phone || '' },
-        theme: { color: '#C8963E' },
+        theme: { color: '#000000' },
         handler: async (resp) => {
-          // 3. Verify signature on the backend, which then places the order
           try {
             const { data } = await apiClient.post('/payments/verify', {
               razorpay_order_id: resp.razorpay_order_id,
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
-              address_id: selectedAddr,
-              payment_method: method.id,
+              address_id: selectedId,
             })
-            clearLocal()
-            setPlacedOrder(data)
+            finish(data)
           } catch (err) {
-            toast.error(err.response?.data?.error || 'Payment verification failed')
+            // The API's message says whether the money was refunded.
+            toast.error(err.response?.data?.error || 'We could not confirm your payment. If money was taken it will be refunded.')
           }
           resolve()
         },
-        modal: { ondismiss: () => resolve() },
+        modal: { ondismiss: resolve },
       })
       rzp.open()
     })
   }
 
-  const handlePlaceOrder = async () => {
-    if (!selectedAddr) return toast.error('Please select a delivery address')
-    const method = PAYMENT_METHODS.find((m) => m.id === payment)
-    if (!method) return
-
+  const placeOrder = async () => {
+    if (placing) return
+    if (!selected) {
+      setStep(0)
+      toast.error('Choose a delivery address.')
+      return
+    }
     setPlacing(true)
     try {
-      if (method.online) await placeOnline(method)
-      else await placeCod(method)
+      if (payment === 'online') await placeOnline()
+      else await placeCod()
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not place order')
+      toast.error(err.response?.data?.error || 'We could not place your order. Please try again.')
+      // Stock or prices may have changed underneath us; show the truth.
+      fetchCart()
     }
     setPlacing(false)
   }
 
-  const activeAddr = addresses.find((a) => a.id === selectedAddr)
-  const inputCls = 'w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors'
-  const labelCls = 'text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5'
-
   return (
     <>
-      <PageHeader title="Checkout" crumbs={[{ label: 'Home', to: '/' }, { label: 'Cart', to: '/cart' }, { label: 'Checkout' }]} />
-      <section className="px-6 lg:px-12 py-10">
-        {/* Stepper */}
-        <div className="flex items-center justify-center gap-0 mb-10 max-w-md mx-auto">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex items-center flex-1">
-              <div className="flex flex-col items-center flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${i <= step ? 'bg-gold border-gold text-ink' : 'border-line text-gray'}`}>
-                  {i < step ? <IconCheck size={14} /> : i + 1}
-                </div>
-                <span className={`text-[10px] mt-1.5 tracking-[1px] uppercase ${i <= step ? 'text-ink font-semibold' : 'text-gray'}`}>{s}</span>
-              </div>
-              {i < STEPS.length - 1 && <div className={`h-[2px] flex-1 -mt-4 ${i < step ? 'bg-gold' : 'bg-line'}`} />}
-            </div>
-          ))}
-        </div>
+      <Seo title="Checkout" noindex />
+      <Container className="pb-20">
+        <PageTitle title="Checkout" crumbs={[{ label: 'Bag', to: '/cart' }, { label: 'Checkout' }]} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
-          {/* Form */}
-          <div className="bg-white border border-line p-6">
+        <div className="mb-8 overflow-x-auto"><Stepper steps={STEPS} current={step} /></div>
+
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div>
+            {/* ── 1. Address ─────────────────────────────── */}
             {step === 0 && (
-              <>
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="font-serif text-lg font-bold">Delivery Address</h3>
-                  {addresses.length > 0 && !showAddrForm && (
-                    <button onClick={() => setShowAddrForm(true)} className="text-xs text-gold font-semibold flex items-center gap-1"><IconPlus size={14} /> Add New</button>
+              <section aria-labelledby="step-address">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <h2 id="step-address" className="display text-xl text-fg">Delivery address</h2>
+                  {!editing && addresses?.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditing('new')}>
+                      <IconPlus size={14} /> Add address
+                    </Button>
                   )}
                 </div>
 
-                {/* Existing addresses */}
-                {!showAddrForm && addresses.length > 0 && (
-                  <div className="space-y-3">
-                    {addresses.map((a) => (
-                      <label key={a.id} className={`flex items-start gap-3 p-4 border cursor-pointer transition-colors ${selectedAddr === a.id ? 'border-gold bg-cream/40' : 'border-line hover:border-gold/50'}`}>
-                        <input type="radio" name="addr" checked={selectedAddr === a.id} onChange={() => setSelectedAddr(a.id)} className="accent-gold mt-1" />
-                        <div className="text-sm">
-                          <div className="font-medium">{a.full_name} <span className="text-gray font-normal">· {a.phone}</span></div>
-                          <div className="text-xs text-gray mt-0.5">{a.line1}{a.line2 ? `, ${a.line2}` : ''}, {a.city}, {a.state} - {a.pin_code}</div>
-                          {a.is_default && <span className="inline-block mt-1 text-[9px] tracking-[1px] uppercase text-gold font-bold">Default</span>}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                {addressError ? (
+                  <ErrorState message="We could not load your addresses." onRetry={loadAddresses} />
+                ) : addresses === null ? (
+                  <div className="space-y-3"><Skeleton className="h-28" /><Skeleton className="h-28" /></div>
+                ) : editing ? (
+                  <Card className="p-6">
+                    <h3 className="mb-4 text-sm font-semibold text-fg">
+                      {editing === 'new' ? 'New address' : 'Edit address'}
+                    </h3>
+                    <AddressForm
+                      address={editing === 'new' ? null : editing}
+                      forceDefault={addresses.length === 0}
+                      onCancel={addresses.length > 0 ? () => setEditing(null) : undefined}
+                      onSaved={async (saved) => {
+                        setEditing(null)
+                        await loadAddresses()
+                        setSelectedId(saved.id)
+                      }}
+                    />
+                  </Card>
+                ) : (
+                  <>
+                    <fieldset className="space-y-3">
+                      <legend className="sr-only">Choose a delivery address</legend>
+                      {addresses.map((a) => (
+                        <Choice key={a.id} name="address" checked={selectedId === a.id} onChange={() => setSelectedId(a.id)}>
+                          <div className="flex items-start justify-between gap-3">
+                            <AddressBlock address={a} />
+                            <div className="flex shrink-0 flex-col items-end gap-2">
+                              {a.is_default && <Badge>Default</Badge>}
+                              <button
+                                type="button" onClick={() => setEditing(a)}
+                                className="text-xs font-medium text-muted underline underline-offset-2 hover:text-fg"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          </div>
+                        </Choice>
+                      ))}
+                    </fieldset>
+                    <Button className="mt-6" size="lg" disabled={!selected} onClick={() => setStep(1)}>
+                      Continue to payment
+                    </Button>
+                  </>
                 )}
-
-                {/* New address form */}
-                {showAddrForm && (
-                  <form onSubmit={handleSaveAddress}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className={labelCls}>Full Name *</label><input required value={addrForm.full_name} onChange={(e) => setAddrForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls} placeholder="Enter full name" /></div>
-                      <div><label className={labelCls}>Phone *</label><input required value={addrForm.phone} onChange={(e) => setAddrForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls} placeholder="10-digit mobile" /></div>
-                      <div className="md:col-span-2"><label className={labelCls}>Address *</label><input required value={addrForm.line1} onChange={(e) => setAddrForm((f) => ({ ...f, line1: e.target.value }))} className={inputCls} placeholder="House no., Street, Area" /></div>
-                      <div className="md:col-span-2"><label className={labelCls}>Landmark / Apartment</label><input value={addrForm.line2} onChange={(e) => setAddrForm((f) => ({ ...f, line2: e.target.value }))} className={inputCls} placeholder="Optional" /></div>
-                      <div><label className={labelCls}>City *</label><input required value={addrForm.city} onChange={(e) => setAddrForm((f) => ({ ...f, city: e.target.value }))} className={inputCls} placeholder="City" /></div>
-                      <div><label className={labelCls}>State *</label><input required value={addrForm.state} onChange={(e) => setAddrForm((f) => ({ ...f, state: e.target.value }))} className={inputCls} placeholder="State" /></div>
-                      <div><label className={labelCls}>Pincode *</label><input required value={addrForm.pin_code} onChange={(e) => setAddrForm((f) => ({ ...f, pin_code: e.target.value.replace(/\D/g, '').slice(0, 6) }))} className={inputCls} placeholder="6-digit pincode" /></div>
-                    </div>
-                    <div className="flex gap-3 mt-5">
-                      <button type="submit" disabled={savingAddr} className="px-6 py-3 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors disabled:opacity-60">{savingAddr ? 'Saving…' : 'Save Address'}</button>
-                      {addresses.length > 0 && <button type="button" onClick={() => setShowAddrForm(false)} className="px-6 py-3 border border-line text-[11px] tracking-[2px] uppercase font-bold hover:border-ink transition-colors">Cancel</button>}
-                    </div>
-                  </form>
-                )}
-
-                {!showAddrForm && (
-                  <button onClick={() => selectedAddr ? setStep(1) : toast.error('Please select an address')} className="mt-6 px-8 py-3 bg-gold text-ink text-[11px] tracking-[2px] uppercase font-bold hover:bg-gold-light transition-colors">Continue to Payment</button>
-                )}
-              </>
+              </section>
             )}
 
+            {/* ── 2. Payment ─────────────────────────────── */}
             {step === 1 && (
-              <>
-                <h3 className="font-serif text-lg font-bold mb-5">Payment Method</h3>
-                <div className="space-y-3">
-                  {PAYMENT_METHODS.map((m) => (
-                    <label key={m.id} className={`flex items-center gap-4 p-4 border cursor-pointer transition-colors ${payment === m.id ? 'border-gold bg-cream/50' : 'border-line hover:border-gold/50'}`}>
-                      <input type="radio" name="payment" checked={payment === m.id} onChange={() => setPayment(m.id)} className="accent-gold" />
+              <section aria-labelledby="step-payment">
+                <h2 id="step-payment" className="display text-xl text-fg mb-5">Payment method</h2>
+                <fieldset className="space-y-3">
+                  <legend className="sr-only">Choose how to pay</legend>
+                  <Choice name="payment" checked={payment === 'cod'} onChange={() => setPayment('cod')}>
+                    <div className="flex items-center gap-3">
+                      <IconCash size={22} stroke={1.5} className="text-fg" aria-hidden="true" />
                       <div>
-                        <div className="text-sm font-medium">{m.label}{m.online && <span className="ml-2 text-[9px] tracking-[1px] uppercase text-gold">Secure</span>}</div>
-                        <div className="text-[11px] text-gray">{m.desc}</div>
+                        <div className="text-sm font-medium text-fg">Cash on delivery</div>
+                        <div className="text-xs text-muted">Pay in cash when your order arrives.</div>
                       </div>
-                    </label>
-                  ))}
+                    </div>
+                  </Choice>
+                  <Choice
+                    name="payment" checked={payment === 'online'} disabled={!onlineAvailable}
+                    onChange={() => setPayment('online')}
+                  >
+                    <div className="flex items-center gap-3">
+                      <IconCreditCard size={22} stroke={1.5} className="text-fg" aria-hidden="true" />
+                      <div>
+                        <div className="text-sm font-medium text-fg">Pay online</div>
+                        <div className="text-xs text-muted">
+                          {onlineAvailable
+                            ? 'UPI, credit or debit card, net banking — securely through Razorpay.'
+                            : featuresLoaded
+                              ? 'Not available at the moment.'
+                              : 'Checking availability…'}
+                        </div>
+                      </div>
+                    </div>
+                  </Choice>
+                </fieldset>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Button variant="ghost" onClick={() => setStep(0)}>Back</Button>
+                  <Button size="lg" onClick={() => setStep(2)}>Review order</Button>
                 </div>
-                <div className="flex gap-3 mt-6">
-                  <button onClick={() => setStep(0)} className="px-6 py-3 border border-line text-[11px] tracking-[2px] uppercase font-bold hover:border-ink transition-colors">Back</button>
-                  <button onClick={() => setStep(2)} className="px-8 py-3 bg-gold text-ink text-[11px] tracking-[2px] uppercase font-bold hover:bg-gold-light transition-colors">Review Order</button>
-                </div>
-              </>
+              </section>
             )}
 
+            {/* ── 3. Review ──────────────────────────────── */}
             {step === 2 && (
-              <>
-                <h3 className="font-serif text-lg font-bold mb-5">Order Confirmation</h3>
-                <div className="bg-surface p-4 mb-4">
-                  <div className="text-[10px] tracking-[2px] uppercase text-gray font-semibold mb-2 flex items-center gap-1.5"><IconMapPin size={12} /> Delivery Address</div>
-                  {activeAddr ? (
-                    <>
-                      <p className="text-sm">{activeAddr.full_name}, {activeAddr.phone}</p>
-                      <p className="text-xs text-gray mt-0.5">{activeAddr.line1}{activeAddr.line2 ? `, ${activeAddr.line2}` : ''}, {activeAddr.city}, {activeAddr.state} - {activeAddr.pin_code}</p>
-                    </>
-                  ) : <p className="text-xs text-maroon-light">No address selected</p>}
+              <section aria-labelledby="step-review">
+                <h2 id="step-review" className="display text-xl text-fg mb-5">Review your order</h2>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Card className="p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">Deliver to</h3>
+                      <button type="button" onClick={() => setStep(0)} className="text-xs font-medium text-muted underline underline-offset-2 hover:text-fg">Change</button>
+                    </div>
+                    <AddressBlock address={selected} />
+                  </Card>
+                  <Card className="p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">Payment</h3>
+                      <button type="button" onClick={() => setStep(1)} className="text-xs font-medium text-muted underline underline-offset-2 hover:text-fg">Change</button>
+                    </div>
+                    <p className="text-sm font-medium text-fg">{payment === 'online' ? 'Pay online' : 'Cash on delivery'}</p>
+                    <p className="mt-1 text-sm text-muted">
+                      {payment === 'online'
+                        ? 'You will be taken to Razorpay to complete the payment.'
+                        : `Keep ${cart ? inr(cart.total) : 'the amount'} ready in cash.`}
+                    </p>
+                  </Card>
                 </div>
-                <div className="bg-surface p-4 mb-4">
-                  <div className="text-[10px] tracking-[2px] uppercase text-gray font-semibold mb-2">Payment</div>
-                  <p className="text-sm">{PAYMENT_METHODS.find((m) => m.id === payment)?.label}</p>
+
+                <Card className="mt-4 p-5">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Items</h3>
+                  <ul className="divide-y divide-hairline/60">
+                    {items.map((item) => (
+                      <li key={item.id} className="flex items-center gap-4 py-3">
+                        <div className="h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-fill">
+                          {item.image_url && <img src={item.image_url} alt="" width="96" height="128" loading="lazy" className="h-full w-full object-cover" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-fg">{item.product_name}</p>
+                          <p className="text-xs text-muted">
+                            {[item.size && `Size ${item.size}`, item.color_name, `Qty ${item.quantity}`].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+                        <p className="text-sm font-medium tabular-nums text-fg">{inr(item.line_total)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Button variant="ghost" onClick={() => setStep(1)} disabled={placing}>Back</Button>
+                  <Button size="lg" onClick={placeOrder} disabled={placing || !cart}>
+                    {placing
+                      ? 'Placing your order…'
+                      : payment === 'online'
+                        ? `Pay ${cart ? inr(cart.total) : ''}`
+                        : 'Place order'}
+                  </Button>
                 </div>
-                <div className="flex gap-3 mt-6">
-                  <button onClick={() => setStep(1)} className="px-6 py-3 border border-line text-[11px] tracking-[2px] uppercase font-bold hover:border-ink transition-colors">Back</button>
-                  <button onClick={handlePlaceOrder} disabled={placing} className="px-8 py-3 bg-gold text-ink text-[11px] tracking-[2px] uppercase font-bold hover:bg-gold-light transition-colors disabled:opacity-60">{placing ? 'Placing…' : 'Place Order'}</button>
-                </div>
-              </>
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-subtle">
+                  <IconLock size={12} aria-hidden="true" />
+                  By placing this order you agree to our terms and returns policy.
+                </p>
+              </section>
             )}
           </div>
 
-          {/* Summary */}
-          <div className="bg-surface p-6 h-fit">
-            <h3 className="font-serif text-lg font-bold mb-4">Order Summary</h3>
-            <div className="space-y-3 mb-4">
-              {items.map((i) => (
-                <div key={i.id} className="flex justify-between text-xs">
-                  <span className="text-gray">{i.product_name} × {i.quantity}</span><span className="font-medium">{inr(i.line_total)}</span>
-                </div>
-              ))}
-            </div>
-            {cart && (
-              <>
-                <div className="border-t border-line pt-3 space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-gray">Subtotal</span><span>{inr(cart.subtotal)}</span></div>
-                  {cart.discount > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>−{inr(cart.discount)}</span></div>}
-                  <div className="flex justify-between"><span className="text-gray">GST (5%)</span><span>{inr(cart.gst)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray">Delivery</span><span className={cart.delivery_charge === 0 ? 'text-green-600' : ''}>{cart.delivery_charge === 0 ? 'FREE' : inr(cart.delivery_charge)}</span></div>
-                </div>
-                <div className="flex justify-between font-bold text-lg mt-3 pt-3 border-t border-line">
-                  <span>Total</span><span>{inr(cart.total)}</span>
-                </div>
-              </>
-            )}
-          </div>
+          <aside aria-label="Order summary">
+            <Card className="p-6 lg:sticky lg:top-28">
+              <h2 className="display text-xl text-fg mb-5">Order summary</h2>
+              {cart ? <OrderSummary cart={cart} /> : cartLoading ? <Skeleton className="h-48" /> : null}
+            </Card>
+          </aside>
         </div>
-      </section>
+      </Container>
     </>
   )
 }

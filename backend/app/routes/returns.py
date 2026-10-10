@@ -18,6 +18,7 @@ from app.extensions import db, limiter
 from app.models.order import Order, OrderItem, Return
 from app.models.enums import OrderStatus, ReturnReason, ReturnStatus
 from app.schemas.order import ReturnRequestIn
+from app.utils.pagination import page_meta, paginate
 
 returns_bp = Blueprint("returns", __name__, url_prefix="/api/returns")
 
@@ -145,13 +146,13 @@ def request_return():
 @returns_bp.route("", methods=["GET"])
 @jwt_required()
 def list_my_returns():
-    returns = (
+    page = paginate(
         Return.query
         .filter_by(user_id=get_jwt_identity())
-        .order_by(Return.requested_at.desc())
-        .all()
+        .order_by(Return.requested_at.desc()),
+        default=20, cap=50,
     )
-    return jsonify(returns=[_serialize(r) for r in returns]), 200
+    return jsonify(returns=[_serialize(r) for r in page.items], **page_meta(page)), 200
 
 
 @returns_bp.route("/<int:return_id>", methods=["GET"])

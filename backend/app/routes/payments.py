@@ -38,6 +38,15 @@ RAZORPAY_API = "https://api.razorpay.com/v1"
 RAZORPAY_ORDERS_URL = f"{RAZORPAY_API}/orders"
 
 # Frontend payment ids → backend PaymentMethod enum values
+# Razorpay's payment.method -> our payment_method enum.
+GATEWAY_METHOD_MAP = {
+    "upi": "upi",
+    "card": "credit_card",
+    "netbanking": "net_banking",
+    "wallet": "wallet",
+    "emi": "emi",
+}
+
 METHOD_MAP = {
     "upi": "upi",
     "card": "credit_card",
@@ -442,7 +451,12 @@ def verify_payment():
         return jsonify(error="Payment amount does not match the order total"), 400
 
     # 4. Everything checks out — create the paid order.
-    method_value = METHOD_MAP.get(frontend_method, "upi")
+    # Record how the customer actually paid. Razorpay knows (they chose inside
+    # its own window); the browser's claim is only a fallback.
+    method_value = (
+        GATEWAY_METHOD_MAP.get(payment.get("method"))
+        or METHOD_MAP.get(frontend_method, "upi")
+    )
     order, err = create_order_from_cart(
         user_id, address_id, method_value, payment_ref=rzp_payment, paid=True,
     )

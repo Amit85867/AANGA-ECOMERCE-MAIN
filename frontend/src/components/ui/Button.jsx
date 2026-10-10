@@ -17,6 +17,8 @@ const VARIANTS = {
   ghost: 'text-fg hover:bg-fill',
   // Reserved for sale / high-intent promo actions only.
   accent: 'bg-accent text-on-primary hover:bg-accent/90',
+  // Destructive confirmations (cancel an order, remove an address).
+  danger: 'bg-danger text-on-primary hover:bg-danger/90',
 }
 
 const SIZES = {

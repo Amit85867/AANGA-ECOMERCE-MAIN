@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
 import DashboardLayout from '@/layouts/DashboardLayout'
@@ -27,7 +27,12 @@ import Login from '@/pages/auth/Login'
 import Register from '@/pages/auth/Register'
 import ForgotPassword from '@/pages/auth/ForgotPassword'
 import ResetPassword from '@/pages/auth/ResetPassword'
-import Dashboard from '@/pages/account/Dashboard'
+import Orders from '@/pages/account/Orders'
+import OrderDetail from '@/pages/account/OrderDetail'
+import AccountReturns from '@/pages/account/Returns'
+import Addresses from '@/pages/account/Addresses'
+import Profile from '@/pages/account/Profile'
+import OrderConfirmed from '@/pages/OrderConfirmed'
 
 // Admin pages are lazy-loaded so ordinary shoppers never download the entire
 // admin panel with the storefront bundle — it loads on demand under /admin.
@@ -77,6 +82,7 @@ const router = createBrowserRouter([
       { path: '/product/:slug', element: <ProductDetail /> },
       { path: '/cart', element: <Cart /> },
       { path: '/checkout', element: <Checkout /> },
+      { path: '/order-confirmed/:id', element: <OrderConfirmed /> },
       { path: '/wishlist', element: <Wishlist /> },
       { path: '/track-order', element: <OrderTracking /> },
       { path: '/contact', element: <Contact /> },
@@ -102,7 +108,14 @@ const router = createBrowserRouter([
   {
     element: <DashboardLayout />,
     errorElement: <RouteError />,
-    children: [{ path: '/account', element: <Dashboard /> }],
+    children: [
+      { path: '/account', element: <Navigate to="/account/orders" replace /> },
+      { path: '/account/orders', element: <Orders /> },
+      { path: '/account/orders/:id', element: <OrderDetail /> },
+      { path: '/account/returns', element: <AccountReturns /> },
+      { path: '/account/addresses', element: <Addresses /> },
+      { path: '/account/profile', element: <Profile /> },
+    ],
   },
   // Internal design-system reference (not linked from the storefront).
   { path: '/style-guide', element: <StyleGuide /> },
