@@ -213,7 +213,7 @@ export default function Navbar() {
               )}
             </Link>
             <Link
-              to={isAuthenticated ? "/account" : ROUTES.LOGIN}
+              to={isAuthenticated ? "/account/orders" : ROUTES.LOGIN}
               aria-label={isAuthenticated ? "Account" : "Sign in"}
               className="flex items-center gap-2 text-fg hover:text-accent transition-colors"
             >
