@@ -43,6 +43,9 @@ CALL_RE = re.compile(
     rf"[{QUOTES}]([^{QUOTES}]+)[{QUOTES}]",
     re.S,
 )
+# List pages load through the useAdminList(url, ...) hook rather than calling
+# adminApi.get themselves.
+HOOK_RE = re.compile(rf"useAdminList\(\s*[{QUOTES}]([^{QUOTES}]+)[{QUOTES}]", re.S)
 TEMPLATE_VAR = re.compile(r"\$\{[^}]+\}")
 
 
@@ -66,7 +69,8 @@ def frontend_calls():
     calls = {}
     for path in FRONTEND_SRC.rglob("*.js*"):
         text = path.read_text(encoding="utf-8")
-        for method, url in CALL_RE.findall(text):
+        found = CALL_RE.findall(text) + [("get", url) for url in HOOK_RE.findall(text)]
+        for method, url in found:
             url = "/api" + TEMPLATE_VAR.sub("<p>", url.split("?")[0])
             rel = path.relative_to(FRONTEND_SRC).as_posix()
             calls.setdefault((method.upper(), url), set()).add(rel)

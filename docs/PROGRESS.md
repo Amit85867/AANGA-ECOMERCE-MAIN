@@ -87,28 +87,61 @@ Legend: `[x]` done · `[ ]` open · **BLOCKED** = failed verification three time
 
 ## Phase 3 — Admin dashboard
 
-- [ ] Audit every admin page; record gaps per page here as new tasks.
-- [ ] Lists: server-side pagination, search, filters, sort, empty / loading / error states.
-- [ ] Forms: validation matching the backend, disabled submit while saving, toasts, no double submit.
-- [ ] Destructive actions: confirmation dialog; soft delete where the model allows.
-- [ ] Dashboard: one aggregated KPI endpoint (revenue today/7d/30d, orders by
-  status, out-of-stock, low-stock, pending returns, recent orders) with a
-  date-range filter; index the columns it uses.
-- [ ] System Health panel + admin-only endpoint (DB, Redis, Razorpay, Shiprocket,
-  Supabase, version, last reconcile run). Integrations show Configured /
-  Not configured / Error and never display values.
-- [ ] Maintenance mode toggle: friendly customer page, admins can still log in.
-- [ ] Audit log for orders, refunds, products and settings, viewable by admins.
+Backend verified by `tests/test_admin_system.py`, `test_admin_operations.py`,
+`test_admin_crud.py` (suite: 313 passed). Frontend verified by `vite build` and
+`oxlint` (0 errors; no warnings left in `pages/admin` or `components/admin`).
+Browser verification is Phase 7.
+
+- [x] Audit of every admin page — found 24 `alert()` and 14 `confirm()` calls,
+  no error states (failed loads were silently swallowed), no skeletons, a
+  button per page for pagination, and no feedback after a save.
+- [x] Shared admin kit (`frontend/src/components/admin/`): confirm dialog,
+  skeleton / empty / retryable error states, pagination, debounced search,
+  `useAdminList` hook, save button, badges, formatters.
+- [x] Lists — orders, products, customers, returns, reviews, inquiries, messages,
+  newsletter, audit log: server-side pagination, search, filters and sort, with
+  skeleton, empty ("nothing yet" vs "nothing matches") and error-with-retry.
+  Backend sort uses a column whitelist; page size is capped at 100.
+- [x] Short CMS lists (banners, announcements, promo banners, testimonials,
+  features, offers, coupons, categories): capped server-side, loading / error /
+  empty states. They show the first 100 rows without a pager — fine for
+  home-page content; coupons would need a pager if they ever exceed 100.
+- [x] Forms — saves are guarded against double submit, show a success toast,
+  and show the API's field-level message on failure. Fixed mismatches found on
+  the way: admin password min length (form said 6, API requires 8).
+- [x] Destructive actions — all behind a confirm dialog that says what will
+  happen. Products, categories and addresses are soft-deleted; a variant that
+  has been ordered cannot be deleted (409, was a 500).
+- [x] Dashboard — `GET /api/admin/dashboard/overview`: revenue today / 7d / 30d
+  / range, orders by status, revenue per day, low and out-of-stock, queues
+  needing action, recent orders, best sellers, with a date range (IST days).
+  Eight queries regardless of data size (asserted). Indexes in
+  `migrations_admin_ops.sql`.
+- [x] System Health — `GET /api/admin/system/health` and the System page. Each
+  integration shows Configured / Not configured / Error from env vars; values
+  are never returned (asserted). "Test connections" probes them live.
+  Shows version, environment, uptime and the last `reconcile-payments` run.
+- [x] Maintenance mode — master-only switch on the System page. Storefront API
+  answers 503 and the storefront shows a maintenance page (re-checks every
+  minute); admin panel, CMS settings, health check and the Razorpay webhook
+  stay open. The general settings form cannot flip the switch.
+- [x] Audit log — every successful admin write and every refund is recorded
+  automatically (who, what, record, changes; secrets redacted) and is
+  searchable on the Audit Log page.
 - [x] Every admin endpoint enforces the admin role server-side — enforced for all
   routes by `tests/test_route_contracts.py`.
-- [ ] Replace `alert()` / `confirm()` in admin pages with dialogs and toasts.
-- [ ] Resolving a return as a refund does not refund the payment or restock the
-  item — wire it to the Razorpay refund and to inventory.
-- [ ] Admin Reviews page: there is no admin endpoint or screen to moderate reviews.
-- [ ] Variant editing: `PUT …/variants/<id>` exists but the product form never calls it.
-- [ ] A 403 on any admin call logs the admin out (`adminApi` interceptor), so a
-  staff admin opening a master-only screen is signed out instead of told "no access".
-- [ ] `PATCH /api/admin/users/<id>` has no schema validation.
+- [x] Returns — resolving as a refund now refunds through Razorpay (per-return
+  idempotency key), can restock, sets the order to returned when everything is
+  back, and cannot be done twice. COD refunds are flagged as manual.
+- [x] Reviews — admin list / search / remove (`/api/admin/reviews`), Reviews page.
+- [x] Variant stock is editable in place on the product form.
+- [x] A 403 no longer signs the admin out; only a deactivated account does.
+- [x] `PATCH /api/admin/users/<id>` is schema-validated.
+- [ ] Admin sign-ins are not written to the audit log (only changes are).
+- [ ] Order status has no transition rules: an admin can move a delivered order
+  back to pending. Decide the allowed transitions before enforcing them.
+- [ ] Admin status changes do not add a tracking event, so the customer's
+  timeline only shows events an admin adds by hand.
 
 ## Phase 4 — Modern corporate UI (theme frozen)
 

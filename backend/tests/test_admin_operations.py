@@ -508,3 +508,16 @@ def test_return_refund_cannot_exceed_what_the_item_cost(app, client):
 
     assert resp.status_code == 422
     assert db.session.get(Return, return_id).status == ReturnStatus.requested
+
+
+def test_a_variant_that_has_been_ordered_cannot_be_deleted(app, client):
+    order, variant = _order()
+
+    resp = client.delete(
+        f"/api/admin/products/{variant.product_id}/variants/{variant.id}",
+        headers=admin_headers(),
+    )
+
+    assert resp.status_code == 409
+    assert "Set its stock to 0" in resp.get_json()["error"]
+    assert db.session.get(ProductVariant, variant.id) is not None

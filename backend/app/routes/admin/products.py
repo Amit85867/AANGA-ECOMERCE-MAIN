@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.extensions import db
 from app.models.catalogue import Product, ProductVariant, ProductImage, Category
+from app.models.order import OrderItem
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.utils.pagination import apply_sort, page_meta, paginate
@@ -227,6 +228,15 @@ def delete_variant(product_id, variant_id):
     v = ProductVariant.query.filter_by(id=variant_id, product_id=product_id).first()
     if not v:
         return jsonify(error="Variant not found"), 404
+
+    # order_items keeps a RESTRICT foreign key to the variant: past orders must
+    # go on showing what was bought. Refuse cleanly instead of letting the
+    # database raise.
+    if db.session.query(OrderItem.id).filter_by(variant_id=v.id).first():
+        return jsonify(
+            error="This variant has been ordered, so it cannot be deleted. "
+                  "Set its stock to 0 to stop selling it."
+        ), 409
 
     p = v.product
     db.session.delete(v)

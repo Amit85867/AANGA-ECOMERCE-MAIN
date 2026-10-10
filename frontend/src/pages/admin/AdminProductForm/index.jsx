@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
 import { confirm } from '@/components/admin/confirm'
 import { notifyError } from '@/components/admin/helpers'
+import { toast } from '@/components/ui/Toast'
+import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
 import { IconPlus, IconTrash, IconArrowLeft, IconUpload, IconLink } from '@tabler/icons-react'
 
 export default function AdminProductForm() {
@@ -13,6 +15,11 @@ export default function AdminProductForm() {
   const [categories, setCategories] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(isEdit)
+  const [loadError, setLoadError] = useState(null)
+  // Stock typed into a variant row but not saved yet: { [variantId]: "12" }
+  const [stockDrafts, setStockDrafts] = useState({})
+  const [savingVariant, setSavingVariant] = useState(null)
 
   const [form, setForm] = useState({
     name: '',
@@ -50,6 +57,8 @@ export default function AdminProductForm() {
     })
 
     if (isEdit) {
+      setLoading(true)
+      setLoadError(null)
       adminApi.get(`/admin/products/${id}`).then((r) => {
         const p = r.data
         setForm({
@@ -66,7 +75,13 @@ export default function AdminProductForm() {
         })
         setVariants(p.variants)
         setImages(p.images)
-      })
+      }).catch((err) => {
+        setLoadError(
+          err.response?.status === 404
+            ? 'This product does not exist.'
+            : err.response?.data?.error || 'Could not load this product.',
+        )
+      }).finally(() => setLoading(false))
     }
   }, [id, isEdit])
 
@@ -100,13 +115,15 @@ export default function AdminProductForm() {
     try {
       if (isEdit) {
         await adminApi.put(`/admin/products/${id}`, payload)
+        toast.success('Product saved.')
         navigate('/admin/products')
       } else {
         const r = await adminApi.post('/admin/products', payload)
+        toast.success('Product created. Now add its sizes, colours and images.')
         navigate(`/admin/products/${r.data.id}`)
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.errors || 'Save failed')
+      setError(err.response?.data?.error || 'Could not save the product.')
     } finally {
       setSaving(false)
     }
@@ -124,15 +141,48 @@ export default function AdminProductForm() {
       const r = await adminApi.post(`/admin/products/${id}/variants`, payload)
       setVariants(r.data.variants)
       setNewVariant({ size: '', color_name: '', color_hex: '#000000', stock_qty: 0, price_override: '', sku: '' })
+      toast.success('Variant added.')
     } catch (err) {
-      notifyError(err, 'Failed to add variant')
+      notifyError(err, 'Could not add the variant.')
     }
+  }
+
+  // Restocking is the most common edit on this page, so stock is changed in
+  // place rather than by deleting and re-adding the variant.
+  const saveStock = async (variant) => {
+    const stock = Number(stockDrafts[variant.id])
+    if (!Number.isInteger(stock) || stock < 0) {
+      toast.error('Stock must be a whole number, 0 or more.')
+      return
+    }
+    setSavingVariant(variant.id)
+    try {
+      const r = await adminApi.put(`/admin/products/${id}/variants/${variant.id}`, {
+        size: variant.size,
+        color_name: variant.color_name,
+        color_hex: variant.color_hex,
+        stock_qty: stock,
+        price_override: variant.price_override,
+        sku: variant.sku,
+      })
+      setVariants(r.data.variants)
+      setStockDrafts((d) => { const next = { ...d }; delete next[variant.id]; return next })
+      toast.success(`Stock for ${variant.size} · ${variant.color_name} set to ${stock}.`)
+    } catch (err) {
+      notifyError(err, 'Could not update the stock.')
+    }
+    setSavingVariant(null)
   }
 
   const deleteVariant = async (vid) => {
     if (!(await confirm({ title: 'Delete this variant?', message: 'This size and colour will no longer be sold.', confirmLabel: 'Delete', danger: true }))) return
-    const r = await adminApi.delete(`/admin/products/${id}/variants/${vid}`)
-    setVariants(r.data.variants)
+    try {
+      const r = await adminApi.delete(`/admin/products/${id}/variants/${vid}`)
+      setVariants(r.data.variants)
+      toast.success('Variant deleted.')
+    } catch (err) {
+      notifyError(err, 'Could not delete the variant.')
+    }
   }
 
   const addImage = async () => {
@@ -144,16 +194,25 @@ export default function AdminProductForm() {
       })
       setImages(r.data.images)
       setNewImageUrl('')
+      toast.success('Image added.')
     } catch (err) {
-      notifyError(err, 'Failed to add image')
+      notifyError(err, 'Could not add the image.')
     }
   }
 
   const deleteImage = async (imgId) => {
     if (!(await confirm({ title: 'Delete this image?', confirmLabel: 'Delete', danger: true }))) return
-    const r = await adminApi.delete(`/admin/products/${id}/images/${imgId}`)
-    setImages(r.data.images)
+    try {
+      const r = await adminApi.delete(`/admin/products/${id}/images/${imgId}`)
+      setImages(r.data.images)
+      toast.success('Image deleted.')
+    } catch (err) {
+      notifyError(err, 'Could not delete the image.')
+    }
   }
+
+  if (loading) return <TableSkeleton rows={6} columns={3} />
+  if (loadError) return <ErrorState message={loadError} onRetry={() => window.location.reload()} />
 
   const inputCls =
     'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
@@ -287,11 +346,29 @@ export default function AdminProductForm() {
                             {v.color_name}
                           </span>
                         </td>
-                        <td className="py-2 pr-4">{v.stock_qty}</td>
+                        <td className="py-2 pr-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number" min="0" step="1"
+                              aria-label={`Stock for ${v.size} ${v.color_name}`}
+                              value={stockDrafts[v.id] ?? v.stock_qty}
+                              onChange={(e) => setStockDrafts((d) => ({ ...d, [v.id]: e.target.value }))}
+                              className={`w-20 rounded border px-2 py-1 text-sm ${v.stock_qty === 0 ? 'border-red-300 text-red-600' : 'border-gray-200'}`}
+                            />
+                            {stockDrafts[v.id] != null && String(stockDrafts[v.id]) !== String(v.stock_qty) && (
+                              <button
+                                type="button" onClick={() => saveStock(v)} disabled={savingVariant === v.id}
+                                className="rounded bg-gray-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-black disabled:opacity-60"
+                              >
+                                {savingVariant === v.id ? 'Saving…' : 'Save'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-2 pr-4">{v.price_override ?? '-'}</td>
                         <td className="py-2 pr-4 text-gray-400">{v.sku || '-'}</td>
                         <td className="py-2">
-                          <button onClick={() => deleteVariant(v.id)} className="text-red-400 hover:text-red-600">
+                          <button type="button" onClick={() => deleteVariant(v.id)} aria-label={`Delete variant ${v.size} ${v.color_name}`} className="text-red-400 hover:text-red-600">
                             <IconTrash size={16} />
                           </button>
                         </td>
@@ -351,8 +428,10 @@ export default function AdminProductForm() {
                       </span>
                     )}
                     <button
+                      type="button"
                       onClick={() => deleteImage(img.id)}
-                      className="absolute -right-1 -top-1 hidden rounded-full bg-red-500 p-0.5 text-white group-hover:block"
+                      aria-label="Delete image"
+                      className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <IconTrash size={12} />
                     </button>
