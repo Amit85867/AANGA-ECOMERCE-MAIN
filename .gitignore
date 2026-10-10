@@ -33,3 +33,6 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Uploaded product images (local-disk storage backend; production uses Supabase Storage)
+backend/static/uploads/
