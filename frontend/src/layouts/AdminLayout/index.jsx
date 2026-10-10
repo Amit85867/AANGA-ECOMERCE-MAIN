@@ -23,9 +23,13 @@ import {
   IconQuote,
   IconSparkles,
   IconBuildingBank,
+  IconStar,
+  IconHeartRateMonitor,
+  IconHistory,
 } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
 import logoImg from '@/assets/images/logo-main.png'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 const NAV = [
   { to: '/admin', icon: IconDashboard, label: 'Dashboard', end: true },
@@ -35,6 +39,7 @@ const NAV = [
   { to: '/admin/returns', icon: IconArrowBackUp, label: 'Returns' },
   { to: '/admin/settlements', icon: IconBuildingBank, label: 'Settlements' },
   { to: '/admin/users', icon: IconUsers, label: 'Users' },
+  { to: '/admin/reviews', icon: IconStar, label: 'Reviews' },
   { to: '/admin/coupons', icon: IconTicket, label: 'Coupons' },
   { to: '/admin/offers', icon: IconGift, label: 'Offers' },
   { to: '/admin/banners', icon: IconPhoto, label: 'Hero Banners' },
@@ -46,6 +51,8 @@ const NAV = [
   { to: '/admin/inquiries', icon: IconBuildingStore, label: 'Inquiries' },
   { to: '/admin/messages', icon: IconMail, label: 'Messages' },
   { to: '/admin/newsletter', icon: IconNews, label: 'Newsletter' },
+  { to: '/admin/system', icon: IconHeartRateMonitor, label: 'System Health' },
+  { to: '/admin/audit-log', icon: IconHistory, label: 'Audit Log' },
   { to: '/admin/settings', icon: IconSettings, label: 'Settings', masterOnly: true },
 ]
 
@@ -147,6 +154,7 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <ConfirmDialog />
     </div>
   )
 }

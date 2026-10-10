@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
+import { confirm } from '@/components/admin/confirm'
 import { IconPlus, IconSearch, IconEdit, IconTrash } from '@tabler/icons-react'
 
 export default function AdminProducts() {
@@ -42,7 +43,7 @@ export default function AdminProducts() {
   }
 
   const handleDeactivate = async (id) => {
-    if (!confirm('Deactivate this product?')) return
+    if (!(await confirm({ title: 'Deactivate this product?', message: 'It is hidden from the storefront but kept for past orders. You can reactivate it later.', confirmLabel: 'Deactivate', danger: true }))) return
     await adminApi.delete(`/admin/products/${id}`)
     fetchProducts(page)
   }

@@ -76,11 +76,18 @@ adminApi.interceptors.response.use(
       }
     }
 
-    if (err.response?.status === 403 || (err.response?.status === 401 && isAuthCall)) {
+    // A failed refresh means the session is over. A 403 does not: it means this
+    // admin may not do this one thing (a staff admin on a master-only screen),
+    // and signing them out for it would lose their work for no reason. The one
+    // 403 that does end the session is a deactivated or deleted account.
+    const accountGone =
+      err.response?.status === 403 &&
+      /not found or deactivated/i.test(err.response?.data?.error || '')
+    const refreshFailed = err.response?.status === 401 && original?.url?.includes('/admin/auth/refresh')
+
+    if (accountGone || refreshFailed) {
       setAdminAccessToken(null)
-      if (!original?.url?.includes('/admin/auth/login')) {
-        window.location.href = '/admin/login'
-      }
+      window.location.href = '/admin/login'
     }
     return Promise.reject(describeApiError(err))
   },

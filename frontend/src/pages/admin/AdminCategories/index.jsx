@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/Toast'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconEdit, IconTrash, IconChevronRight } from '@tabler/icons-react'
 
 function CategoryRow({ cat, depth = 0, onEdit, onDelete }) {
@@ -48,6 +52,8 @@ function CategoryRow({ cat, depth = 0, onEdit, onDelete }) {
 export default function AdminCategories() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -57,9 +63,10 @@ export default function AdminCategories() {
 
   const fetch = () => {
     setLoading(true)
-    adminApi.get('/admin/categories')
+    setError(null)
+    adminApi.get('/admin/categories', { params: { per_page: 100 } })
       .then((r) => setCategories(r.data.categories))
-      .catch(() => {})
+      .catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.'))
       .finally(() => setLoading(false))
   }
 
@@ -95,7 +102,19 @@ export default function AdminCategories() {
     setShowForm(true)
   }
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const payload = { ...form, sort_order: Number(form.sort_order), parent_id: form.parent_id ? Number(form.parent_id) : null }
     try {
@@ -104,20 +123,22 @@ export default function AdminCategories() {
       } else {
         await adminApi.post('/admin/categories', payload)
       }
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false)
       fetch()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
   }
 
   const handleDelete = async (cat) => {
-    if (!confirm(`Deactivate "${cat.name}"?`)) return
+    if (!(await confirm({ title: `Deactivate “${cat.name}”?`, message: 'It is hidden from the storefront. Products in it are kept.', confirmLabel: 'Deactivate', danger: true }))) return
     try {
       await adminApi.delete(`/admin/categories/${cat.id}`)
+      toast.success(`“${cat.name}” deactivated.`)
       fetch()
     } catch (err) {
-      alert(err.response?.data?.error || 'Delete failed')
+      notifyError(err, 'Delete failed')
     }
   }
 
@@ -149,7 +170,7 @@ export default function AdminCategories() {
             </label>
           </div>
           <div className="mt-4 flex gap-2">
-            <button type="submit" className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">
+            <button type="submit" disabled={saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">
               {editing ? 'Update' : 'Create'}
             </button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">
@@ -160,7 +181,11 @@ export default function AdminCategories() {
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetch()} />
+      ) : categories.length === 0 ? (
+        <EmptyState title="No categories yet" hint="Create a category before adding products." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">

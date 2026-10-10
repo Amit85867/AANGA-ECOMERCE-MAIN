@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { confirm } from '@/components/admin/confirm'
 import { IconTrash } from '@tabler/icons-react'
 
 export default function AdminNewsletter() {
@@ -25,7 +26,7 @@ export default function AdminNewsletter() {
   useEffect(() => { fetch() }, [])
 
   const remove = async (id) => {
-    if (!confirm('Remove this subscriber?')) return
+    if (!(await confirm({ title: 'Remove this subscriber?', message: 'They will stop receiving the newsletter.', confirmLabel: 'Remove', danger: true }))) return
     await adminApi.delete(`/admin/newsletter/${id}`)
     fetch(page)
   }

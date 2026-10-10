@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { notifyError } from '@/components/admin/helpers'
 import { IconDeviceFloppy } from '@tabler/icons-react'
 
 const GROUP_LABELS = {
@@ -47,7 +48,7 @@ export default function AdminSiteSettings() {
       await adminApi.put('/admin/site-settings', { settings: payload })
       fetchSettings()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
     setSaving(false)
   }

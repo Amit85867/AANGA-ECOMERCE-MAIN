@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/Toast'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconEdit, IconTrash, IconX } from '@tabler/icons-react'
 
 export default function AdminPromoBanners() {
   const [promos, setPromos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -18,9 +24,10 @@ export default function AdminPromoBanners() {
 
   const fetchPromos = () => {
     setLoading(true)
-    adminApi.get('/admin/promo-banners')
+    setError(null)
+    adminApi.get('/admin/promo-banners', { params: { per_page: 100 } })
       .then((r) => setPromos(r.data.promo_banners))
-      .catch(() => {})
+      .catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.'))
       .finally(() => setLoading(false))
   }
 
@@ -54,7 +61,19 @@ export default function AdminPromoBanners() {
 
   const removeItem = (idx) => setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const validItems = form.items.filter((i) => i.pct && i.label)
     const payload = {
@@ -76,17 +95,23 @@ export default function AdminPromoBanners() {
       } else {
         await adminApi.post('/admin/promo-banners', payload)
       }
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false)
       fetchPromos()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this promo banner?')) return
-    await adminApi.delete(`/admin/promo-banners/${id}`)
-    fetchPromos()
+    if (!(await confirm({ title: 'Delete this promo banner?', message: 'It will be removed from the home page.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      await adminApi.delete(`/admin/promo-banners/${id}`)
+      toast.success('Deleted.')
+      fetchPromos()
+    } catch (err) {
+      notifyError(err, 'Could not delete this.')
+    }
   }
 
   const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
@@ -186,16 +211,18 @@ export default function AdminPromoBanners() {
           </div>
 
           <div className="mt-5 flex gap-2">
-            <button type="submit" className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">{editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">{editing ? 'Update' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetchPromos()} />
       ) : promos.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No promo banners yet.</div>
+        <EmptyState title="No promo banners yet" hint="Add a promotional banner for the home page." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">

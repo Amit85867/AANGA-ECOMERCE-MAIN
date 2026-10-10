@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/Toast'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 
 const OFFER_TYPES = ['percentage_off', 'flat_off', 'free_shipping', 'bogo']
@@ -8,6 +12,8 @@ export default function AdminOffers() {
   const [offers, setOffers] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -19,9 +25,10 @@ export default function AdminOffers() {
 
   const fetch = () => {
     setLoading(true)
-    adminApi.get('/admin/offers')
+    setError(null)
+    adminApi.get('/admin/offers', { params: { per_page: 100 } })
       .then((r) => setOffers(r.data.offers))
-      .catch(() => {})
+      .catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.'))
       .finally(() => setLoading(false))
   }
 
@@ -54,7 +61,19 @@ export default function AdminOffers() {
     setShowForm(true)
   }
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const payload = {
       ...form,
@@ -69,17 +88,23 @@ export default function AdminOffers() {
       } else {
         await adminApi.post('/admin/offers', payload)
       }
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false)
       fetch()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this offer?')) return
-    await adminApi.delete(`/admin/offers/${id}`)
-    fetch()
+    if (!(await confirm({ title: 'Delete this offer?', message: 'It will disappear from the Offers page.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      await adminApi.delete(`/admin/offers/${id}`)
+      toast.success('Deleted.')
+      fetch()
+    } catch (err) {
+      notifyError(err, 'Could not delete this.')
+    }
   }
 
   const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
@@ -116,14 +141,18 @@ export default function AdminOffers() {
             </label>
           </div>
           <div className="mt-4 flex gap-2">
-            <button type="submit" className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">{editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">{editing ? 'Update' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetch()} />
+      ) : offers.length === 0 ? (
+        <EmptyState title="No offers yet" hint="Create an offer to feature on the Offers page." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
+import { toast } from '@/components/ui/Toast'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconArrowLeft, IconTruckDelivery, IconRefresh } from '@tabler/icons-react'
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled']
@@ -33,14 +36,14 @@ export default function AdminOrderDetail() {
   }
 
   const shipViaShiprocket = async () => {
-    if (!confirm('Create a Shiprocket shipment and assign an AWB for this order?')) return
+    if (!(await confirm({ title: 'Book this shipment?', message: 'A Shiprocket shipment is created and an AWB assigned. This cannot be undone from here.', confirmLabel: 'Book shipment' }))) return
     setShipping(true)
     try {
       const { data } = await adminApi.post(`/admin/orders/${id}/ship`)
-      alert(`Shipment created via ${data.courier_name || 'courier'} — AWB ${data.tracking_number}`)
+      toast.success(`Shipment booked with ${data.courier_name || 'courier'} — AWB ${data.tracking_number}`)
       await reload()
     } catch (err) {
-      alert(err.response?.data?.error || 'Could not create shipment')
+      notifyError(err, 'Could not create shipment')
     }
     setShipping(false)
   }
@@ -49,10 +52,10 @@ export default function AdminOrderDetail() {
     setSyncing(true)
     try {
       const { data } = await adminApi.post(`/admin/orders/${id}/sync-tracking`)
-      alert(data.message || 'Tracking synced')
+      toast.success(data.message || 'Tracking synced')
       await reload()
     } catch (err) {
-      alert(err.response?.data?.error || 'Could not sync tracking')
+      notifyError(err, 'Could not sync tracking')
     }
     setSyncing(false)
   }
@@ -73,7 +76,7 @@ export default function AdminOrderDetail() {
       await adminApi.patch(`/admin/orders/${id}/status`, { status: newStatus })
       setOrder((o) => ({ ...o, status: newStatus }))
     } catch (err) {
-      alert(err.response?.data?.error || 'Update failed')
+      notifyError(err, 'Update failed')
     }
   }
 
@@ -85,7 +88,7 @@ export default function AdminOrderDetail() {
       setOrder(r.data)
       setTracking({ status_label: '', description: '', status_type: 'confirmed', courier_name: '', tracking_number: '' })
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed')
+      notifyError(err, 'Failed')
     }
   }
 

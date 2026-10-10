@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/Toast'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconEdit, IconTrash, IconArrowUp, IconArrowDown, IconPhoto } from '@tabler/icons-react'
 
 export default function AdminBanners() {
   const [banners, setBanners] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -19,9 +25,10 @@ export default function AdminBanners() {
 
   const fetchBanners = () => {
     setLoading(true)
-    adminApi.get('/admin/banners')
+    setError(null)
+    adminApi.get('/admin/banners', { params: { per_page: 100 } })
       .then((r) => setBanners(r.data.banners))
-      .catch(() => {})
+      .catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.'))
       .finally(() => setLoading(false))
   }
 
@@ -55,12 +62,24 @@ export default function AdminBanners() {
       const r = await adminApi.post('/admin/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       setForm((f) => ({ ...f, [field]: r.data.url }))
     } catch (err) {
-      alert('Upload failed')
+      toast.error('Upload failed')
     }
     setUploading(false)
   }
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const payload = {
       ...form,
@@ -85,17 +104,23 @@ export default function AdminBanners() {
       } else {
         await adminApi.post('/admin/banners', payload)
       }
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false)
       fetchBanners()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this banner?')) return
-    await adminApi.delete(`/admin/banners/${id}`)
-    fetchBanners()
+    if (!(await confirm({ title: 'Delete this banner?', message: 'It will be removed from the home page straight away.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      await adminApi.delete(`/admin/banners/${id}`)
+      toast.success('Deleted.')
+      fetchBanners()
+    } catch (err) {
+      notifyError(err, 'Could not delete this.')
+    }
   }
 
   const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
@@ -221,7 +246,7 @@ export default function AdminBanners() {
           </div>
 
           <div className="mt-5 flex gap-2">
-            <button type="submit" disabled={uploading} className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-50">
+            <button type="submit" disabled={uploading || saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-50">
               {uploading ? 'Uploading...' : editing ? 'Update' : 'Create'}
             </button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
@@ -230,9 +255,11 @@ export default function AdminBanners() {
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetchBanners()} />
       ) : banners.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No banners yet. Add your first hero banner.</div>
+        <EmptyState title="No hero banners yet" hint="Add your first hero banner for the home page." />
       ) : (
         <div className="grid gap-4">
           {banners.map((b) => (

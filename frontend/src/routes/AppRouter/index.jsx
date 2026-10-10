@@ -53,6 +53,9 @@ const AdminPromoBanners = lazy(() => import('@/pages/admin/AdminPromoBanners'))
 const AdminSiteSettings = lazy(() => import('@/pages/admin/AdminSiteSettings'))
 const AdminTestimonials = lazy(() => import('@/pages/admin/AdminTestimonials'))
 const AdminFeatures = lazy(() => import('@/pages/admin/AdminFeatures'))
+const AdminReviews = lazy(() => import('@/pages/admin/AdminReviews'))
+const AdminSystem = lazy(() => import('@/pages/admin/AdminSystem'))
+const AdminAuditLog = lazy(() => import('@/pages/admin/AdminAuditLog'))
 
 // Suspense wrapper for the lazily-loaded admin routes.
 const admin = (Component) => (
@@ -126,6 +129,9 @@ const router = createBrowserRouter([
       { path: '/admin/features', element: admin(AdminFeatures) },
       { path: '/admin/site-settings', element: admin(AdminSiteSettings) },
       { path: '/admin/settings', element: admin(AdminSettings) },
+      { path: '/admin/reviews', element: admin(AdminReviews) },
+      { path: '/admin/system', element: admin(AdminSystem) },
+      { path: '/admin/audit-log', element: admin(AdminAuditLog) },
     ],
   },
   { path: '*', element: <NotFound /> },

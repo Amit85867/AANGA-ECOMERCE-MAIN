@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconTrash, IconArrowLeft, IconUpload, IconLink } from '@tabler/icons-react'
 
 export default function AdminProductForm() {
@@ -123,12 +125,12 @@ export default function AdminProductForm() {
       setVariants(r.data.variants)
       setNewVariant({ size: '', color_name: '', color_hex: '#000000', stock_qty: 0, price_override: '', sku: '' })
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to add variant')
+      notifyError(err, 'Failed to add variant')
     }
   }
 
   const deleteVariant = async (vid) => {
-    if (!confirm('Delete this variant?')) return
+    if (!(await confirm({ title: 'Delete this variant?', message: 'This size and colour will no longer be sold.', confirmLabel: 'Delete', danger: true }))) return
     const r = await adminApi.delete(`/admin/products/${id}/variants/${vid}`)
     setVariants(r.data.variants)
   }
@@ -143,12 +145,12 @@ export default function AdminProductForm() {
       setImages(r.data.images)
       setNewImageUrl('')
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to add image')
+      notifyError(err, 'Failed to add image')
     }
   }
 
   const deleteImage = async (imgId) => {
-    if (!confirm('Delete this image?')) return
+    if (!(await confirm({ title: 'Delete this image?', confirmLabel: 'Delete', danger: true }))) return
     const r = await adminApi.delete(`/admin/products/${id}/images/${imgId}`)
     setImages(r.data.images)
   }
@@ -390,7 +392,7 @@ export default function AdminProductForm() {
                       })
                       setImages(r.data.images)
                     } catch (err) {
-                      alert(err.response?.data?.error || 'Upload failed')
+                      notifyError(err, 'Upload failed')
                     } finally {
                       setUploading(false)
                       e.target.value = ''

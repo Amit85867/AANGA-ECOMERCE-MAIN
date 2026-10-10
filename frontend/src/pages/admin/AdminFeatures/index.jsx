@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/Toast'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import {
   IconPlus, IconEdit, IconTrash, IconPhoto, IconShieldCheck,
 } from '@tabler/icons-react'
@@ -10,6 +14,8 @@ const ICON_NAMES = Object.keys(FEATURE_ICONS)
 export default function AdminFeatures() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -19,7 +25,8 @@ export default function AdminFeatures() {
 
   const fetchItems = () => {
     setLoading(true)
-    adminApi.get('/admin/features').then((r) => setItems(r.data.features)).catch(() => {}).finally(() => setLoading(false))
+    setError(null)
+    adminApi.get('/admin/features', { params: { per_page: 100 } }).then((r) => setItems(r.data.features)).catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.')).finally(() => setLoading(false))
   }
   useEffect(() => { fetchItems() }, [])
 
@@ -39,11 +46,23 @@ export default function AdminFeatures() {
     try {
       const r = await adminApi.post('/admin/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       setForm((f) => ({ ...f, image_url: r.data.url }))
-    } catch { alert('Upload failed') }
+    } catch { toast.error('Upload failed') }
     setUploading(false)
   }
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const payload = {
       ...form,
@@ -55,14 +74,20 @@ export default function AdminFeatures() {
     try {
       if (editing) await adminApi.put(`/admin/features/${editing.id}`, payload)
       else await adminApi.post('/admin/features', payload)
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false); fetchItems()
-    } catch (err) { alert(err.response?.data?.error || 'Save failed') }
+    } catch (err) { notifyError(err, 'Save failed') }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this card?')) return
-    await adminApi.delete(`/admin/features/${id}`)
-    fetchItems()
+    if (!(await confirm({ title: 'Delete this card?', message: 'It will be removed from the home page.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      await adminApi.delete(`/admin/features/${id}`)
+      toast.success('Deleted.')
+      fetchItems()
+    } catch (err) {
+      notifyError(err, 'Could not delete this.')
+    }
   }
 
   const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
@@ -118,16 +143,18 @@ export default function AdminFeatures() {
             </div>
           </div>
           <div className="mt-5 flex gap-2">
-            <button type="submit" disabled={uploading} className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-50">{uploading ? 'Uploading…' : editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={uploading || saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-50">{uploading ? 'Uploading…' : editing ? 'Update' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetchItems()} />
       ) : items.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No feature cards yet.</div>
+        <EmptyState title="No cards yet" hint="Add the reasons customers should shop with you." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {items.map((f) => {
