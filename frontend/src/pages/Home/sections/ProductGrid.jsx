@@ -9,12 +9,30 @@ export default function ProductGrid() {
   const [loading, setLoading] = useState(true)
   const s = useSetting()
 
+  // The heading promises curation ("Best Sellers"), so ask for the products the
+  // admin actually flagged as featured. Falls back to newest so a catalogue
+  // with nothing featured yet still fills the grid instead of vanishing.
   useEffect(() => {
+    let cancelled = false
     apiClient
-      .get('/products', { params: { per_page: 8, sort: 'newest' } })
-      .then(({ data }) => setProducts(data.products))
+      .get('/products', { params: { per_page: 8, featured: true } })
+      .then(({ data }) =>
+        data.products.length
+          ? data.products
+          : apiClient
+              .get('/products', { params: { per_page: 8, sort: 'newest' } })
+              .then(({ data: fallback }) => fallback.products)
+      )
+      .then((items) => {
+        if (!cancelled) setProducts(items)
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   if (loading) {
@@ -45,8 +63,8 @@ export default function ProductGrid() {
   return (
     <section className="px-8 lg:px-12 pb-14">
       <div className="mb-10">
-        <div className="text-[10px] tracking-[3px] text-gold uppercase font-semibold mb-2">Trending Now</div>
-        <h2 className="font-serif text-[34px] font-bold">Best Sellers</h2>
+        <div className="text-[10px] tracking-[3px] text-gold uppercase font-semibold mb-2">{s('section_products_tag', 'Trending Now')}</div>
+        <h2 className="font-serif text-[34px] font-bold">{s('section_products_title', 'Best Sellers')}</h2>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {products.map((p) => (

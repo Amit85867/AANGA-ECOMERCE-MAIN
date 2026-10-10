@@ -16,33 +16,42 @@ const SORT_OPTIONS = [
   { value: 'price_desc', label: 'Price: High to Low' },
 ]
 
+// Upper bound of the price filter. Must stay above the dearest product or that
+// product becomes unreachable from Shop -- raise it when the catalogue does.
+const PRICE_CEILING = 15000
+
 export default function Shop() {
   const [searchParams] = useSearchParams()
-  const { products, loading, total, pages, page, fetchProducts, categories, fetchCategories } = useProductStore()
+  const { products, loading, loadingMore, total, page, pages, fetchProducts, categories, fetchCategories } = useProductStore()
 
   const [sort, setSort] = useState('newest')
-  const [priceRange, setPriceRange] = useState(5000)
+  // Start at the ceiling so the filter is inert until the shopper moves it.
+  // Defaulting mid-range silently hid every product above it -- the premium
+  // end of the catalogue was unreachable from Shop at all.
+  const [priceRange, setPriceRange] = useState(PRICE_CEILING)
   const [activeSize, setActiveSize] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState(null)
-  const [currentPage, setCurrentPage] = useState(1)
+
+  const buildParams = (pageNum) => {
+    const params = { page: pageNum, per_page: 12, sort }
+    if (priceRange < PRICE_CEILING) params.max_price = priceRange
+    const q = searchParams.get('q')
+    if (q) params.q = q
+    if (selectedCategory) params.category = selectedCategory
+    return params
+  }
 
   useEffect(() => {
     fetchCategories()
   }, [fetchCategories])
 
+  // Any filter/sort/search change resets back to the first page (replace).
   useEffect(() => {
-    const params = {
-      page: currentPage,
-      per_page: 12,
-      sort,
-      max_price: priceRange,
-    }
-    const q = searchParams.get('q')
-    if (q) params.q = q
-    if (selectedCategory) params.category = selectedCategory
+    fetchProducts(buildParams(1))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, priceRange, selectedCategory, searchParams, fetchProducts])
 
-    fetchProducts(params)
-  }, [sort, priceRange, selectedCategory, currentPage, searchParams, fetchProducts])
+  const loadMore = () => fetchProducts(buildParams(page + 1), true)
 
   return (
     <>
@@ -65,7 +74,7 @@ export default function Shop() {
                 type="radio"
                 name="category"
                 checked={!selectedCategory}
-                onChange={() => { setSelectedCategory(null); setCurrentPage(1) }}
+                onChange={() => setSelectedCategory(null)}
                 className="accent-gold"
               /> All
             </label>
@@ -75,7 +84,7 @@ export default function Shop() {
                   type="radio"
                   name="category"
                   checked={selectedCategory === c.slug}
-                  onChange={() => { setSelectedCategory(c.slug); setCurrentPage(1) }}
+                  onChange={() => setSelectedCategory(c.slug)}
                   className="accent-gold"
                 /> {c.name}
               </label>
@@ -84,8 +93,11 @@ export default function Shop() {
 
           <div className="mb-5">
             <h4 className="text-[11px] font-semibold mb-2.5 tracking-[0.5px] uppercase text-gray">Price Range</h4>
-            <input type="range" min="0" max="10000" step="100" value={priceRange} onChange={(e) => { setPriceRange(Number(e.target.value)); setCurrentPage(1) }} className="w-full accent-gold mb-1.5" />
-            <div className="flex justify-between text-[11px] text-gray"><span>&#8377;0</span><span>&#8377;{priceRange.toLocaleString('en-IN')}</span></div>
+            <input type="range" min="0" max={PRICE_CEILING} step="100" value={priceRange} onChange={(e) => setPriceRange(Number(e.target.value))} className="w-full accent-gold mb-1.5" />
+            <div className="flex justify-between text-[11px] text-gray">
+              <span>&#8377;0</span>
+              <span>{priceRange >= PRICE_CEILING ? 'Any' : `₹${priceRange.toLocaleString('en-IN')}`}</span>
+            </div>
           </div>
 
           <div className="mb-5">
@@ -115,7 +127,7 @@ export default function Shop() {
             </span>
             <select
               value={sort}
-              onChange={(e) => { setSort(e.target.value); setCurrentPage(1) }}
+              onChange={(e) => setSort(e.target.value)}
               className="py-2 px-3 border border-line text-xs bg-white text-ink cursor-pointer"
             >
               {SORT_OPTIONS.map((o) => (
@@ -150,18 +162,16 @@ export default function Shop() {
             </div>
           )}
 
-          {/* Pagination */}
-          {pages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8">
-              {[...Array(pages)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`w-9 h-9 text-xs font-medium border transition-colors ${currentPage === i + 1 ? 'border-gold bg-gold text-ink' : 'border-line hover:border-gold'}`}
-                >
-                  {i + 1}
-                </button>
-              ))}
+          {/* Load more */}
+          {!loading && page < pages && (
+            <div className="flex justify-center mt-10">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-8 py-3 text-xs font-semibold uppercase tracking-[1px] border border-ink text-ink hover:bg-ink hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingMore ? 'Loading…' : `Load More (${total - products.length} left)`}
+              </button>
             </div>
           )}
         </div>

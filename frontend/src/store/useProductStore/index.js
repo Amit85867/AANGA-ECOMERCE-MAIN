@@ -6,24 +6,28 @@ export const useProductStore = create((set, get) => ({
   product: null,
   categories: [],
   loading: false,
+  loadingMore: false,
   error: null,
   page: 1,
   pages: 1,
   total: 0,
 
-  fetchProducts: async (params = {}) => {
-    set({ loading: true, error: null })
+  // Pass append=true to keep the existing products and add the next page onto
+  // them (the "Load More" flow); otherwise the result replaces the list.
+  fetchProducts: async (params = {}, append = false) => {
+    set(append ? { loadingMore: true, error: null } : { loading: true, error: null })
     try {
       const { data } = await apiClient.get('/products', { params })
-      set({
-        products: data.products,
+      set((state) => ({
+        products: append ? [...state.products, ...data.products] : data.products,
         page: data.page,
         pages: data.pages,
         total: data.total,
         loading: false,
-      })
+        loadingMore: false,
+      }))
     } catch (err) {
-      set({ loading: false, error: 'Failed to load products' })
+      set({ loading: false, loadingMore: false, error: 'Failed to load products' })
     }
   },
 

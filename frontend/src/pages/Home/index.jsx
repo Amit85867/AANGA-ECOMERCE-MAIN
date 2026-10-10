@@ -35,12 +35,17 @@ export default function Home() {
   return (
     <>
       <Seo jsonLd={jsonLd} />
+      {/* Order: hook, then reassure, then sell, then prove, then capture.
+          WhyChoose carries the delivery/returns promises, so it sits directly
+          under the hero where it answers the first objection instead of at the
+          bottom where most visitors never reach it. Reviews follow the promo
+          so the social proof lands next to the call to action. */}
       <HeroSection />
       <CategoryStrip />
+      <WhyChoose />
       <CategoryGrid />
       <ProductGrid />
       <SaleBanner />
-      <WhyChoose />
       <Reviews />
       <Newsletter />
     </>

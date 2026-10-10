@@ -123,7 +123,7 @@ export default function Navbar() {
   return (
     <>
       <nav className="glass sticky top-0 z-[150] border-b border-hairline">
-        <div className="max-w-[1280px] mx-auto flex items-center gap-8 h-[72px] px-4 md:px-8 lg:px-12">
+        <div className="max-w-[1440px] mx-auto flex items-center gap-6 h-[80px] px-3 md:px-5 lg:px-6">
           <button
             onClick={() => setMobileOpen(true)}
             className="lg:hidden text-fg"
@@ -132,8 +132,8 @@ export default function Navbar() {
             <IconMenu2 size={24} />
           </button>
 
-          <Link to={ROUTES.HOME} className="shrink-0 flex items-center">
-            <img src={titleImg} alt="AANGA" className="h-9 object-contain" />
+          <Link to={ROUTES.HOME} className="shrink-0 flex items-center mr-2">
+            <img src={titleImg} alt="AANGA" className="h-12 md:h-14 object-contain" />
           </Link>
 
           {/* Primary navigation */}
