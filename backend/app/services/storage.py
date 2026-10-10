@@ -31,14 +31,19 @@ from PIL import Image, ImageOps
 MAX_DIMENSION = 1400
 WEBP_QUALITY = 80
 
-# A second, small copy stored next to every WebP upload as "<name>_480.webp".
-# Product cards are ~200-300px wide; sending them the 1400px original cost a
-# phone several times the bytes it could show. The storefront derives the
-# thumbnail's URL from the original's (see frontend/src/utils/image), so the
-# suffix is a contract: change it in both places or not at all.
-THUMB_WIDTH = 480
-THUMB_SUFFIX = f"_{THUMB_WIDTH}"
+# Smaller copies stored next to every WebP upload as "<name>_<width>.webp".
+# 480 suits a product card; 800 suits a full-width image on a phone. Sending
+# either of those the 1400px original cost several times the bytes the screen
+# could show. The storefront derives these URLs from the original's (see
+# frontend/src/utils/image and the inline script in frontend/index.html), so
+# the widths and the "_<width>" suffix are a contract across those three files.
+VARIANT_WIDTHS = (480, 800)
 THUMB_QUALITY = 78
+
+
+def variant_name(filename, width):
+    stem, ext = filename.rsplit(".", 1)
+    return f"{stem}_{width}.{ext}"
 
 # Animated GIFs are passed through untouched (re-encoding them to static WebP
 # would drop the animation); everything else becomes WebP.
@@ -99,14 +104,14 @@ def optimize_image(file_storage):
         return raw, original_ext, CONTENT_TYPES.get(original_ext, "application/octet-stream")
 
 
-def make_thumbnail(webp_bytes):
-    """A THUMB_WIDTH-wide WebP of an already-optimised image, or None when the
-    original is no wider than that (the thumbnail would just be a copy)."""
+def make_variant(webp_bytes, width):
+    """A `width`-wide WebP of an already-optimised image, or None when the
+    original is no wider than that (the copy would only be a duplicate)."""
     img = Image.open(io.BytesIO(webp_bytes))
-    if img.width <= THUMB_WIDTH:
+    if img.width <= width:
         return None
-    height = round(img.height * THUMB_WIDTH / img.width)
-    small = img.resize((THUMB_WIDTH, height), Image.LANCZOS)
+    height = round(img.height * width / img.width)
+    small = img.resize((width, height), Image.LANCZOS)
     buf = io.BytesIO()
     small.save(buf, format="WEBP", quality=THUMB_QUALITY, method=6)
     return buf.getvalue()
@@ -115,27 +120,29 @@ def make_thumbnail(webp_bytes):
 def save_image(file_storage):
     """Optimise and persist an uploaded image; return its public URL.
 
-    A thumbnail is stored alongside. It is best-effort: if it cannot be made or
-    stored the upload still succeeds, and the storefront falls back to the
-    full-size image.
+    Smaller variants are stored alongside. They are best-effort: if one cannot
+    be made or stored the upload still succeeds, and the storefront falls back
+    to the full-size image.
     """
     data, ext, content_type = optimize_image(file_storage)
-    stem = uuid.uuid4().hex
-    filename = f"{stem}.{ext}"
-    store = _save_bytes_to_supabase if is_object_storage_configured() else _save_bytes_to_disk
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    to_supabase = is_object_storage_configured()
 
     def put(name, payload):
-        return store(payload, name, content_type) if store is _save_bytes_to_supabase else store(payload, name)
+        if to_supabase:
+            return _save_bytes_to_supabase(payload, name, content_type)
+        return _save_bytes_to_disk(payload, name)
 
     url = put(filename, data)
 
     if ext == "webp":
-        try:
-            thumb = make_thumbnail(data)
-            if thumb:
-                put(f"{stem}{THUMB_SUFFIX}.webp", thumb)
-        except Exception as exc:  # noqa: BLE001 - never fail an upload over a thumbnail
-            current_app.logger.warning("Thumbnail not stored for %s: %s", filename, exc)
+        for width in VARIANT_WIDTHS:
+            try:
+                variant = make_variant(data, width)
+                if variant:
+                    put(variant_name(filename, width), variant)
+            except Exception as exc:  # noqa: BLE001 - never fail an upload over a thumbnail
+                current_app.logger.warning("Variant %s not stored for %s: %s", width, filename, exc)
     return url
 
 

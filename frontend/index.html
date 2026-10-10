@@ -5,11 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
-    <!-- Fonts: connect early, and swap so text is readable before they arrive. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" media="print" onload="this.media='all'" />
+    <!--
+      Web fonts are fetched only once the page itself has loaded. They are the
+      largest thing on the page after the pictures, and on a slow phone they
+      used to compete with the product image for the connection. Text shows in
+      the system font first and swaps when they arrive.
+    -->
+    <script>
+      window.addEventListener('load', function () {
+        var link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap'
+        document.head.appendChild(link)
+      })
+    </script>
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" /></noscript>
     <meta
       name="description"
@@ -23,31 +33,76 @@
   </head>
   <body>
     <!--
-      Start the home page's hero request while the app's JavaScript is still
-      downloading, instead of after it has run. When the answer arrives the
-      hero image is preloaded, so it is usually ready by the time React
-      renders. The app picks the same promise up from window.__early.
+      Start the landing page's main API request while the app's JavaScript is
+      still downloading, instead of after it has run, and preload the image
+      that answer points at. On the three pages people land on (home, shop,
+      product) this takes a whole round trip out of the time to the main image.
+
+      The app picks the same promises up from window.__early (each is used
+      once; see services/early). If anything here fails the app simply makes
+      the request itself.
     -->
     <script>
       (function () {
-        if (location.pathname !== '/') return
         try {
-          window.__early = {
-            banners: fetch('/api/cms/banners', { credentials: 'omit' })
+          var path = location.pathname
+          var early = (window.__early = {})
+
+          var get = function (url) {
+            return fetch(url, { credentials: 'omit' })
               .then(function (r) { return r.ok ? r.json() : null })
-              .then(function (data) {
-                var first = data && data.banners && data.banners[0]
-                if (first && first.image_url) {
-                  var link = document.createElement('link')
-                  link.rel = 'preload'
-                  link.as = 'image'
-                  link.href = first.image_url
-                  link.fetchPriority = 'high'
-                  document.head.appendChild(link)
-                }
-                return data
-              })
-              .catch(function () { return null }),
+              .catch(function () { return null })
+          }
+          // Must produce the same srcset / sizes as utils/image + ProductCard,
+          // or the browser downloads the image twice.
+          var CARD_SIZES = '(min-width: 1280px) 300px, (min-width: 768px) 33vw, 50vw'
+          var GALLERY_SIZES = '(min-width: 1024px) 320px, 100vw'
+          var HERO_SIZES = '(min-width: 1024px) 620px, 100vw'
+          // Preload the page's main image as soon as its URL is known, with the
+          // same srcset the app will use, so it is in the cache when React renders.
+          var srcset = function (url) {
+            return /\/[0-9a-f]{32}\.webp$/.test(url)
+              ? url.replace(/\.webp$/, '_480.webp') + ' 480w, ' + url.replace(/\.webp$/, '_800.webp') + ' 800w, ' + url + ' 1400w'
+              : ''
+          }
+          var preload = function (url, sizes) {
+            var link = document.createElement('link')
+            link.rel = 'preload'
+            link.as = 'image'
+            link.fetchPriority = 'high'
+            if (sizes && srcset(url)) {
+              link.imageSrcset = srcset(url)
+              link.imageSizes = sizes
+            } else {
+              link.href = url
+            }
+            document.head.appendChild(link)
+          }
+          var show = function (urls, opts) {
+            urls.filter(Boolean).forEach(function (u) { preload(u, opts.sizes) })
+          }
+
+          var product = path.match(/^\/product\/([^/]+)\/?$/)
+          if (path === '/') {
+            early.banners = get('/api/cms/banners').then(function (data) {
+              var first = data && data.banners && data.banners[0]
+              show([first && first.image_url], { sizes: HERO_SIZES })
+              return data
+            })
+          } else if (path === '/shop' && !location.search) {
+            early.products = get('/api/products?per_page=12&sort=newest&page=1').then(function (data) {
+              var items = (data && data.products) || []
+              show([items[0] && items[0].primary_image, items[1] && items[1].primary_image],
+                { sizes: CARD_SIZES })
+              return data
+            })
+          } else if (product) {
+            early['product:' + decodeURIComponent(product[1])] = get('/api/products/' + product[1]).then(function (data) {
+              var images = (data && data.images) || []
+              var primary = images.filter(function (i) { return i.is_primary })[0] || images[0]
+              show([primary && primary.image_url], { sizes: GALLERY_SIZES })
+              return data
+            })
           }
         } catch (e) { /* the app will make the request itself */ }
       })()

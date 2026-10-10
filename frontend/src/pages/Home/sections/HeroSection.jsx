@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import apiClient from '@/services/apiClient'
+import { takeEarly } from '@/services/early'
+import { SIZES, responsive } from '@/utils/image'
 import Button from '@/components/ui/Button'
 import { Container } from '@/components/ui/Display'
 import { useSetting } from '@/store/useSettingsStore'
@@ -25,8 +27,7 @@ export default function HeroSection() {
   useEffect(() => {
     // index.html starts this request before the app's code has loaded; use
     // that answer when there is one rather than asking again.
-    const early = window.__early?.banners
-    if (window.__early) window.__early.banners = null   // one use: later visits refetch
+    const early = takeEarly('banners')
     const request = early
       ? early.then((data) => data ?? apiClient.get('/cms/banners').then((r) => r.data))
       : apiClient.get('/cms/banners').then((r) => r.data)
@@ -100,7 +101,7 @@ export default function HeroSection() {
           {slide.image_url && (
             <img
               key={slide.image_url}
-              src={slide.image_url} alt="" width="960" height="1200"
+              {...responsive(slide.image_url, SIZES.hero)} alt="" width="960" height="1200"
               fetchPriority="high" decoding="async"
               className="h-full w-full object-cover"
             />

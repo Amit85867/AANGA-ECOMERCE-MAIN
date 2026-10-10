@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { IconHeart, IconStarFilled } from '@tabler/icons-react'
 import { useWishlistStore } from '@/store/useWishlistStore'
 import { Price } from '@/components/ui/Display'
-import { responsive } from '@/utils/image'
+import { SIZES, responsive } from '@/utils/image'
 
 export default function ProductCard({ product, priority = false }) {
   const {
@@ -38,7 +38,7 @@ export default function ProductCard({ product, priority = false }) {
       <div className="relative aspect-[3/4] rounded-card overflow-hidden bg-fill">
         {primary_image ? (
           <img
-            {...responsive(primary_image, '(min-width: 1280px) 300px, (min-width: 768px) 33vw, 50vw')}
+            {...responsive(primary_image, SIZES.card)}
             alt={name}
             loading={priority ? 'eager' : 'lazy'}
             fetchPriority={priority ? 'high' : undefined}

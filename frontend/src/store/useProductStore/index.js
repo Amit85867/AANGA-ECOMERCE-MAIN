@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { takeEarly } from '@/services/early'
 import apiClient from '@/services/apiClient'
 
 export const useProductStore = create((set) => ({
@@ -17,7 +18,12 @@ export const useProductStore = create((set) => ({
   fetchProducts: async (params = {}, append = false) => {
     set(append ? { loadingMore: true, error: null } : { loading: true, error: null })
     try {
-      const { data } = await apiClient.get('/products', { params })
+      // The plain first page of the shop may already be on its way.
+      const isDefaultFirstPage =
+        !append && params.page === 1 && params.per_page === 12 && params.sort === 'newest' &&
+        Object.keys(params).length === 3
+      const early = isDefaultFirstPage ? await takeEarly('products') : null
+      const data = early ?? (await apiClient.get('/products', { params })).data
       set((state) => ({
         products: append ? [...state.products, ...data.products] : data.products,
         page: data.page,
@@ -34,7 +40,8 @@ export const useProductStore = create((set) => ({
   fetchProduct: async (slug) => {
     set({ loading: true, error: null, product: null })
     try {
-      const { data } = await apiClient.get(`/products/${slug}`)
+      const early = await takeEarly(`product:${slug}`)
+      const data = early ?? (await apiClient.get(`/products/${slug}`)).data
       set({ product: data, loading: false })
     } catch {
       set({ loading: false, error: 'Product not found' })

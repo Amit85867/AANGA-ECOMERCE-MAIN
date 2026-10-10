@@ -189,7 +189,7 @@ def _png(width, height):
     return FileStorage(stream=buf, filename="photo.png", content_type="image/png")
 
 
-def test_upload_stores_a_480px_thumbnail_next_to_the_original(app, tmp_path, monkeypatch):
+def test_upload_stores_smaller_variants_next_to_the_original(app, tmp_path, monkeypatch):
     monkeypatch.setitem(app.config, "SUPABASE_URL", "")
     saved = {}
     monkeypatch.setattr(storage, "_save_bytes_to_disk",
@@ -197,12 +197,14 @@ def test_upload_stores_a_480px_thumbnail_next_to_the_original(app, tmp_path, mon
 
     url = storage.save_image(_png(1200, 1600))
 
-    original, thumb = sorted(saved, key=len)
+    original = min(saved, key=len)
     assert url == f"/static/uploads/{original}"
-    assert thumb == original.replace(".webp", "_480.webp")
-    small = Image.open(io.BytesIO(saved[thumb]))
-    assert small.size == (480, 640)                       # same shape, 480 wide
-    assert len(saved[thumb]) < len(saved[original])
+    assert set(saved) == {
+        original, original.replace(".webp", "_480.webp"), original.replace(".webp", "_800.webp"),
+    }
+    # Same shape as the original, at the promised widths.
+    assert Image.open(io.BytesIO(saved[original.replace(".webp", "_480.webp")])).size == (480, 640)
+    assert Image.open(io.BytesIO(saved[original.replace(".webp", "_800.webp")])).size == (800, 1067)
 
 
 def test_small_images_get_no_thumbnail(app, monkeypatch):
@@ -220,9 +222,9 @@ def test_a_failed_thumbnail_does_not_fail_the_upload(app, monkeypatch):
     monkeypatch.setitem(app.config, "SUPABASE_URL", "")
     monkeypatch.setattr(storage, "_save_bytes_to_disk", lambda data, name: f"/static/uploads/{name}")
 
-    def _boom(_bytes):
+    def _boom(_bytes, _width):
         raise OSError("disk full")
 
-    monkeypatch.setattr(storage, "make_thumbnail", _boom)
+    monkeypatch.setattr(storage, "make_variant", _boom)
 
     assert storage.save_image(_png(1200, 1600)).endswith(".webp")

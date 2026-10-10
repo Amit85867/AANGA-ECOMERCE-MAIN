@@ -1,4 +1,4 @@
-"""Create the missing "<name>_480.webp" thumbnails for images already uploaded.
+"""Create the missing "<name>_480.webp" / "<name>_800.webp" copies of uploaded images.
 
 New uploads get a thumbnail automatically (app/services/storage.py). This is
 for images stored before that existed. Safe to run again: existing thumbnails
@@ -26,7 +26,7 @@ sys.path.insert(0, str(BACKEND))
 import requests  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
 
-from app.services.storage import THUMB_SUFFIX, make_thumbnail  # noqa: E402
+from app.services.storage import VARIANT_WIDTHS, make_variant, variant_name  # noqa: E402
 
 ORIGINAL = re.compile(r"^[0-9a-f]{32}\.webp$")
 
@@ -37,14 +37,15 @@ def local():
     for path in sorted(folder.glob("*.webp")):
         if not ORIGINAL.match(path.name):
             continue
-        target = path.with_name(f"{path.stem}{THUMB_SUFFIX}.webp")
-        if target.exists():
-            skipped += 1
-            continue
-        thumb = make_thumbnail(path.read_bytes())
-        if thumb:
-            target.write_bytes(thumb)
-            made += 1
+        for width in VARIANT_WIDTHS:
+            target = path.with_name(variant_name(path.name, width))
+            if target.exists():
+                skipped += 1
+                continue
+            variant = make_variant(path.read_bytes(), width)
+            if variant:
+                target.write_bytes(variant)
+                made += 1
     print(f"local: {made} thumbnails created, {skipped} already present")
 
 
@@ -75,20 +76,21 @@ def supabase():
     for name in names:
         if not ORIGINAL.match(name):
             continue
-        target = f"{name[:-5]}{THUMB_SUFFIX}.webp"
-        if target in existing:
+        missing = [w for w in VARIANT_WIDTHS if variant_name(name, w) not in existing]
+        if not missing:
             continue
         original = requests.get(f"{base}/storage/v1/object/public/{bucket}/{name}", timeout=60)
         original.raise_for_status()
-        thumb = make_thumbnail(original.content)
-        if not thumb:
-            continue
-        put = requests.post(
-            f"{base}/storage/v1/object/{bucket}/{target}", data=thumb, timeout=60,
-            headers={**auth, "Content-Type": "image/webp", "x-upsert": "true"},
-        )
-        put.raise_for_status()
-        made += 1
+        for width in missing:
+            variant = make_variant(original.content, width)
+            if not variant:
+                continue
+            put = requests.post(
+                f"{base}/storage/v1/object/{bucket}/{variant_name(name, width)}", data=variant, timeout=60,
+                headers={**auth, "Content-Type": "image/webp", "x-upsert": "true"},
+            )
+            put.raise_for_status()
+            made += 1
     print(f"supabase: {made} thumbnails created in bucket {bucket}")
 
 

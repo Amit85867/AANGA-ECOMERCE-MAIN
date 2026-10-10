@@ -16,6 +16,7 @@ import { QuantityStepper } from '@/components/ui/Field'
 import { Breadcrumbs, Container, Price, Rating } from '@/components/ui/Display'
 import { useFeatures } from '@/store/useFeaturesStore'
 import Reviews from './Reviews'
+import { SIZES, responsive } from '@/utils/image'
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -228,7 +229,7 @@ export default function ProductDetail() {
                   }`}
                 >
                   <img
-                    src={img.image_url}
+                    {...responsive(img.image_url, SIZES.gallery)}
                     alt={`${product.name} — view ${i + 1}`}
                     loading={i === 0 ? 'eager' : 'lazy'}
                     fetchPriority={i === 0 ? 'high' : undefined}
