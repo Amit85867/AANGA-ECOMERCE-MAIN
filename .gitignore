@@ -36,3 +36,6 @@ Thumbs.db
 
 # Uploaded product images (local-disk storage backend; production uses Supabase Storage)
 backend/static/uploads/
+
+# Written by the test suite, read by backend/scripts/gen_endpoints.py
+backend/tests/.route_coverage.json

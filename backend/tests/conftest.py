@@ -9,12 +9,14 @@ The canonical schema (`backend/schema.sql`, dumped from Supabase) is loaded
 once per session on top of the Supabase prerequisites in tests/sql. Each test
 starts from an empty set of tables (TRUNCATE) for isolation.
 """
+import json
 import os
 import pathlib
 import re
 
 import psycopg2
 import pytest
+from flask import request
 from sqlalchemy import text
 
 # Force the testing config before the app package (and its config) import.
@@ -68,12 +70,28 @@ def _rebuild_schema():
         conn.close()
 
 
+# Every (method, route, status) the suite produces, written out for
+# scripts/gen_endpoints.py so docs/ENDPOINTS.md reports what is actually
+# exercised rather than what someone remembered to tick.
+ROUTE_COVERAGE_FILE = pathlib.Path(__file__).resolve().parent / ".route_coverage.json"
+
+
 @pytest.fixture(scope="session")
 def app():
     _rebuild_schema()
     application = create_app()
+    seen = set()
+
+    @application.after_request
+    def _record(resp):
+        if request.url_rule is not None:
+            seen.add((request.method, request.url_rule.rule, resp.status_code))
+        return resp
+
     with application.app_context():
         yield application
+
+    ROUTE_COVERAGE_FILE.write_text(json.dumps(sorted(seen)))
 
 
 @pytest.fixture()
