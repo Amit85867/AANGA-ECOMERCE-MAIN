@@ -2,7 +2,7 @@
 import os
 
 import click
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
@@ -62,6 +62,9 @@ def _register_error_handlers(app):
     @app.errorhandler(Exception)
     def _unhandled(exc):
         app.logger.exception("Unhandled exception")
+        # A failed flush leaves the session unusable until it is rolled back;
+        # do it here so the error cannot poison whatever runs next on it.
+        db.session.rollback()
         # In dev/test let it propagate so the real stack trace surfaces.
         if _is_dev_or_test(app):
             raise exc
@@ -226,6 +229,24 @@ def _register_jwt_handlers(app):
     @jwt.unauthorized_loader
     def missing_token(error_string):
         return {"error": "Authorization required"}, 401
+
+    @jwt.token_verification_loader
+    def token_matches_surface(jwt_header, jwt_payload):
+        """Admin tokens work only under /api/admin, customer tokens only outside it.
+
+        Both are signed with the same key and carry a UUID subject, so without
+        this an admin token passed @jwt_required on customer routes and acted
+        as a customer who does not exist (a foreign-key 500 on the cart, an
+        empty order list elsewhere).
+        """
+        is_admin_token = jwt_payload.get("actor") == "admin"
+        return is_admin_token == request.path.startswith("/api/admin/")
+
+    @jwt.token_verification_failed_loader
+    def wrong_surface(jwt_header, jwt_payload):
+        if jwt_payload.get("actor") == "admin":
+            return {"error": "Admin tokens cannot be used on customer endpoints"}, 403
+        return {"error": "Admin access required"}, 403
 
 
 def _auto_seed_admin(app):

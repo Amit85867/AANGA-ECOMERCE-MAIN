@@ -21,7 +21,11 @@ _review_out = ReviewOut(many=True)
 @reviews_bp.route("/product/<int:product_id>", methods=["GET"])
 def product_reviews(product_id):
     page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 10, type=int), 50)
+    per_page = min(max(request.args.get("per_page", 10, type=int), 1), 50)
+
+    product = db.session.get(Product, product_id)
+    if not product or not product.is_active:
+        return jsonify(error="Product not found"), 404
 
     paginated = (
         ProductReview.query

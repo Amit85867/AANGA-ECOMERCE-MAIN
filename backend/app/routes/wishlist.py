@@ -66,9 +66,9 @@ def get_wishlist():
 @wishlist_bp.route("", methods=["POST"])
 @jwt_required()
 def add_to_wishlist():
-    data = request.get_json()
-    product_id = data.get("product_id")
-    if not product_id:
+    data = request.get_json(silent=True)
+    product_id = data.get("product_id") if isinstance(data, dict) else None
+    if not isinstance(product_id, int) or isinstance(product_id, bool):
         return jsonify(error="product_id is required"), 422
 
     product = db.session.get(Product, product_id)
