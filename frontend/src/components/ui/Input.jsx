@@ -37,7 +37,7 @@ const Input = forwardRef(function Input(
         {...props}
       />
       {(error || hint) && (
-        <p className={clsx('mt-1.5 text-xs', error ? 'text-danger' : 'text-subtle')}>
+        <p className={clsx('mt-1.5 text-xs', error ? 'text-danger' : 'text-muted')}>
           {error || hint}
         </p>
       )}

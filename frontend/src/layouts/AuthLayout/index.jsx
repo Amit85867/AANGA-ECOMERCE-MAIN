@@ -1,7 +1,7 @@
 import { Link, Outlet } from 'react-router-dom'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { ROUTES } from '@/utils/constants'
-import logoTitle from '@/assets/images/logo-title.png'
+import logoTitle from '@/assets/images/logo-title.webp'
 import MaintenanceGate from '@/components/layout/MaintenanceGate'
 
 /* Sign-in pages: just the logo, a way back, and the form. */
@@ -11,7 +11,7 @@ export default function AuthLayout() {
       <div className="min-h-screen flex flex-col bg-bg">
         <header className="flex h-16 items-center justify-between px-4 sm:px-8">
           <Link to={ROUTES.HOME} aria-label="AANGA home">
-            <img src={logoTitle} alt="AANGA" width="120" height="40" className="h-10 w-auto object-contain" />
+            <img src={logoTitle} alt="AANGA" width="40" height="40" className="h-10 w-10 object-contain" />
           </Link>
           <Link
             to={ROUTES.HOME}

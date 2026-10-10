@@ -2,8 +2,9 @@ import { Link } from 'react-router-dom'
 import { IconHeart, IconStarFilled } from '@tabler/icons-react'
 import { useWishlistStore } from '@/store/useWishlistStore'
 import { Price } from '@/components/ui/Display'
+import { responsive } from '@/utils/image'
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, priority = false }) {
   const {
     id,
     slug,
@@ -37,16 +38,17 @@ export default function ProductCard({ product }) {
       <div className="relative aspect-[3/4] rounded-card overflow-hidden bg-fill">
         {primary_image ? (
           <img
-            src={primary_image}
+            {...responsive(primary_image, '(min-width: 1280px) 300px, (min-width: 768px) 33vw, 50vw')}
             alt={name}
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : undefined}
             decoding="async"
             width="600"
             height="800"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-subtle text-xs">
+          <div className="w-full h-full flex items-center justify-center text-muted text-xs">
             No Image
           </div>
         )}
@@ -79,12 +81,12 @@ export default function ProductCard({ product }) {
       {/* Metadata — generous padding below the photo */}
       <div className="pt-4">
         {category_name && (
-          <div className="text-xs tracking-[0.08em] text-subtle uppercase font-medium">
+          <div className="text-xs tracking-[0.08em] text-muted uppercase font-medium">
             {category_name}
           </div>
         )}
 
-        <h3 className="mt-1 text-sm font-medium text-fg leading-snug line-clamp-2">{name}</h3>
+        <h2 className="mt-1 text-sm font-medium text-fg leading-snug line-clamp-2">{name}</h2>
         <Price price={selling_price} mrp={mrp} size="sm" className="mt-1.5" />
 
         {avg_rating > 0 && (
@@ -92,7 +94,7 @@ export default function ProductCard({ product }) {
             <IconStarFilled size={12} className="text-fg" aria-hidden="true" />
             <span className="text-xs font-medium text-fg">{Number(avg_rating).toFixed(1)}</span>
             {review_count > 0 && (
-              <span className="text-xs text-subtle">({review_count})</span>
+              <span className="text-xs text-muted">({review_count})</span>
             )}
           </div>
         )}

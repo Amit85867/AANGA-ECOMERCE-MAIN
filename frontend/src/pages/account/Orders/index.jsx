@@ -64,12 +64,12 @@ export default function Orders() {
                           <StatusBadge status={o.status} />
                         </div>
                         <p className="mt-1.5 truncate text-sm text-muted">{o.item_summary}</p>
-                        <p className="mt-1 text-xs text-subtle">
+                        <p className="mt-1 text-xs text-muted">
                           {formatDate(o.placed_at)} · {o.item_count} item{o.item_count === 1 ? '' : 's'}
                         </p>
                       </div>
                       <span className="shrink-0 text-sm font-semibold tabular-nums text-fg">{inr(o.total_amount)}</span>
-                      <IconChevronRight size={18} className="shrink-0 text-subtle" aria-hidden="true" />
+                      <IconChevronRight size={18} className="shrink-0 text-muted" aria-hidden="true" />
                     </Card>
                   </Link>
                 </li>

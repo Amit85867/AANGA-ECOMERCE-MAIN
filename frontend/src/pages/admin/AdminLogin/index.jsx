@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useAdminStore } from '@/store/useAdminStore'
-import titleImg from '@/assets/images/logo-title.png'
+import titleImg from '@/assets/images/logo-title.webp'
 
 export default function AdminLogin() {
   const { login, isAuthenticated } = useAdminStore()

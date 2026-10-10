@@ -40,7 +40,7 @@ function CartLine({ item, onQuantity, onRemove, busy }) {
           <p className="shrink-0 text-sm font-semibold tabular-nums text-fg">{inr(item.line_total)}</p>
         </div>
 
-        {item.quantity > 1 && <p className="mt-1 text-xs text-subtle tabular-nums">{inr(item.unit_price)} each</p>}
+        {item.quantity > 1 && <p className="mt-1 text-xs text-muted tabular-nums">{inr(item.unit_price)} each</p>}
 
         <div className="mt-auto flex items-center justify-between gap-3 pt-4">
           <QuantityStepper
@@ -176,7 +176,7 @@ export default function Cart() {
             </OrderSummary>
 
             <Button to="/checkout" size="lg" full className="mt-6">Checkout</Button>
-            <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-subtle">
+            <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted">
               <IconLock size={12} aria-hidden="true" /> Secure checkout · 7-day easy returns
             </p>
           </Card>

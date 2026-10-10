@@ -20,7 +20,7 @@ export function Container({ className, children, as: Tag = 'div', ...props }) {
 
 export function Breadcrumbs({ items, className }) {
   return (
-    <nav aria-label="Breadcrumb" className={clsx('text-xs text-subtle', className)}>
+    <nav aria-label="Breadcrumb" className={clsx('text-xs text-muted', className)}>
       <ol className="flex flex-wrap items-center gap-1.5">
         {items.map((item, i) => (
           <li key={item.label} className="flex items-center gap-1.5">
@@ -96,7 +96,7 @@ export function EmptyState({ icon: Icon, title, hint, action, className }) {
   return (
     <div className={clsx('flex flex-col items-center text-center px-6 py-16', className)}>
       {Icon && (
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-fill text-subtle">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-fill text-muted">
           <Icon size={28} stroke={1.5} />
         </div>
       )}
@@ -133,7 +133,7 @@ export function Rating({ value = 0, count, size = 14, className }) {
             : <IconStar key={n} size={size} className="text-hairline" />,
         )}
       </span>
-      {count != null && <span className="text-xs text-subtle">({count})</span>}
+      {count != null && <span className="text-xs text-muted">({count})</span>}
     </span>
   )
 }
@@ -182,7 +182,7 @@ export function Price({ price, mrp, size = 'md', className }) {
       </span>
       {off > 0 && (
         <>
-          <span className={clsx('text-subtle line-through tabular-nums', size === 'lg' ? 'text-base' : 'text-xs')}>
+          <span className={clsx('text-muted line-through tabular-nums', size === 'lg' ? 'text-base' : 'text-xs')}>
             <span className="sr-only">Was </span>{inr(mrp)}
           </span>
           <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-fg">{off}% off</span>
@@ -204,11 +204,11 @@ export function Stepper({ steps, current }) {
             {i > 0 && <span className={clsx('h-px w-5 sm:w-10', done || active ? 'bg-primary' : 'bg-hairline')} aria-hidden="true" />}
             <span className={clsx(
               'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-              done || active ? 'bg-primary text-on-primary' : 'bg-fill text-subtle',
+              done || active ? 'bg-primary text-on-primary' : 'bg-fill text-muted',
             )}>
               {i + 1}
             </span>
-            <span className={clsx('font-medium', active ? 'text-fg' : done ? 'text-muted' : 'text-subtle')}>{step}</span>
+            <span className={clsx('font-medium', active ? 'text-fg' : done ? 'text-muted' : 'text-muted')}>{step}</span>
           </li>
         )
       })}

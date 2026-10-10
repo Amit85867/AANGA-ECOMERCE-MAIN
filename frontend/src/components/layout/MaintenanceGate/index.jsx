@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { IconTool } from '@tabler/icons-react'
 import { useSettingsStore } from '@/store/useSettingsStore'
-import logoMain from '@/assets/images/logo-main.png'
-import logoTitle from '@/assets/images/logo-title.png'
+import logoMain from '@/assets/images/logo-main.webp'
+import logoTitle from '@/assets/images/logo-title.webp'
 
 const DEFAULT_MESSAGE =
   'We are making a few improvements and will be back shortly. Thank you for your patience.'
@@ -14,8 +14,8 @@ function MaintenancePage({ message, onRetry, checking }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-fill px-6 py-16 text-center">
       <div className="flex items-center gap-2">
-        <img src={logoMain} alt="" className="h-11 w-11 object-contain" />
-        <img src={logoTitle} alt="AANGA" className="h-9 object-contain" />
+        <img src={logoMain} alt="" width="44" height="44" className="h-11 w-11 object-contain" />
+        <img src={logoTitle} alt="AANGA" width="36" height="36" className="h-9 w-9 object-contain" />
       </div>
 
       <div className="mt-12 flex h-16 w-16 items-center justify-center rounded-full bg-bg border border-hairline/60 text-fg">

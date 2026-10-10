@@ -50,31 +50,31 @@ function ReturnDetail({ returnId, onClose }) {
           <p className="rounded-card bg-fill px-4 py-3 text-sm text-fg">{NEXT_STEP[ret.status]}</p>
           <dl className="space-y-3 text-sm">
             <div>
-              <dt className="text-xs uppercase tracking-[0.05em] text-subtle">Item</dt>
+              <dt className="text-xs uppercase tracking-[0.05em] text-muted">Item</dt>
               <dd className="mt-0.5 text-fg">
                 {ret.product_name}
                 <span className="text-muted"> · {[ret.size && `Size ${ret.size}`, ret.color_name, `Qty ${ret.quantity}`].filter(Boolean).join(' · ')}</span>
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-[0.05em] text-subtle">Order</dt>
+              <dt className="text-xs uppercase tracking-[0.05em] text-muted">Order</dt>
               <dd className="mt-0.5">
                 <Link to={`/account/orders/${ret.order_id}`} className="font-medium text-fg underline underline-offset-2">{ret.order_number}</Link>
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-[0.05em] text-subtle">Reason</dt>
+              <dt className="text-xs uppercase tracking-[0.05em] text-muted">Reason</dt>
               <dd className="mt-0.5 text-fg">{REASON_LABEL[ret.reason] || humanize(ret.reason)}</dd>
             </div>
             {ret.description && (
               <div>
-                <dt className="text-xs uppercase tracking-[0.05em] text-subtle">Your note</dt>
+                <dt className="text-xs uppercase tracking-[0.05em] text-muted">Your note</dt>
                 <dd className="mt-0.5 whitespace-pre-line text-fg">{ret.description}</dd>
               </div>
             )}
             {ret.status === 'resolved' && (
               <div>
-                <dt className="text-xs uppercase tracking-[0.05em] text-subtle">Outcome</dt>
+                <dt className="text-xs uppercase tracking-[0.05em] text-muted">Outcome</dt>
                 <dd className="mt-0.5 text-fg">
                   {humanize(ret.resolution_type)}
                   {ret.refund_amount != null && ` of ${inr(ret.refund_amount)}`}
@@ -133,7 +133,7 @@ export default function Returns() {
                       <StatusBadge status={r.status} map={RETURN_STATUS} />
                     </div>
                     <p className="mt-1.5 text-sm text-muted">{NEXT_STEP[r.status]}</p>
-                    <p className="mt-1 text-xs text-subtle">
+                    <p className="mt-1 text-xs text-muted">
                       Order {r.order_number} · requested {formatDate(r.requested_at)}
                     </p>
                   </div>

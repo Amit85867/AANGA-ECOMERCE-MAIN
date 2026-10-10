@@ -150,22 +150,36 @@ Browser verification is Phase 7.
 
 ## Phase 4 — Modern corporate UI (theme frozen)
 
-- [ ] **CHECKPOINT** — `docs/UI_PLAN.md`: frozen theme tokens, component list,
-  page-by-page plan. Show before building.
-- [ ] Shared component layer on the tokens.
-- [ ] Product listing with filters.
-- [ ] Product detail.
-- [ ] Cart.
-- [ ] Checkout and order success.
-- [ ] Account dashboard (orders, returns, addresses).
-- [ ] Customer "Cancel order" button — `POST /api/orders/<id>/cancel` has no screen.
-- [ ] Reviews on the product page: list and "write a review" — both routes have no screen.
-- [ ] "My returns" list / detail — `GET /api/returns` and `/api/returns/<id>` have no screen.
-- [ ] Edit an address — `PUT /api/addresses/<id>` has no screen (only add / delete).
-- [ ] Auth pages.
-- [ ] Admin shell.
-- [ ] Responsive 360px → wide, keyboard access, visible focus, AA contrast, no layout shift.
-- [ ] Lighthouse mobile ≥ 90 performance / ≥ 95 accessibility on home, listing, product. Scores recorded here.
+Owner chose the black/pink Poppins system. Verified by `vite build`, `oxlint`
+(0 warnings), a scripted browser pass (every page renders an h1, no console
+errors, no horizontal overflow at 360px) and Lighthouse.
+
+- [x] `docs/UI_PLAN.md` approved; tokens frozen in `frontend/src/index.css`.
+- [x] Shared components (`components/ui`): Select, Textarea, Checkbox,
+  QuantityStepper, Modal, Drawer, Badge, Skeleton, Empty/Error states,
+  Breadcrumbs, Rating, Price, Stepper, OrderSummary, toasts.
+- [x] Shop: URL-driven filters incl. size and colour (new backend filter and
+  facets endpoint), drawer on mobile.
+- [x] Product detail: reviews (list + write), stock-aware size and quantity.
+- [x] Cart, three-step checkout, order confirmation page with its own URL.
+- [x] Account as real routes: orders, order detail with **cancel order** and
+  **return an item**, **my returns**, addresses with **edit**, profile.
+- [x] Sign-in pages; phone-OTP hidden; Google shown only when configured.
+- [x] Home, wishlist, offers, contact, wholesale, track order, static pages, 404.
+- [x] Admin shell: sidebar grouped into sections. Colours unchanged.
+- [x] Legacy palette and serif font removed; logos 2.8 MB -> 28 kB (WebP).
+- [x] Accessibility (Lighthouse mobile): home 100, listing 100, product 100.
+- [ ] **Performance target not met.** Lighthouse mobile, production build served
+  compressed, real (devtools) throttling: home 80, listing 70, product 76
+  (target 90). CLS is 0.01-0.02 and TBT under 200 ms; the gap is LCP
+  (4.3-7.4 s), i.e. the product image arriving after the JavaScript. Thumbnails
+  (`_480.webp`, generated on upload, backfilled locally with
+  `backend/db/make_thumbnails.py`) are wired into product cards but
+  **Lighthouse has not been re-run since**, and the product-detail and hero
+  images do not use them yet.
+- [ ] Content claims to check with the owner: FAQ mentions a COD charge, a
+  Rs 5,000 COD limit and express delivery that the store does not implement.
+- [ ] `/style-guide` page not updated for the new components.
 
 ## Phase 5 — Scalability and production readiness
 

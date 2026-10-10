@@ -62,7 +62,7 @@ export default function Offers() {
                     <Badge tone="accent">{headline(o)}</Badge>
                     <h2 className="display mt-3 text-xl text-fg">{o.title}</h2>
                     {o.description && <p className="mt-1.5 text-sm leading-relaxed text-muted">{o.description}</p>}
-                    <p className="mt-3 text-xs text-subtle">
+                    <p className="mt-3 text-xs text-muted">
                       {o.ends_at ? `Ends ${formatDate(o.ends_at)}` : 'No end date'}
                     </p>
                   </div>

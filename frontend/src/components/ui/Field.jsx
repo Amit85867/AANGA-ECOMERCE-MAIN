@@ -27,7 +27,7 @@ function Shell({ id, label, error, hint, required, children }) {
       )}
       {children}
       {(error || hint) && (
-        <p id={`${id}-msg`} className={clsx('mt-1.5 text-xs', error ? 'text-danger' : 'text-subtle')}>
+        <p id={`${id}-msg`} className={clsx('mt-1.5 text-xs', error ? 'text-danger' : 'text-muted')}>
           {error || hint}
         </p>
       )}
@@ -52,7 +52,7 @@ export const Select = forwardRef(function Select(
         >
           {children}
         </select>
-        <IconChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-subtle" />
+        <IconChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted" />
       </div>
     </Shell>
   )
@@ -102,7 +102,7 @@ export function QuantityStepper({ value, min = 1, max = 99, onChange, disabled, 
         disabled={disabled || value <= min} onClick={() => onChange(value - 1)}>
         <IconMinus size={14} />
       </button>
-      <span className={clsx('min-w-8 text-center text-sm font-semibold tabular-nums', disabled && 'text-subtle')} aria-live="polite">
+      <span className={clsx('min-w-8 text-center text-sm font-semibold tabular-nums', disabled && 'text-muted')} aria-live="polite">
         {value}
       </span>
       <button type="button" className={btn} aria-label="Increase quantity"

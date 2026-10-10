@@ -66,7 +66,7 @@ const AdminAuditLog = lazy(() => import('@/pages/admin/AdminAuditLog'))
 // Suspense wrappers. `page` is for storefront routes: it renders inside the
 // layout, so the header and footer stay put while the page's code arrives.
 const page = (Component) => (
-  <Suspense fallback={<div className="min-h-[60vh]" aria-busy="true" />}>
+  <Suspense fallback={<div className="min-h-screen" aria-busy="true" />}>
     <Component />
   </Suspense>
 )

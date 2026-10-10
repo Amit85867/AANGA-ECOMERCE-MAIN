@@ -244,11 +244,11 @@ export default function Shop() {
               ) : (
                 <>
                   <ul className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6">
-                    {products.map((p) => <li key={p.id}><ProductCard product={p} /></li>)}
+                    {products.map((p, i) => <li key={p.id}><ProductCard product={p} priority={i < 4} /></li>)}
                   </ul>
                   {page < pages && (
                     <div className="mt-12 flex flex-col items-center gap-3">
-                      <p className="text-xs text-subtle">Showing {products.length} of {total}</p>
+                      <p className="text-xs text-muted">Showing {products.length} of {total}</p>
                       <Button
                         variant="secondary" disabled={loadingMore}
                         onClick={() => fetchProducts({ ...query, page: page + 1 }, true)}

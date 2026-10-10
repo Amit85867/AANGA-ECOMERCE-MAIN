@@ -124,7 +124,7 @@ export default function Register() {
         Already have an account?{' '}
         <Link to="/login" state={location.state} className="font-medium text-fg underline underline-offset-2">Sign in</Link>
       </p>
-      <p className="mt-2 text-center text-xs text-subtle">
+      <p className="mt-2 text-center text-xs text-muted">
         Buying for a shop? <Link to="/wholesale" className="underline underline-offset-2 hover:text-fg">Ask about wholesale</Link>
       </p>
     </div>

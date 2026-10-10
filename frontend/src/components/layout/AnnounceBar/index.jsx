@@ -15,7 +15,10 @@ export default function AnnounceBar() {
       .finally(() => setLoaded(true))
   }, [])
 
-  if (!loaded || !announcement) return null
+  // Loading: an empty bar of the final height (same as the shell in
+  // index.html). Loaded with nothing to announce: no bar at all.
+  if (!loaded) return <div className="h-9 bg-black" aria-hidden="true" />
+  if (!announcement) return null
 
   const a = announcement
 
@@ -23,7 +26,7 @@ export default function AnnounceBar() {
     // Colours stay CMS-controlled (admin sets them); only the type scale is
     // aligned to the design system here.
     <div
-      className="text-center py-2.5 px-4 text-[11px] font-medium tracking-[0.1em] uppercase"
+      className="flex min-h-9 flex-wrap items-center justify-center gap-x-1 px-4 py-2 text-center text-xs font-medium tracking-[0.1em] uppercase"
       style={{ backgroundColor: a.bg_color, color: a.text_color }}
     >
       {a.text}{' '}

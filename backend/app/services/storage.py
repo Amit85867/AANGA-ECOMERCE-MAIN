@@ -31,6 +31,15 @@ from PIL import Image, ImageOps
 MAX_DIMENSION = 1400
 WEBP_QUALITY = 80
 
+# A second, small copy stored next to every WebP upload as "<name>_480.webp".
+# Product cards are ~200-300px wide; sending them the 1400px original cost a
+# phone several times the bytes it could show. The storefront derives the
+# thumbnail's URL from the original's (see frontend/src/utils/image), so the
+# suffix is a contract: change it in both places or not at all.
+THUMB_WIDTH = 480
+THUMB_SUFFIX = f"_{THUMB_WIDTH}"
+THUMB_QUALITY = 78
+
 # Animated GIFs are passed through untouched (re-encoding them to static WebP
 # would drop the animation); everything else becomes WebP.
 PASSTHROUGH_EXTS = {"gif"}
@@ -90,14 +99,44 @@ def optimize_image(file_storage):
         return raw, original_ext, CONTENT_TYPES.get(original_ext, "application/octet-stream")
 
 
-def save_image(file_storage):
-    """Optimise and persist an uploaded image; return its public URL."""
-    data, ext, content_type = optimize_image(file_storage)
-    filename = f"{uuid.uuid4().hex}.{ext}"
+def make_thumbnail(webp_bytes):
+    """A THUMB_WIDTH-wide WebP of an already-optimised image, or None when the
+    original is no wider than that (the thumbnail would just be a copy)."""
+    img = Image.open(io.BytesIO(webp_bytes))
+    if img.width <= THUMB_WIDTH:
+        return None
+    height = round(img.height * THUMB_WIDTH / img.width)
+    small = img.resize((THUMB_WIDTH, height), Image.LANCZOS)
+    buf = io.BytesIO()
+    small.save(buf, format="WEBP", quality=THUMB_QUALITY, method=6)
+    return buf.getvalue()
 
-    if is_object_storage_configured():
-        return _save_bytes_to_supabase(data, filename, content_type)
-    return _save_bytes_to_disk(data, filename)
+
+def save_image(file_storage):
+    """Optimise and persist an uploaded image; return its public URL.
+
+    A thumbnail is stored alongside. It is best-effort: if it cannot be made or
+    stored the upload still succeeds, and the storefront falls back to the
+    full-size image.
+    """
+    data, ext, content_type = optimize_image(file_storage)
+    stem = uuid.uuid4().hex
+    filename = f"{stem}.{ext}"
+    store = _save_bytes_to_supabase if is_object_storage_configured() else _save_bytes_to_disk
+
+    def put(name, payload):
+        return store(payload, name, content_type) if store is _save_bytes_to_supabase else store(payload, name)
+
+    url = put(filename, data)
+
+    if ext == "webp":
+        try:
+            thumb = make_thumbnail(data)
+            if thumb:
+                put(f"{stem}{THUMB_SUFFIX}.webp", thumb)
+        except Exception as exc:  # noqa: BLE001 - never fail an upload over a thumbnail
+            current_app.logger.warning("Thumbnail not stored for %s: %s", filename, exc)
+    return url
 
 
 def _save_bytes_to_disk(data, filename):

@@ -23,8 +23,15 @@ export default function HeroSection() {
   const s = useSetting()
 
   useEffect(() => {
-    apiClient.get('/cms/banners')
-      .then((r) => setBanners(r.data.banners || []))
+    // index.html starts this request before the app's code has loaded; use
+    // that answer when there is one rather than asking again.
+    const early = window.__early?.banners
+    if (window.__early) window.__early.banners = null   // one use: later visits refetch
+    const request = early
+      ? early.then((data) => data ?? apiClient.get('/cms/banners').then((r) => r.data))
+      : apiClient.get('/cms/banners').then((r) => r.data)
+    request
+      .then((data) => setBanners(data?.banners || []))
       .catch(() => {}) // the fallback hero stays
   }, [])
 

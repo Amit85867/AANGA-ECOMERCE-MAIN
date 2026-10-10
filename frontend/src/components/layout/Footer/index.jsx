@@ -32,9 +32,9 @@ const PAYMENTS = ['UPI', 'Visa', 'Mastercard', 'COD']
 function FooterCol({ title, links }) {
   return (
     <div>
-      <h4 className="text-[11px] tracking-[0.1em] uppercase text-fg font-semibold mb-4">
+      <h2 className="text-xs tracking-[0.1em] uppercase text-fg font-semibold mb-4">
         {title}
-      </h4>
+      </h2>
       <ul className="space-y-2.5">
         {links.map(({ label, to }) => (
           <li key={label}>
@@ -99,14 +99,14 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-hairline">
-          <p className="text-xs text-subtle">
+          <p className="text-xs text-muted">
             © {new Date().getFullYear()} AANGA — Amit Enterprises, Patna. All rights reserved.
           </p>
           <div className="flex gap-2">
             {PAYMENTS.map((p) => (
               <span
                 key={p}
-                className="bg-fill px-3 py-1.5 rounded text-[10px] tracking-[0.05em] text-muted uppercase"
+                className="bg-fill px-3 py-1.5 rounded text-xs tracking-[0.05em] text-muted uppercase"
               >
                 {p}
               </span>

@@ -8,10 +8,9 @@
     <!-- Fonts: connect early, and swap so text is readable before they arrive. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap"
-    />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" /></noscript>
     <meta
       name="description"
       content="AANGA — premium fashion for men, women and kids. Discover curated clothing, accessories and more, with fast delivery across India."
@@ -23,7 +22,48 @@
     <title>AANGA — Premium Fashion for Men, Women & Kids</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Start the home page's hero request while the app's JavaScript is still
+      downloading, instead of after it has run. When the answer arrives the
+      hero image is preloaded, so it is usually ready by the time React
+      renders. The app picks the same promise up from window.__early.
+    -->
+    <script>
+      (function () {
+        if (location.pathname !== '/') return
+        try {
+          window.__early = {
+            banners: fetch('/api/cms/banners', { credentials: 'omit' })
+              .then(function (r) { return r.ok ? r.json() : null })
+              .then(function (data) {
+                var first = data && data.banners && data.banners[0]
+                if (first && first.image_url) {
+                  var link = document.createElement('link')
+                  link.rel = 'preload'
+                  link.as = 'image'
+                  link.href = first.image_url
+                  link.fetchPriority = 'high'
+                  document.head.appendChild(link)
+                }
+                return data
+              })
+              .catch(function () { return null }),
+          }
+        } catch (e) { /* the app will make the request itself */ }
+      })()
+    </script>
+
+    <!--
+      A static shell with the store's header bar, painted from this HTML alone
+      so the visitor sees the page taking shape before any JavaScript runs.
+      React replaces everything inside #root when it mounts.
+    -->
+    <div id="root">
+      <div style="height:36px;background:#000"></div>
+      <div style="height:80px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid #c4c7c7;background:#fff;font:700 20px/1 system-ui,sans-serif;letter-spacing:0.18em;color:#191c1e">
+        AANGA
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

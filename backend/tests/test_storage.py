@@ -178,3 +178,51 @@ def test_production_accepts_configured_object_storage():
         SUPABASE_SERVICE_KEY="service-key",
     )
     _validate_config(ok)  # must not raise
+
+
+# ── Thumbnails ────────────────────────────────────────────────
+
+def _png(width, height):
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), "#336699").save(buf, format="PNG")
+    buf.seek(0)
+    return FileStorage(stream=buf, filename="photo.png", content_type="image/png")
+
+
+def test_upload_stores_a_480px_thumbnail_next_to_the_original(app, tmp_path, monkeypatch):
+    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    saved = {}
+    monkeypatch.setattr(storage, "_save_bytes_to_disk",
+                        lambda data, name: saved.setdefault(name, data) and f"/static/uploads/{name}")
+
+    url = storage.save_image(_png(1200, 1600))
+
+    original, thumb = sorted(saved, key=len)
+    assert url == f"/static/uploads/{original}"
+    assert thumb == original.replace(".webp", "_480.webp")
+    small = Image.open(io.BytesIO(saved[thumb]))
+    assert small.size == (480, 640)                       # same shape, 480 wide
+    assert len(saved[thumb]) < len(saved[original])
+
+
+def test_small_images_get_no_thumbnail(app, monkeypatch):
+    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    saved = {}
+    monkeypatch.setattr(storage, "_save_bytes_to_disk",
+                        lambda data, name: saved.setdefault(name, data) and f"/static/uploads/{name}")
+
+    storage.save_image(_png(300, 400))
+
+    assert len(saved) == 1
+
+
+def test_a_failed_thumbnail_does_not_fail_the_upload(app, monkeypatch):
+    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    monkeypatch.setattr(storage, "_save_bytes_to_disk", lambda data, name: f"/static/uploads/{name}")
+
+    def _boom(_bytes):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(storage, "make_thumbnail", _boom)
+
+    assert storage.save_image(_png(1200, 1600)).endswith(".webp")

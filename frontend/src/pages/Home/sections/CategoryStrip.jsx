@@ -14,11 +14,12 @@ export default function CategoryStrip() {
   useEffect(() => { fetchCategories() }, [fetchCategories])
 
   const flat = categories.flatMap((c) => [c, ...(c.children || [])])
-  if (flat.length === 0) return null
 
+  // The bar is always rendered at its final height, so the page below it does
+  // not jump when the categories arrive.
   return (
     <nav aria-label="Categories" className="border-y border-hairline/60 bg-card">
-      <Container className="flex gap-2 overflow-x-auto py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <Container className="flex min-h-[4.75rem] items-center gap-2 overflow-x-auto py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Link to="/shop" className={`${chip} border-primary bg-primary text-on-primary`}>All</Link>
         {flat.map((c) => (
           <Link key={c.id} to={`/shop?category=${c.slug}`} className={`${chip} border-hairline text-fg hover:border-primary`}>

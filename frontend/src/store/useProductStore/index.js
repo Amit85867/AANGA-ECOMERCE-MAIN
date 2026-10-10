@@ -5,7 +5,7 @@ export const useProductStore = create((set) => ({
   products: [],
   product: null,
   categories: [],
-  loading: false,
+  loading: true,
   loadingMore: false,
   error: null,
   page: 1,

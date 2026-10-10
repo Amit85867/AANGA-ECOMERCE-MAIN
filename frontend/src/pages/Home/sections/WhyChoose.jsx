@@ -11,20 +11,21 @@ import { FEATURE_ICONS } from '@/utils/featureIcons'
  * products down the page.
  */
 export default function WhyChoose() {
-  const [features, setFeatures] = useState([])
+  const [features, setFeatures] = useState(null)
 
   useEffect(() => {
     apiClient.get('/cms/features')
       .then(({ data }) => setFeatures(data.features || []))
-      .catch(() => {})
+      .catch(() => setFeatures([]))
   }, [])
 
-  if (features.length === 0) return null
+  // `null` = still loading (hold the space); `[]` = nothing configured (hide).
+  if (features !== null && features.length === 0) return null
 
   return (
     <Container as="section" className="pt-10 lg:pt-14" aria-label="Why shop with us">
-      <ul className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
-        {features.slice(0, 8).map((f) => {
+      <ul className="grid min-h-[10.5rem] grid-cols-2 gap-x-6 gap-y-8 lg:min-h-[4.5rem] lg:grid-cols-4">
+        {(features || []).slice(0, 8).map((f) => {
           const Icon = FEATURE_ICONS[f.icon] || IconShieldCheck
           return (
             <li key={f.id} className="flex gap-3">
@@ -34,7 +35,7 @@ export default function WhyChoose() {
                   : <Icon size={20} stroke={1.5} aria-hidden="true" />}
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-fg">{f.title}</h3>
+                <h2 className="text-sm font-semibold text-fg">{f.title}</h2>
                 {f.description && <p className="mt-1 text-xs leading-relaxed text-muted">{f.description}</p>}
               </div>
             </li>

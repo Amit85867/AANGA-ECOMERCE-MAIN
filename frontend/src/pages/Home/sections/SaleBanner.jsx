@@ -21,7 +21,7 @@ export default function SaleBanner() {
       <div className="grid items-center gap-10 rounded-block bg-primary px-6 py-10 text-on-primary sm:px-10 lg:grid-cols-2 lg:px-14 lg:py-14">
         <div>
           {promo.badge_text && (
-            <p className="inline-block rounded-full bg-accent px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em]">
+            <p className="inline-block rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-fg">
               {promo.badge_text}
             </p>
           )}

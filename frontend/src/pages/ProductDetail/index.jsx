@@ -246,7 +246,7 @@ export default function ProductDetail() {
                 </div>
               ))
             ) : (
-              <div className="sm:col-span-2 aspect-[3/4] rounded-card bg-fill flex items-center justify-center text-subtle text-sm">
+              <div className="sm:col-span-2 aspect-[3/4] rounded-card bg-fill flex items-center justify-center text-muted text-sm">
                 No image
               </div>
             )}
@@ -275,7 +275,7 @@ export default function ProductDetail() {
 
             <div className="mt-4">
               <Price price={product.selling_price} mrp={product.mrp} size="lg" />
-              <p className="mt-1 text-xs text-subtle">Inclusive of all taxes</p>
+              <p className="mt-1 text-xs text-muted">Inclusive of all taxes</p>
             </div>
 
             {/* Colour */}

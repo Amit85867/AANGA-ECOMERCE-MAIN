@@ -109,7 +109,7 @@ export default function Reviews({ productId, productName, onChanged }) {
               <span className="display text-3xl text-fg tabular-nums">{Number(data.avg_rating).toFixed(1)}</span>
               <div>
                 <Rating value={data.avg_rating} size={16} />
-                <p className="text-xs text-subtle mt-0.5">Based on {total} review{total === 1 ? '' : 's'}</p>
+                <p className="text-xs text-muted mt-0.5">Based on {total} review{total === 1 ? '' : 's'}</p>
               </div>
             </div>
           )}
@@ -151,7 +151,7 @@ export default function Reviews({ productId, productName, onChanged }) {
                   </div>
                   {r.title && <h3 className="mt-2 text-sm font-semibold text-fg">{r.title}</h3>}
                   {r.body && <p className="mt-1.5 text-sm leading-relaxed text-muted whitespace-pre-line">{r.body}</p>}
-                  <p className="mt-3 text-xs text-subtle">{r.user_name} · {formatDate(r.created_at)}</p>
+                  <p className="mt-3 text-xs text-muted">{r.user_name} · {formatDate(r.created_at)}</p>
                 </li>
               ))}
             </ul>

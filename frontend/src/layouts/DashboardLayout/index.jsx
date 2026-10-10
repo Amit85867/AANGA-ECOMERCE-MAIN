@@ -55,7 +55,7 @@ export default function DashboardLayout() {
         <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12">
           <aside>
             <div className="mb-6">
-              <p className="text-xs uppercase tracking-[0.08em] text-subtle">Signed in as</p>
+              <p className="text-xs uppercase tracking-[0.08em] text-muted">Signed in as</p>
               <p className="mt-1 truncate text-sm font-semibold text-fg">{user?.full_name}</p>
               <p className="truncate text-xs text-muted">{user?.email}</p>
             </div>
@@ -95,7 +95,7 @@ export default function DashboardLayout() {
       <div className="min-h-screen flex flex-col bg-bg">
         <AnnounceBar />
         <Navbar />
-        <main className="flex-1">{content}</main>
+        <main className="min-h-screen flex-1">{content}</main>
         <Footer />
       </div>
     </MaintenanceGate>

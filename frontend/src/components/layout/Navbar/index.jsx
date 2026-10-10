@@ -12,8 +12,8 @@ import {
 import { useCartStore, selectCartCount } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/utils/constants";
-import logoMain from "@/assets/images/logo-main.png";
-import titleImg from "@/assets/images/logo-title.png";
+import logoMain from "@/assets/images/logo-main.webp";
+import titleImg from "@/assets/images/logo-title.webp";
 
 const MEN_MENU = [
   {
@@ -82,7 +82,7 @@ function Dropdown({ columns, wide = true }) {
     >
       {columns.map((col) => (
         <div key={col.title}>
-          <h4 className="text-[11px] tracking-[0.1em] uppercase text-subtle font-semibold mb-3">
+          <h4 className="text-xs tracking-[0.1em] uppercase text-muted font-semibold mb-3">
             {col.title}
           </h4>
           {col.items.map((item) => (
@@ -133,7 +133,7 @@ export default function Navbar() {
           </button>
 
           <Link to={ROUTES.HOME} className="shrink-0 flex items-center mr-2">
-            <img src={titleImg} alt="AANGA" className="h-12 md:h-14 object-contain" />
+            <img src={titleImg} alt="AANGA" width="56" height="56" className="h-12 w-12 md:h-14 md:w-14 object-contain" />
           </Link>
 
           {/* Primary navigation */}
@@ -186,7 +186,7 @@ export default function Navbar() {
             <IconSearch
               size={18}
               stroke={1.5}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-subtle pointer-events-none"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
             />
           </div>
 
@@ -205,7 +205,7 @@ export default function Navbar() {
             >
               <IconShoppingBag size={22} stroke={1.5} />
               {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-accent text-white text-[10px]
+                <span className="absolute -top-1.5 -right-1.5 bg-accent text-white text-xs
                                  min-w-[18px] h-[18px] px-1 rounded-full flex items-center
                                  justify-center font-semibold">
                   {cartCount}
@@ -235,8 +235,8 @@ export default function Navbar() {
           <aside className="absolute inset-y-0 left-0 w-[320px] bg-card overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-hairline">
               <div className="flex items-center gap-2">
-                <img src={logoMain} alt="" className="h-8 w-8 object-contain" />
-                <img src={titleImg} alt="AANGA" className="h-7 object-contain" />
+                <img src={logoMain} alt="" width="32" height="32" className="h-8 w-8 object-contain" />
+                <img src={titleImg} alt="AANGA" width="28" height="28" className="h-7 w-7 object-contain" />
               </div>
               <button onClick={closeMobile} aria-label="Close menu" className="text-fg">
                 <IconX size={22} />
@@ -262,7 +262,7 @@ export default function Navbar() {
                 <IconSearch
                   size={18}
                   stroke={1.5}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-subtle"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted"
                 />
               </div>
             </div>
@@ -297,7 +297,7 @@ export default function Navbar() {
                     <div className="pl-4 py-3">
                       {menu.map((col) => (
                         <div key={col.title} className="mb-4">
-                          <div className="text-[11px] tracking-[0.1em] uppercase text-subtle font-semibold mb-1.5">
+                          <div className="text-xs tracking-[0.1em] uppercase text-muted font-semibold mb-1.5">
                             {col.title}
                           </div>
                           {col.items.map((item) => (

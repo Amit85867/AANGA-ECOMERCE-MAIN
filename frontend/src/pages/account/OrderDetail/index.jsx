@@ -141,7 +141,7 @@ function ReturnDialog({ order, open, onClose, onRequested }) {
                   <span className="block text-xs text-muted">
                     {[i.size && `Size ${i.size}`, i.color_name, `Qty ${i.quantity}`].filter(Boolean).join(' · ')}
                   </span>
-                  {i.reason_unavailable && <span className="mt-0.5 block text-xs text-subtle">{i.reason_unavailable}</span>}
+                  {i.reason_unavailable && <span className="mt-0.5 block text-xs text-muted">{i.reason_unavailable}</span>}
                 </span>
               </label>
             ))}
@@ -269,7 +269,7 @@ export default function OrderDetail() {
                     <div>
                       <p className={`text-sm ${i === 0 ? 'font-semibold text-fg' : 'text-muted'}`}>{event.status_label}</p>
                       {event.description && <p className="text-sm text-muted">{event.description}</p>}
-                      <p className="mt-0.5 text-xs text-subtle">{formatDateTime(event.event_time)}</p>
+                      <p className="mt-0.5 text-xs text-muted">{formatDateTime(event.event_time)}</p>
                     </div>
                   </li>
                 ))}

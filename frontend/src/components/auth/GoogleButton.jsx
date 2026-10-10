@@ -66,7 +66,7 @@ export default function GoogleButton({ onSignedIn }) {
       </Button>
       <div className="my-6 flex items-center gap-3" aria-hidden="true">
         <div className="h-px flex-1 bg-hairline/60" />
-        <span className="text-xs uppercase tracking-[0.1em] text-subtle">or</span>
+        <span className="text-xs uppercase tracking-[0.1em] text-muted">or</span>
         <div className="h-px flex-1 bg-hairline/60" />
       </div>
     </>

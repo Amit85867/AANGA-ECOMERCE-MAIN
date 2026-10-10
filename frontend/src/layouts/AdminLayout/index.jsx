@@ -27,7 +27,7 @@ import {
   IconHistory,
 } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
-import logoImg from '@/assets/images/logo-main.png'
+import logoImg from '@/assets/images/logo-main.webp'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 const NAV = [
@@ -126,7 +126,7 @@ export default function AdminLayout() {
       >
         <div className="flex h-16 items-center justify-between border-b border-white/10 px-6">
           <div className="flex items-center gap-2.5">
-            <img src={logoImg} alt="AANGA" className="h-8 w-8 brightness-0 invert" />
+            <img src={logoImg} alt="" width="32" height="32" className="h-8 w-8 brightness-0 invert" />
             <span className="display text-xl tracking-widest text-gold">AANGA</span>
           </div>
           <span className="text-[11px] uppercase tracking-wider text-white/40">Admin</span>

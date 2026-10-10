@@ -367,7 +367,7 @@ export default function Checkout() {
                         : 'Place order'}
                   </Button>
                 </div>
-                <p className="mt-3 flex items-center gap-1.5 text-xs text-subtle">
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-muted">
                   <IconLock size={12} aria-hidden="true" />
                   By placing this order you agree to our terms and returns policy.
                 </p>
