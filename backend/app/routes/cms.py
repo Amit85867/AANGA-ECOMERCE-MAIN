@@ -146,3 +146,36 @@ def public_settings():
     return jsonify(
         settings={s.key: s.value for s in settings}
     ), 200
+
+
+@cms_bp.route("/features-available", methods=["GET"])
+@cached_view(60)
+def available_features():
+    """Which optional parts of the store are switched on.
+
+    The storefront hides what is not configured — a "Pay online" option that
+    can only fail, a "Continue with Google" button with no client id — instead
+    of offering it and showing an error. Booleans only: nothing here reveals a
+    key, only that one is present.
+    """
+    import os
+
+    from flask import current_app
+
+    from app.routes.auth import phone_login_available
+
+    def has(name):
+        return bool((os.environ.get(name) or "").strip())
+
+    return jsonify(
+        online_payments=has("RAZORPAY_KEY_ID") and has("RAZORPAY_KEY_SECRET"),
+        delivery_check=(
+            has("SHIPROCKET_EMAIL") and has("SHIPROCKET_PASSWORD")
+            and has("SHIPROCKET_PICKUP_PINCODE")
+        ),
+        google_login=has("GOOGLE_CLIENT_ID"),
+        # Only true when a real provider is configured: in development the
+        # endpoint works for testing, but the storefront should look the way
+        # production will.
+        phone_login=bool(current_app.config.get("SMS_PROVIDER")) and phone_login_available(),
+    ), 200

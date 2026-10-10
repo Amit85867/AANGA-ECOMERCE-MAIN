@@ -54,7 +54,9 @@ def _apply_proxy_fix(app):
     if _is_dev_or_test(app):
         return
     from werkzeug.middleware.proxy_fix import ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    hops = max(int(app.config.get("TRUSTED_PROXY_COUNT", 1)), 0)
+    if hops:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=1, x_host=1)
 
 
 def _register_error_handlers(app):

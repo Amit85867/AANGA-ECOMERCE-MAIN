@@ -235,6 +235,7 @@ export default function AdminSystem() {
                 ['Version', data.app.version],
                 ['Environment', data.app.environment],
                 ['Uptime', uptime(data.app.uptime_seconds)],
+                ['Your IP as seen by the server', data.app.client_ip || '—'],
               ].map(([term, value]) => (
                 <div key={term} className="flex justify-between gap-4">
                   <dt className="text-gray-500">{term}</dt>

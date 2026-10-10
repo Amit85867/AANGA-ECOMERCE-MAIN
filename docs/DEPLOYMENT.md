@@ -1,76 +1,182 @@
-# AANGA — Deployment runbook
+# AANGA — deployment runbook (Render)
 
-Backend: Flask + gunicorn (Docker). Frontend: static Vite build. Database:
-**dockerized Postgres** (`backend/docker-compose.yml`) — see
-[DATABASE.md](DATABASE.md). Object storage: Supabase Storage (still). Target
-hosts: Render / Railway (backend), any static host / CDN (frontend).
+Nothing in this repository deploys by itself. This is the procedure; every
+step that touches Render, Razorpay, Supabase or DNS is done by a person.
 
-## 1. Prerequisites (one-time)
+## 1. Layout
 
-1. **Postgres** — `docker compose -f backend/docker-compose.yml up -d db`, which
-   builds the full schema on first boot. Migrating existing data off Supabase is
-   a single command; the whole procedure, plus backups, is in
-   **[DATABASE.md](DATABASE.md)**.
-2. **Supabase Storage** — a **public** bucket named `product-images`
-   (Storage → New bucket). Only Storage is still Supabase; the database has
-   moved. The app refuses to boot in production without it.
-3. **SQL migrations** — a container built from `schema.sql` already includes
-   every migration under `backend/`. They matter only when restoring a dump
-   taken from the old Supabase database, and `db/migrate-from-supabase.ps1`
-   re-applies the outstanding ones (`migrations_orders_idempotency.sql`)
-   automatically after the restore.
-3. **Razorpay** live keys (or leave blank for COD-only).
-4. **Resend** account + a verified sending domain for `EMAIL_FROM`.
-5. **Redis** instance (Render/Railway add-on) for rate limiting across >1
-   instance — see step 4.
-6. Optional: **Sentry** project DSN.
+```
+                      www.yourdomain.com  (custom domain)
+                               │
+                    ┌──────────▼───────────┐
+   browser ───────► │  aanga-web           │  Render Static Site (frontend/dist)
+                    │   /api/*  ─ rewrite ─┼──┐
+                    │   /sitemap.xml, /robots.txt ─┤
+                    │   /*      → index.html│  │
+                    └──────────────────────┘  │
+                                              ▼
+   Razorpay webhook ───────────────►  aanga-api      Render Web Service (Docker)
+                                        │     │
+                             aanga-db ◄─┘     └─► aanga-cache   Render Key Value
+                          Render Postgres 17      (rate limits, catalogue cache)
+                                        ▲
+                        aanga-reconcile-payments   Render Cron Job, every 30 min
 
-## 2. Environment variables
+   Product images: Supabase Storage (public bucket), not Render.
+```
 
-Copy `backend/.env.example` and fill in. The app **refuses to boot in
-production** (`_validate_config`) unless these are real:
+The storefront and the API share one origin from the browser's point of view.
+That is deliberate: the app reads a CSRF cookie set by the API, which a browser
+only allows on the same site. `render.yaml` at the repository root describes
+all five pieces.
+
+**The Razorpay webhook does not use the rewrite.** It points straight at the
+backend (`https://<backend-host>/api/payments/webhook`): one fewer hop to fail,
+and the request body reaches the signature check byte-for-byte.
+
+### Switching to a single service later (layout c)
+
+If the rewrite proves slow (section 10), the alternative is Flask serving the
+built frontend from the API service. The app is already shaped for it — the
+frontend calls a relative `/api`, so nothing in it changes. What the switch
+needs:
+
+1. A build stage in `backend/Dockerfile` that runs `npm ci && npm run build`
+   and copies `frontend/dist` into the image.
+2. A catch-all route in Flask returning `index.html` for any path that is not
+   `/api/*`, `/static/*`, `/sitemap.xml` or `/robots.txt`.
+3. A separate Content-Security-Policy for that HTML response. Today every
+   response carries `default-src 'none'`, which is right for JSON and would
+   block the page's own scripts.
+4. In `render.yaml`: delete the `aanga-web` static site and move the custom
+   domain to `aanga-api`.
+
+Cookies, CORS, the webhook URL and the database are unaffected.
+
+## 2. Before the first deploy
+
+1. **Supabase Storage** — create a **public** bucket named `product-images`
+   (Storage → New bucket). Only Storage is used; the database is on Render.
+2. **Razorpay** — optional. Without keys the store runs cash-on-delivery only.
+3. **Shiprocket** — optional. Without it there is no courier booking or
+   delivery check.
+4. **Resend** — a verified sending domain for `EMAIL_FROM`. Without it emails
+   are logged, not sent.
+5. **Rotate the admin password** that leaked in git history — see
+   [SECURITY_TODO.md](SECURITY_TODO.md). Do not reuse it as `ADMIN_PASSWORD`.
+6. **Test data** — the local database contains accounts created for browser
+   testing (emails ending `@local.test`). A Render database starts empty and
+   never receives them, but if you ever restore a local dump anywhere, run
+   `backend/db/qa_cleanup.sql` against the local database first. The bootstrap
+   script's verification fails if it finds any such account.
+
+## 3. Create the services
+
+1. Edit `render.yaml`: replace `www.example.com` with the storefront domain
+   (three places) and check the region.
+2. Render Dashboard → **New → Blueprint** → select this repository.
+3. Fill in the values marked `sync: false`. They are secrets and are not in
+   the file. Required to start: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
+   `ADMIN_EMAIL`, `ADMIN_PASSWORD`. The rest may stay blank.
+4. Once `aanga-api` exists, note its URL. If it is not
+   `https://aanga-api.onrender.com`, update the three rewrite destinations in
+   `render.yaml` and sync again.
+5. **Do not deploy the API yet** — the database is empty.
+
+### Environment variables
+
+Documented in full in `backend/.env.example`. The app **refuses to start in
+production** unless these are real:
 
 | Variable | Notes |
 |---|---|
-| `FLASK_ENV=production` | selects `ProductionConfig` |
-| `SECRET_KEY`, `JWT_SECRET_KEY` | ≥32 random chars each, distinct |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | drive the `db` container; `POSTGRES_PORT` defaults to 55433 |
-| `DATABASE_URL` | Postgres URI built from the three above (not SQLite) |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Storage only — required, disk is ephemeral |
-| `FRONTEND_ORIGIN` | storefront origin (CORS + cookies) |
-| `SITE_URL` | public storefront origin (sitemap/OG); defaults to `FRONTEND_ORIGIN` |
-| `RAZORPAY_KEY_ID/SECRET` | blank ⇒ COD-only |
-| `RAZORPAY_WEBHOOK_SECRET` | required as soon as Razorpay keys are set |
-| `SHIPROCKET_EMAIL/PASSWORD` | blank ⇒ no courier booking or delivery checks |
-| `SHIPROCKET_PICKUP_PINCODE` | required as soon as Shiprocket is set |
-| `RESEND_API_KEY`, `EMAIL_FROM` | blank ⇒ emails logged, not sent |
-| `RATELIMIT_STORAGE_URI` | `redis://…` in production |
-| `SENTRY_DSN` | blank ⇒ Sentry off |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | auto-seeds the master admin on boot |
+| `FLASK_ENV=production` | selects the production config |
+| `SECRET_KEY`, `JWT_SECRET_KEY` | generated by the Blueprint; ≥32 characters, distinct |
+| `DATABASE_URL` | wired from `aanga-db` by the Blueprint |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Storage only; required because Render's disk is wiped on every deploy |
 
-> ⚠️ Rotate the admin password that previously shipped in `.env.example` —
-> it is in git history. Steps are in [SECURITY_TODO.md](SECURITY_TODO.md).
+Optional integrations are all-or-nothing — setting one half makes the app
+refuse to start:
 
-## 3. Backend (Docker)
+| If you set | You must also set |
+|---|---|
+| `RAZORPAY_KEY_ID` | `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` |
+| `SHIPROCKET_EMAIL` | `SHIPROCKET_PASSWORD`, `SHIPROCKET_PICKUP_PINCODE` (6 digits) |
+
+## 4. Load the database
+
+Once, against the new database, from a machine with this repository checked
+out and either `psql` or Docker:
 
 ```bash
-# from repo root
-docker build -t aanga-api ./backend
-docker run --env-file backend/.env -p 8000:8000 aanga-api
+# Render Dashboard → aanga-db → Connect → External Database URL.
+# Temporarily add your IP under Access Control; remove it afterwards.
+export DATABASE_URL='postgresql://aanga:...@...render.com/aanga'
+
+scripts/render_bootstrap_db.sh            # loads the schema into the empty database
+scripts/render_bootstrap_db.sh --check    # verify, changes nothing
 ```
 
-On Render/Railway: point the service at `backend/Dockerfile`. The platform
-injects `$PORT`; gunicorn binds it automatically. Set the **health check path
-to `/api/health`** (returns 200 with a DB ping, 503 if the DB is unreachable).
-`WEB_CONCURRENCY` controls gunicorn workers (default 2).
+Connect as the `aanga` user the app uses. The tables carry row-level-security
+policies; the owner bypasses them, and loading as another user would leave the
+app reading empty tables. The script checks ownership.
 
-## 4. Rate limiting across instances
+What it applies, in order:
 
-`RATELIMIT_STORAGE_URI` defaults to `memory://` (per-process). With more than
-one gunicorn worker or instance, limits are **not** enforced globally and the
-app logs a warning on boot. Set `RATELIMIT_STORAGE_URI=redis://<host>:6379`.
+| # | File | Adds |
+|---|---|---|
+| 1 | `backend/tests/sql/00_prereqs.sql` | `uuid-ossp`, a stub `auth.uid()` the policies reference |
+| 2 | `backend/schema.sql` | every table, enum, trigger, index and policy |
+| 3 | `backend/migrations_orders_idempotency.sql` | unique indexes on `payment_ref` and `idempotency_key` |
+| 4 | `backend/migrations_hero_badges.sql` | hero banner badge columns |
+| 5 | `backend/migrations_address_archive.sql` | `addresses.archived_at` |
+| 6 | `backend/migrations_ops_tables.sql` | `webhook_events`, `job_runs` |
+| 7 | `backend/migrations_admin_ops.sql` | `audit_log`, dashboard indexes |
 
-## 4b. Sizing: workers, threads and database connections
+Steps 3–7 are already contained in `schema.sql`; they run again because they
+are idempotent and because the same list is the upgrade path:
+
+```bash
+scripts/render_bootstrap_db.sh --migrate   # bring an existing database up to date
+```
+
+The script refuses to load into a database that already has tables, and never
+drops anything that holds data. A future migration is added to the
+`MIGRATIONS` list in the script, in order, and to `schema.sql`.
+
+## 5. Deploy
+
+1. Deploy `aanga-api`. On first boot it creates the master admin from
+   `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Health check path: `/api/health`.
+2. Deploy `aanga-web`.
+3. Point the custom domain at `aanga-web` (Render shows the DNS records) and
+   wait for the certificate.
+4. Seed the catalogue, if you want the starter products. It goes through the
+   live admin API so images take the real storage path:
+
+   ```bash
+   ADMIN_EMAIL=... ADMIN_PASSWORD=... \
+     python backend/db/seed_catalogue.py --api https://<backend-host>
+   ```
+
+5. Change the admin password from the bootstrap value: Render Shell on
+   `aanga-api` → `flask --app run set-admin-password`.
+
+## 6. Razorpay webhook
+
+Razorpay Dashboard → Settings → Webhooks → Add:
+
+- **URL:** `https://<backend-host>/api/payments/webhook` — the backend's own
+  `onrender.com` URL (or an `api.` subdomain pointed at it), **not** the
+  storefront domain.
+- **Secret:** the same value as `RAZORPAY_WEBHOOK_SECRET`.
+- **Events:** `payment.captured`, `payment.failed`, `refund.processed`.
+
+Use test-mode keys (`rzp_test_…`) and a test-mode webhook until a full test
+purchase and refund have gone through; the System Health page shows which mode
+the configured key is in.
+
+## 7. Sizing: workers, threads and database connections
 
 The API is stateless — no local files (uploads go to Supabase Storage), no
 in-process sessions (auth is JWT; rate limits and the catalogue cache live in
@@ -123,7 +229,7 @@ inside the worker, so a slow mail provider does not delay checkout. Shiprocket
 booking is an admin action that needs its answer and stays in the request;
 delivery-check answers are cached for ten minutes per PIN code.
 
-## 4a. Scheduled job — `reconcile-payments`
+## 8. Scheduled job — `reconcile-payments`
 
 The Razorpay webhook deliberately ignores a capture younger than 15 minutes
 (it is almost always a checkout still in flight), so refunding a payment whose
@@ -150,41 +256,87 @@ flask reconcile-payments --hours 24 --dry-run  # report only
 - **Window:** `--hours` must be larger than the gap between runs. 24 gives
   plenty of overlap and costs nothing — already-refunded payments are skipped.
 
-## 5. Frontend
+## 9. Frontend build
+
+The static site builds with `npm ci && npm run build` in `frontend/` and
+publishes `frontend/dist`. Build-time variables (all optional):
+
+| Variable | Notes |
+|---|---|
+| `VITE_API_BASE_URL` | **leave unset** — the app then calls `/api` on its own origin |
+| `VITE_GOOGLE_CLIENT_ID` | must match the backend's `GOOGLE_CLIENT_ID` |
+| `VITE_SENTRY_DSN` | browser-project DSN; unset means the SDK is never downloaded |
+
+## 10. Post-deploy checks
+
+Run all of these after the first deploy, and the first three after every deploy.
 
 ```bash
-cd frontend
-npm ci
-npm run build      # -> frontend/dist
+# 1. The API is up and can reach its database.
+curl -s https://<backend-host>/api/health                 # {"status":"ok"}
+
+# 2. The storefront reaches the API through the rewrite.
+curl -s https://www.yourdomain.com/api/health             # {"status":"ok"}
+curl -s https://www.yourdomain.com/sitemap.xml | head     # product URLs
+
+# 3. Security headers are present.
+curl -sI https://<backend-host>/api/health | grep -iE "strict-transport|x-frame|content-security"
+
+# 4. The database matches the code.
+DATABASE_URL=... scripts/render_bootstrap_db.sh --check
 ```
 
-Deploy `frontend/dist` to a static host. Configure it to:
-- rewrite unknown routes to `/index.html` (SPA client routing), and
-- serve `/sitemap.xml` and `/robots.txt` from the backend (proxy those two
-  paths, or submit the sitemap URL — `${SITE_URL}/sitemap.xml` — in Google
-  Search Console).
-
-Build-time: set `VITE_*` vars if/when the frontend needs them (none required
-today; the API base is configured in `services/apiClient`).
-
-## 6. CI
-
-`.github/workflows/ci.yml` runs on every PR and on `main`:
-- **backend**: pytest against a Postgres 17 service (schema rebuilt from
-  `schema.sql` by `conftest`).
-- **frontend**: `npm ci`, `oxlint`, `vite build`.
-
-## 7. Backups
-
-Supabase provides automated daily backups; enable **Point-in-Time Recovery**
-(Project → Database → Backups) before launch. For an extra off-site copy,
-schedule `pg_dump` via the session-pooler URI (IPv4) — see
-`backend/tests/README.md` for the pooler-URI note.
-
-## 8. Post-deploy smoke check
+**5. Rewrite latency.** Every API call a shopper makes goes through the
+static site's rewrite, so its overhead is paid on every click:
 
 ```bash
-curl -s https://<api-host>/api/health          # {"status":"ok"}
-curl -s https://<api-host>/sitemap.xml | head  # product URLs
-curl -sI https://<api-host>/api/health | grep -i strict-transport-security
+scripts/check_rewrite_latency.sh https://www.yourdomain.com https://<backend-host>
+```
+
+It compares the median of 15 `/api/health` calls through the rewrite with 15
+made to the backend directly, and exits non-zero if the rewrite adds more than
+**150 ms**. If it does, that is the signal to move to the single-service layout
+in section 1 — report the two numbers before deciding. Run it from a network
+near your customers (India), not from a CI runner in another region.
+
+**6. In the admin panel → System Health:**
+
+- every service you configured shows **Configured**, none shows **Error**;
+- press **Test connections** — each still shows Configured;
+- **Your IP as seen by the server** is your own public IP. If it is a Render
+  address, raise `TRUSTED_PROXY_COUNT` by one and redeploy: until it is right,
+  every visitor shares one rate-limit bucket;
+- after 30 minutes, **Payment reconcile job** shows a recent successful run.
+
+**7. By hand, once:** register, add to cart, check out cash-on-delivery, see
+the order in the admin panel, cancel it. Reload a page while signed in — you
+must stay signed in (this is what the same-origin rewrite is for). With
+Razorpay test keys: one test payment, then cancel the order and confirm the
+refund appears in the Razorpay Dashboard.
+
+## 11. Backups
+
+Render Postgres takes daily backups on paid plans; check the retention for the
+plan chosen and enable point-in-time recovery if it is offered. For an
+independent copy, schedule `pg_dump` against the External Database URL.
+
+`backend/db/backup.ps1` and `restore.ps1` are for the **local** Docker database
+only.
+
+## 12. CI
+
+`.github/workflows/ci.yml` runs on every pull request and on `main`: backend
+`pytest` against a Postgres 17 service, frontend `npm ci`, `oxlint`,
+`vite build`. Render's `autoDeploy` is off in the Blueprint, so a merge does
+not ship until someone presses Deploy.
+
+## 13. Local development
+
+The local database is the Docker container in `backend/docker-compose.yml` —
+see [DATABASE.md](DATABASE.md). To bring an existing local database up to date
+after pulling new migrations:
+
+```bash
+DATABASE_URL=postgresql://<user>:<password>@localhost:55433/<db> \
+  scripts/render_bootstrap_db.sh --migrate
 ```

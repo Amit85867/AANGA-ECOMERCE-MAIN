@@ -214,11 +214,30 @@ frontend by `vite build` and `oxlint` (0 errors).
 
 ## Phase 6 — Render deployment preparation (no deploy)
 
-- [ ] **CHECKPOINT** — choose the layout: (a) static site + `/api` rewrite,
-  (b) custom domain with api subdomain, (c) Flask serves the built frontend.
-- [ ] `render.yaml` for the chosen layout.
-- [ ] `scripts/render_bootstrap_db.sh`.
-- [ ] `docs/DEPLOYMENT.md` updated; webhook URL points straight at the backend.
+- [x] Layout chosen by the owner: (a) static site + `/api` rewrite, custom
+  domain on the static site, webhook straight to the backend, easy to move to
+  (c) later.
+- [x] `render.yaml` — web service, static site with the rewrites, Postgres 17,
+  Key Value, Cron Job every 30 minutes, shared env group, secrets as
+  `sync: false`. Parses as YAML; **not validated by Render** (needs the Render
+  CLI or a Blueprint sync, which is the owner's step).
+- [x] `scripts/render_bootstrap_db.sh` — prereqs, `schema.sql`, then the five
+  idempotent migrations in order; `--migrate` upgrades an existing database,
+  `--check` reports. Refuses a non-empty database, checks table ownership and
+  that no QA accounts are present. Run against a scratch Postgres 17: fresh
+  load, refusal on re-run and `--migrate` all behaved.
+- [x] `docs/DEPLOYMENT.md` rewritten for this layout: migration list, webhook
+  URL on the backend, post-deploy checks, and the steps to switch to (c).
+- [x] `scripts/check_rewrite_latency.sh` — rewrite vs direct `/api/health`,
+  flags more than 150 ms. Can only be run after a deploy.
+- [x] QA data kept for Phase 7; `backend/db/qa_cleanup.sql` removes it (and
+  restores the stock its orders took) and is a listed pre-deploy step.
+- [x] Phone-OTP sign-in refused by the API in production without an SMS
+  provider; `GET /api/cms/features-available` tells the storefront what to hide.
+- [x] `TRUSTED_PROXY_COUNT` and `JWT_COOKIE_SAMESITE` are configurable; System
+  Health shows the client IP the server sees, to verify the proxy setting.
+- [ ] After the first deploy: run the latency check and the System Health
+  checks in `DEPLOYMENT.md` §10 (owner).
 
 ## Phase 7 — End-to-end verification and browser demo
 

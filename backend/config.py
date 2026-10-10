@@ -72,6 +72,16 @@ class BaseConfig:
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
     RATELIMIT_HEADERS_ENABLED = True
 
+    # How many reverse proxies sit in front of the app and append to
+    # X-Forwarded-For. Trusting too few makes every visitor share the proxy's
+    # IP (one rate-limit bucket for everyone); trusting too many lets a client
+    # forge its own address. Check with the admin System Health page.
+    TRUSTED_PROXY_COUNT = int(os.environ.get("TRUSTED_PROXY_COUNT", "1"))
+
+    # Phone-OTP sign-in needs something to deliver the code. No provider is
+    # integrated yet, so this stays empty and the option stays hidden.
+    SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "")
+
     # CORS
     FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
 
@@ -124,6 +134,10 @@ class DevelopmentConfig(BaseConfig):
 
 class ProductionConfig(BaseConfig):
     DEBUG = False
+    # "None" is required only when the storefront calls the API cross-site.
+    # Behind a same-origin /api rewrite (the Render layout) set this to "Lax",
+    # which also stops the cookie riding along on cross-site requests.
+    JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "None")
 
 
 class TestingConfig(BaseConfig):

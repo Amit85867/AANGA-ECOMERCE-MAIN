@@ -68,6 +68,10 @@ def system_health():
             "environment": os.environ.get("FLASK_ENV", "development"),
             "uptime_seconds": int(time.time() - _STARTED_AT),
             "debug": bool(current_app.config.get("DEBUG")),
+            # The viewing admin's own address, as the server resolved it. If
+            # this is not their real IP, TRUSTED_PROXY_COUNT is wrong and rate
+            # limits are being applied to the proxy instead of to visitors.
+            "client_ip": request.remote_addr,
         },
         checks=checks,
         maintenance=maintenance.get_state(fresh=True),

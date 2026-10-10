@@ -1,0 +1,232 @@
+# Render Blueprint — AANGA
+#
+# Layout (a): a static site serves the storefront and rewrites /api/* to the
+# backend, so the browser only ever talks to one origin. That keeps the login
+# refresh cookie first-party, which the storefront's CSRF handling relies on.
+#
+# Nothing here deploys by itself: create it from the Render Dashboard with
+# New -> Blueprint, pointed at this repository. Before the first sync:
+#
+#   1. Replace every "aanga-api.onrender.com" below with the backend's real
+#      URL if Render assigns a different one (it appends a suffix when the
+#      name is taken). The rewrite destinations cannot reference a service by
+#      name, so they are literal URLs.
+#   2. Replace "www.example.com" with the storefront's custom domain.
+#   3. Fill in every `sync: false` value in the Dashboard. They are secrets and
+#      are deliberately not in this file.
+#   4. After the database exists, load the schema once:
+#        scripts/render_bootstrap_db.sh        (see docs/DEPLOYMENT.md)
+#
+# Plans are the smallest that suit a live store. Free web services sleep when
+# idle, which would make Razorpay's webhook time out — do not use them here.
+#
+# Validate after editing:  render blueprints validate   (Render CLI)
+
+envVarGroups:
+  # Shared by the web service and the cron job so the two can never drift.
+  - name: aanga-backend
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+
+      # Public origin of the storefront (the custom domain on the static site).
+      - key: FRONTEND_ORIGIN
+        value: https://www.example.com
+      - key: SITE_URL
+        value: https://www.example.com
+
+      # Same-origin through the rewrite, so the strict setting works. Would
+      # have to be "None" only if the storefront called the API cross-site.
+      - key: JWT_COOKIE_SAMESITE
+        value: Lax
+
+      # Requests arrive through Render's load balancer; rewritten ones also
+      # pass through the static site's edge. Confirm on the admin System
+      # Health page that "Your IP as seen by the server" is your real address;
+      # if it shows a Render address, raise this by one.
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+
+      # Product images. Required: the service refuses to start without them.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: product-images
+
+      # First master admin, created on first boot. Change the password
+      # afterwards with:  flask --app run set-admin-password
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # Online payments. Leave all three blank to launch COD-only. Once the key
+      # is set, the secret and the webhook secret are required.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+      # Courier. Leave blank to launch without booking or delivery checks.
+      - key: SHIPROCKET_EMAIL
+        sync: false
+      - key: SHIPROCKET_PASSWORD
+        sync: false
+      - key: SHIPROCKET_PICKUP_LOCATION
+        value: Primary
+      - key: SHIPROCKET_PICKUP_PINCODE
+        sync: false
+
+      # Email. Blank = emails are logged, not sent.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+
+      # 2 workers x (5 + 5) = 20 connections. See docs/DEPLOYMENT.md "Sizing".
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+
+databases:
+  - name: aanga-db
+    databaseName: aanga
+    user: aanga
+    plan: basic-256mb
+    region: singapore
+    # The schema is a pg_dump from Postgres 17 and the test suite runs on 17.
+    postgresMajorVersion: "17"
+    # Reachable only from Render services. To run the bootstrap script from
+    # your own machine, add your IP here for the duration and remove it after.
+    ipAllowList: []
+
+services:
+  # ── Rate-limit counters and the catalogue cache ─────────────
+  - type: keyvalue
+    name: aanga-cache
+    plan: starter
+    region: singapore
+    # Evict the least recently used keys when full: everything stored here can
+    # be recomputed, and a full cache must not start refusing writes.
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  # ── API ─────────────────────────────────────────────────────
+  - type: web
+    name: aanga-api
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - fromGroup: aanga-backend
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aanga-db
+          property: connectionString
+      - key: RATELIMIT_STORAGE_URI
+        fromService:
+          type: keyvalue
+          name: aanga-cache
+          property: connectionString
+
+  # ── Refund abandoned checkouts ──────────────────────────────
+  # The webhook ignores captures younger than 15 minutes, so refunds for
+  # abandoned checkouts depend on this job running.
+  - type: cron
+    name: aanga-reconcile-payments
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    schedule: "*/30 * * * *"
+    dockerCommand: flask --app run reconcile-payments --hours 24
+    autoDeploy: false
+    envVars:
+      - fromGroup: aanga-backend
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aanga-db
+          property: connectionString
+      # One short-lived process: a single connection is all it needs.
+      - key: DB_POOL_SIZE
+        value: "1"
+      - key: DB_MAX_OVERFLOW
+        value: "1"
+
+  # ── Storefront ──────────────────────────────────────────────
+  - type: web
+    name: aanga-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: false
+    domains:
+      - www.example.com
+    envVars:
+      # Deliberately no VITE_API_BASE_URL: the app then calls /api on its own
+      # origin and the rewrite below carries it to the backend.
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_SENTRY_DSN
+        sync: false
+      - key: VITE_SENTRY_ENVIRONMENT
+        value: production
+    routes:
+      # Order matters: the first matching rule wins, and the SPA fallback at
+      # the bottom matches everything.
+      - type: rewrite
+        source: /api/*
+        destination: https://aanga-api.onrender.com/api/*
+      - type: rewrite
+        source: /sitemap.xml
+        destination: https://aanga-api.onrender.com/sitemap.xml
+      - type: rewrite
+        source: /robots.txt
+        destination: https://aanga-api.onrender.com/robots.txt
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # Built assets are content-hashed, so they can be cached for a year.
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      # index.html must not be cached, or a deploy is not picked up.
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

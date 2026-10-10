@@ -194,9 +194,28 @@ def google_auth():
 
 # ── Phone OTP ──────────────────────────────────────────────────
 
+def phone_login_available():
+    """True when a code can actually reach the phone.
+
+    Without an SMS provider the code is generated and stored but never sent, so
+    in production the flow can only ever dead-end — and an endpoint that mints
+    sign-in codes nobody receives is attack surface with no purpose. Local
+    development and tests keep it, reading the code from the response or the
+    database.
+    """
+    return bool(
+        current_app.config.get("SMS_PROVIDER")
+        or current_app.config.get("DEBUG")
+        or current_app.config.get("TESTING")
+    )
+
+
 @auth_bp.route("/otp/send", methods=["POST"])
 @limiter.limit("10 per hour")
 def send_otp():
+    if not phone_login_available():
+        return jsonify(error="Phone sign-in is not available. Use email or Google."), 503
+
     try:
         data = _send_otp_schema.load(request.get_json())
     except ValidationError as err:
@@ -241,6 +260,9 @@ def send_otp():
 @auth_bp.route("/otp/verify", methods=["POST"])
 @limiter.limit("20 per hour")
 def verify_otp():
+    if not phone_login_available():
+        return jsonify(error="Phone sign-in is not available. Use email or Google."), 503
+
     try:
         data = _verify_otp_schema.load(request.get_json())
     except ValidationError as err:

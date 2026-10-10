@@ -437,3 +437,42 @@ def test_create_payment_order_reports_when_unconfigured(app, client, monkeypatch
 
     assert resp.status_code == 503
     assert "not configured" in resp.get_json()["error"]
+
+
+# ── Optional features are advertised honestly ─────────────────
+
+def test_features_available_reflects_configuration_without_values(app, client, monkeypatch):
+    for key in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "SHIPROCKET_EMAIL",
+                "SHIPROCKET_PASSWORD", "SHIPROCKET_PICKUP_PINCODE", "GOOGLE_CLIENT_ID"):
+        monkeypatch.delenv(key, raising=False)
+
+    off = client.get("/api/cms/features-available")
+    assert off.status_code == 200
+    assert off.get_json() == {
+        "online_payments": False, "delivery_check": False,
+        "google_login": False, "phone_login": False,
+    }
+
+    monkeypatch.setenv("RAZORPAY_KEY_ID", "rzp_test_PUBLIC")
+    monkeypatch.setenv("RAZORPAY_KEY_SECRET", "RZP-SECRET")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "google-client-id")
+    on = client.get("/api/cms/features-available")
+    assert on.get_json()["online_payments"] is True
+    assert on.get_json()["google_login"] is True
+    assert "RZP-SECRET" not in on.get_data(as_text=True)
+    assert "rzp_test_PUBLIC" not in on.get_data(as_text=True)
+
+
+def test_phone_sign_in_is_refused_in_production_without_an_sms_provider(app, client, monkeypatch):
+    monkeypatch.setitem(app.config, "TESTING", False)
+    monkeypatch.setitem(app.config, "DEBUG", False)
+    monkeypatch.setitem(app.config, "SMS_PROVIDER", "")
+    try:
+        sent = client.post("/api/auth/otp/send", json={"phone": "+919000000009"})
+        verified = client.post("/api/auth/otp/verify",
+                               json={"phone": "+919000000009", "code": "123456"})
+    finally:
+        app.config["TESTING"] = True
+
+    assert sent.status_code == verified.status_code == 503
+    assert OTP.query.count() == 0
