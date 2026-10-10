@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 
 
 class ProductImageOut(Schema):
@@ -66,7 +66,10 @@ class ReviewOut(Schema):
 
 class ReviewIn(Schema):
     product_id = fields.Int(required=True)
-    order_item_id = fields.Int(allow_none=True)
-    rating = fields.Int(required=True)
-    title = fields.Str()
-    body = fields.Str()
+    # Bounded here so an out-of-range rating is a clean 422 rather than a 500
+    # from the ck_review_rating check constraint.
+    rating = fields.Int(required=True, validate=validate.Range(min=1, max=5))
+    title = fields.Str(validate=validate.Length(max=200))
+    body = fields.Str(validate=validate.Length(max=5000))
+    # order_item_id is deliberately absent: "verified purchase" is resolved
+    # server-side from the reviewer's delivered orders (see routes/reviews.py).

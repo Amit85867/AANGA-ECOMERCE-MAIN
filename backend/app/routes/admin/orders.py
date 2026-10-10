@@ -1,15 +1,22 @@
 """Admin order management: list, detail, update status, add tracking, manage returns."""
-from flask import request, jsonify
+from flask import request, jsonify, current_app
 from marshmallow import ValidationError
 
 from app.extensions import db
 from app.models.order import Order, OrderItem, OrderTracking, Return
 from app.models.catalogue import ProductImage
 from app.models.user import User
-from app.models.enums import OrderStatus, TrackingStatusType, ReturnStatus, ResolutionType
+from app.models.enums import (
+    OrderStatus,
+    PaymentStatus,
+    TrackingStatusType,
+    ReturnStatus,
+    ResolutionType,
+)
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.schemas.admin import AdminOrderStatusIn, AdminTrackingIn, AdminReturnUpdateIn
+from app.services.order_service import refund_order_if_prepaid
 
 _status_in = AdminOrderStatusIn()
 _tracking_in = AdminTrackingIn()
@@ -157,15 +164,32 @@ def update_order_status(order_id):
         return jsonify(error="Order not found"), 404
 
     new_status = OrderStatus(data["status"])
+    previous_status = order.status
+
+    if new_status == previous_status:
+        return jsonify(message="Status unchanged", status=new_status.value), 200
+
+    # Cancelling a cancelled order must not run the side effects twice. The
+    # status guard above already covers the common repeat-PATCH case; this is
+    # the explicit invariant for anything that reaches here.
+    if previous_status == OrderStatus.cancelled:
+        return jsonify(error="A cancelled order cannot change status"), 409
+
     order.status = new_status
 
+    refunded = None
     if new_status == OrderStatus.cancelled:
-        for oi in order.items:
-            oi.variant.stock_qty += oi.quantity
+        # Stock is restored by the trg_restore_inventory trigger the moment this
+        # UPDATE flips status to 'cancelled' — adding it back here as well would
+        # double the restock and silently inflate inventory.
+        refunded = refund_order_if_prepaid(order)
 
     db.session.commit()
 
-    return jsonify(message="Status updated", status=new_status.value), 200
+    payload = {"message": "Status updated", "status": new_status.value}
+    if refunded is not None:
+        payload["refunded"] = refunded
+    return jsonify(payload), 200
 
 
 @admin_bp.route("/orders/<int:order_id>/tracking", methods=["POST"])

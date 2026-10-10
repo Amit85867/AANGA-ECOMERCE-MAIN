@@ -358,6 +358,8 @@ export default function ProductDetail() {
               Buy Now
             </Button>
 
+            <DeliveryCheck />
+
             {/* Details */}
             <div className="mt-10">
               {product.description && (
@@ -396,6 +398,90 @@ export default function ProductDetail() {
             ))}
           </div>
         </section>
+      )}
+    </div>
+  )
+}
+
+/**
+ * PIN-code delivery check.
+ *
+ * Hidden entirely when the API reports itself unconfigured, so a store without
+ * Shiprocket credentials simply does not show the widget rather than showing
+ * one that never works.
+ */
+function DeliveryCheck() {
+  const [pincode, setPincode] = useState('')
+  const [result, setResult] = useState(null)
+  const [checking, setChecking] = useState(false)
+  const [error, setError] = useState('')
+  const [hidden, setHidden] = useState(false)
+
+  const check = async (e) => {
+    e.preventDefault()
+    if (!/^[1-9]\d{5}$/.test(pincode)) {
+      setError('Enter a valid 6-digit PIN code')
+      setResult(null)
+      return
+    }
+    setChecking(true)
+    setError('')
+    try {
+      const { data } = await apiClient.get('/shipping/serviceability', { params: { pincode } })
+      if (!data.configured) { setHidden(true); return }
+      setResult(data)
+    } catch {
+      setError('Could not check delivery right now. Please try again.')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  if (hidden) return null
+
+  return (
+    <div className="mt-6 rounded-card border border-hairline p-4">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <IconTruck size={18} stroke={1.5} className="text-fg shrink-0" />
+        Check delivery
+      </div>
+
+      <form onSubmit={check} className="mt-3 flex gap-2">
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={6}
+          value={pincode}
+          onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
+          placeholder="Enter PIN code"
+          aria-label="PIN code"
+          className="flex-1 rounded-card border border-hairline px-3 py-2 text-sm outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          disabled={checking}
+          className="rounded-card border border-hairline px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:border-primary transition-colors disabled:opacity-50"
+        >
+          {checking ? 'Checking…' : 'Check'}
+        </button>
+      </form>
+
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+
+      {result && !error && (
+        result.serviceable ? (
+          <p className="mt-3 text-sm text-muted">
+            Delivers to <span className="text-fg font-medium">{result.pincode}</span>
+            {result.estimated_days != null && (
+              <> in about <span className="text-fg font-medium">{result.estimated_days} day{result.estimated_days === 1 ? '' : 's'}</span></>
+            )}
+            {result.cod_available && <> · Cash on delivery available</>}
+          </p>
+        ) : (
+          <p className="mt-3 text-sm text-muted">
+            Sorry, we don&apos;t deliver to {result.pincode} yet.
+          </p>
+        )
       )}
     </div>
   )

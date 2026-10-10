@@ -70,3 +70,15 @@ class OrderDetailOut(Schema):
     items = fields.List(fields.Nested(OrderItemOut))
     tracking = fields.List(fields.Nested(TrackingEventOut))
     address = fields.Dict()
+
+
+class ReturnRequestIn(Schema):
+    order_item_id = fields.Int(required=True)
+    reason = fields.Str(
+        required=True,
+        validate=validate.OneOf([
+            "size_issue", "wrong_item", "damaged",
+            "quality_issue", "not_as_described", "changed_mind", "other",
+        ]),
+    )
+    description = fields.Str(allow_none=True, validate=validate.Length(max=2000))

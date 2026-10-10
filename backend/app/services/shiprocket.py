@@ -155,6 +155,66 @@ def assign_awb(shipment_id, courier_id=None):
     return {"awb_code": awb, "courier_name": data.get("courier_name")}
 
 
+def check_serviceability(delivery_pincode, cod=False, weight=0.5, declared_value=None):
+    """Can we deliver to this pincode, and how soon?
+
+    Returns {"serviceable", "couriers": [...], "estimated_days", "cheapest_rate"}.
+    ``couriers`` is ordered cheapest-first. Raises ShiprocketError if the pickup
+    pincode is not configured or the API rejects the request.
+    """
+    pickup = os.environ.get("SHIPROCKET_PICKUP_PINCODE")
+    if not pickup:
+        raise ShiprocketError(
+            "Delivery checks are not configured. Add SHIPROCKET_PICKUP_PINCODE."
+        )
+
+    params = {
+        "pickup_postcode": pickup,
+        "delivery_postcode": delivery_pincode,
+        "cod": 1 if cod else 0,
+        "weight": weight,
+    }
+    if declared_value is not None:
+        params["declared_value"] = declared_value
+
+    resp = _request("GET", "/courier/serviceability/", params=params)
+    if resp.status_code != 200:
+        # A pincode we do not serve legitimately comes back non-200; treat that
+        # as "not serviceable" rather than an outage.
+        return {"serviceable": False, "couriers": [], "estimated_days": None,
+                "cheapest_rate": None}
+
+    available = (resp.json().get("data") or {}).get("available_courier_companies") or []
+    if not available:
+        return {"serviceable": False, "couriers": [], "estimated_days": None,
+                "cheapest_rate": None}
+
+    couriers = sorted(
+        (
+            {
+                "name": c.get("courier_name"),
+                "rate": c.get("rate"),
+                "estimated_days": c.get("estimated_delivery_days"),
+                "cod_available": bool(c.get("cod")),
+            }
+            for c in available
+        ),
+        key=lambda c: (c["rate"] is None, c["rate"] or 0),
+    )
+
+    days = [
+        int(c["estimated_days"]) for c in couriers
+        if str(c["estimated_days"] or "").strip().isdigit()
+    ]
+
+    return {
+        "serviceable": True,
+        "couriers": couriers[:5],
+        "estimated_days": min(days) if days else None,
+        "cheapest_rate": couriers[0]["rate"],
+    }
+
+
 def track_by_awb(awb):
     """Fetch tracking activities for an AWB. Returns a list of events (may be empty)."""
     resp = _request("GET", f"/courier/track/awb/{awb}")

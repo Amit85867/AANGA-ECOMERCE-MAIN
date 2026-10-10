@@ -2,14 +2,14 @@
 from datetime import datetime, timezone, timedelta
 
 from flask import jsonify
-from sqlalchemy import func, case, text
+from sqlalchemy import func, case
 
 from app.extensions import db
 from app.models.user import User
 from app.models.catalogue import Product, ProductVariant
-from app.models.order import Order
+from app.models.order import Order, Return
 from app.models.marketing import WholesaleInquiry, ContactMessage
-from app.models.enums import OrderStatus, InquiryStatus, MessageStatus
+from app.models.enums import OrderStatus, InquiryStatus, MessageStatus, ReturnStatus
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 
@@ -41,15 +41,21 @@ def dashboard_stats():
         )), 0),
     ).first()
 
-    misc = db.session.query(
-        func.count(case((WholesaleInquiry.status == InquiryStatus.new, 1))),
-        func.count(case((ContactMessage.status == MessageStatus.unread, 1))),
-    ).select_from(WholesaleInquiry).outerjoin(
-        ContactMessage, text("1=1")
-    ).first() if False else None
+    # Variants at zero stock on an active product — the number an admin acts on.
+    out_of_stock = (
+        db.session.query(func.count(ProductVariant.id))
+        .join(Product, ProductVariant.product_id == Product.id)
+        .filter(Product.is_active.is_(True), ProductVariant.stock_qty <= 0)
+        .scalar()
+    ) or 0
 
     pending_inquiries = WholesaleInquiry.query.filter_by(status=InquiryStatus.new).count()
     unread_messages = ContactMessage.query.filter_by(status=MessageStatus.unread).count()
+
+    # Returns still awaiting an admin decision (anything not settled).
+    pending_returns = Return.query.filter(
+        Return.status.notin_([ReturnStatus.resolved, ReturnStatus.rejected])
+    ).count()
 
     recent_orders = (
         Order.query
@@ -60,7 +66,7 @@ def dashboard_stats():
 
     return jsonify(
         users={"total": user_stats[0], "new_30d": user_stats[1]},
-        products={"total": product_total, "out_of_stock": 0},
+        products={"total": product_total, "out_of_stock": out_of_stock},
         orders={
             "total": order_stats[0],
             "last_30d": order_stats[1],
@@ -72,6 +78,7 @@ def dashboard_stats():
         },
         pending_inquiries=pending_inquiries,
         unread_messages=unread_messages,
+        pending_returns=pending_returns,
         recent_orders=[
             {
                 "id": o.id,

@@ -10,6 +10,7 @@ from app.models.cart import Cart, CartItem
 from app.models.catalogue import Product, ProductVariant, ProductImage
 from app.models.engagement import Coupon
 from app.schemas.cart import CartItemIn, CartItemUpdateIn, ApplyCouponIn, CartOut
+from app.services.order_service import compute_totals
 
 cart_bp = Blueprint("cart", __name__, url_prefix="/api/cart")
 
@@ -17,10 +18,6 @@ _item_in = CartItemIn()
 _item_update = CartItemUpdateIn()
 _coupon_in = ApplyCouponIn()
 _cart_out = CartOut()
-
-GST_RATE = 0.05
-FREE_SHIPPING_THRESHOLD = 999
-DELIVERY_CHARGE = 49
 
 
 def _get_or_create_cart(user_id):
@@ -65,32 +62,21 @@ def _serialize_cart(cart):
             "line_total": line_total,
         })
 
-    discount = 0
-    coupon_code = None
-    if cart.coupon:
-        coupon_code = cart.coupon.code
-        if cart.coupon.discount_type.value == "percentage":
-            discount = subtotal * float(cart.coupon.discount_value) / 100
-            if cart.coupon.max_discount:
-                discount = min(discount, float(cart.coupon.max_discount))
-        else:
-            discount = float(cart.coupon.discount_value)
-
-    after_discount = subtotal - discount
-    gst = round(after_discount * GST_RATE, 2)
-    delivery = 0 if subtotal >= FREE_SHIPPING_THRESHOLD else DELIVERY_CHARGE
-    total = round(after_discount + gst + delivery, 2)
-    savings = round(mrp_total - subtotal + discount, 2)
+    # Single source of truth, shared with checkout. Computing GST/shipping/
+    # discount separately here once meant the cart could quote one price while
+    # the order charged another.
+    totals = compute_totals(cart)
+    savings = round(mrp_total - subtotal + totals["discount"], 2)
 
     return _cart_out.dump({
         "id": cart.id,
         "items": items,
-        "coupon_code": coupon_code,
-        "subtotal": round(subtotal, 2),
-        "discount": round(discount, 2),
-        "gst": gst,
-        "delivery_charge": delivery,
-        "total": total,
+        "coupon_code": cart.coupon.code if cart.coupon else None,
+        "subtotal": totals["subtotal"],
+        "discount": totals["discount"],
+        "gst": totals["gst"],
+        "delivery_charge": totals["delivery"],
+        "total": totals["total"],
         "savings": savings,
         "item_count": sum(ci.quantity for ci in cart.items),
     })

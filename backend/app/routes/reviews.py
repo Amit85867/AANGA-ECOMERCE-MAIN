@@ -6,7 +6,9 @@ from sqlalchemy import func
 
 from app.extensions import db
 from app.models.engagement import ProductReview
-from app.models.catalogue import Product
+from app.models.catalogue import Product, ProductVariant
+from app.models.order import Order, OrderItem
+from app.models.enums import OrderStatus
 from app.models.user import User
 from app.schemas.product import ReviewIn, ReviewOut
 
@@ -78,16 +80,46 @@ def submit_review():
     if existing:
         return jsonify(error="You have already reviewed this product"), 409
 
+    # "Verified purchase" is resolved from this user's own delivered orders —
+    # never from a client-supplied order_item_id, which any logged-in user
+    # could point at someone else's order (or an unrelated product) to forge
+    # the badge.
+    purchased_item = _find_delivered_order_item(user_id, data["product_id"])
+
     review = ProductReview(
         product_id=data["product_id"],
         user_id=user_id,
-        order_item_id=data.get("order_item_id"),
+        order_item_id=purchased_item.id if purchased_item else None,
         rating=data["rating"],
         title=data.get("title"),
         body=data.get("body"),
-        is_verified=data.get("order_item_id") is not None,
+        is_verified=purchased_item is not None,
     )
     db.session.add(review)
     db.session.commit()
 
-    return jsonify(message="Review submitted", id=review.id), 201
+    return jsonify(
+        message="Review submitted",
+        id=review.id,
+        is_verified=review.is_verified,
+    ), 201
+
+
+def _find_delivered_order_item(user_id, product_id):
+    """The user's most recent delivered order item for this product, or None.
+
+    Delivery — not merely placing an order — is what a "verified purchase"
+    claims, so pending/cancelled orders do not qualify.
+    """
+    return (
+        db.session.query(OrderItem)
+        .join(Order, OrderItem.order_id == Order.id)
+        .join(ProductVariant, OrderItem.variant_id == ProductVariant.id)
+        .filter(
+            Order.user_id == user_id,
+            Order.status == OrderStatus.delivered,
+            ProductVariant.product_id == product_id,
+        )
+        .order_by(OrderItem.id.desc())
+        .first()
+    )

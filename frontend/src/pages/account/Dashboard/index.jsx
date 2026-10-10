@@ -86,16 +86,24 @@ export default function Dashboard() {
   )
 }
 
+// Statuses where a return may still be possible. The API is the authority —
+// this only decides whether to offer the button, and /returns/eligibility
+// decides which items inside the order actually qualify.
+const RETURNABLE_STATUSES = ['delivered', 'return_requested']
+
 function OrdersTab() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [returningOrder, setReturningOrder] = useState(null)
 
-  useEffect(() => {
+  const load = () => {
     apiClient.get('/orders')
       .then(({ data }) => setOrders(data.orders))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
 
   return (
     <>
@@ -123,12 +131,183 @@ function OrdersTab() {
                 <span className={`px-2.5 py-1 text-[10px] tracking-[1px] uppercase font-bold capitalize ${STATUS_STYLES[o.status] || 'text-gray bg-surface'}`}>{o.status.replace(/_/g, ' ')}</span>
                 <span className="font-semibold text-sm">{inr(o.total_amount)}</span>
                 <Link to={`/track-order?order=${o.order_number}`} className="text-[11px] text-gold font-medium hover:underline">Track</Link>
+                {RETURNABLE_STATUSES.includes(o.status) && (
+                  <button
+                    onClick={() => setReturningOrder(o)}
+                    className="text-[11px] text-gold font-medium hover:underline"
+                  >
+                    Return
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {returningOrder && (
+        <ReturnModal
+          order={returningOrder}
+          onClose={() => setReturningOrder(null)}
+          onSubmitted={() => { setReturningOrder(null); load() }}
+        />
+      )}
     </>
+  )
+}
+
+const RETURN_REASONS = [
+  { value: 'size_issue', label: 'Size or fit issue' },
+  { value: 'wrong_item', label: 'Wrong item delivered' },
+  { value: 'damaged', label: 'Arrived damaged' },
+  { value: 'quality_issue', label: 'Quality not as expected' },
+  { value: 'not_as_described', label: 'Not as described' },
+  { value: 'changed_mind', label: 'Changed my mind' },
+  { value: 'other', label: 'Other' },
+]
+
+function ReturnModal({ order, onClose, onSubmitted }) {
+  const [eligibility, setEligibility] = useState(null)
+  const [itemId, setItemId] = useState(null)
+  const [reason, setReason] = useState('size_issue')
+  const [description, setDescription] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    apiClient.get(`/returns/eligibility/${order.id}`)
+      .then(({ data }) => {
+        setEligibility(data)
+        const first = data.items.find((i) => i.returnable)
+        if (first) setItemId(first.order_item_id)
+      })
+      .catch(() => setError('Could not load return options. Please try again.'))
+  }, [order.id])
+
+  const submit = async () => {
+    if (!itemId) return
+    setSubmitting(true)
+    setError('')
+    try {
+      await apiClient.post('/returns', {
+        order_item_id: itemId,
+        reason,
+        description: description || undefined,
+      })
+      onSubmitted()
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Could not submit the return request.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const anyReturnable = eligibility?.items?.some((i) => i.returnable)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md max-h-[85vh] overflow-y-auto bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-serif text-xl font-bold">Request a Return</h2>
+        <p className="text-[11px] text-gray mt-1">
+          Order {order.order_number}
+          {eligibility && ` · within ${eligibility.window_days} days of delivery`}
+        </p>
+
+        {!eligibility && !error && (
+          <div className="py-10 text-center text-gray text-sm">Loading…</div>
+        )}
+
+        {eligibility && !anyReturnable && (
+          <p className="mt-5 text-sm text-gray">
+            No items in this order can be returned right now.
+            {!eligibility.window_open && ' The return window has closed.'}
+          </p>
+        )}
+
+        {eligibility && anyReturnable && (
+          <div className="mt-5 space-y-4">
+            <div>
+              <label className="text-[11px] tracking-[1px] uppercase font-bold text-gray">Item</label>
+              <div className="mt-2 space-y-2">
+                {eligibility.items.map((i) => (
+                  <label
+                    key={i.order_item_id}
+                    className={`flex items-start gap-2 border p-3 text-sm ${
+                      i.returnable ? 'border-line cursor-pointer' : 'border-line/50 opacity-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="return-item"
+                      className="mt-1"
+                      disabled={!i.returnable}
+                      checked={itemId === i.order_item_id}
+                      onChange={() => setItemId(i.order_item_id)}
+                    />
+                    <span>
+                      <span className="block">{i.product_name}</span>
+                      <span className="block text-[11px] text-gray">
+                        {[i.size, i.color_name].filter(Boolean).join(' · ')} · Qty {i.quantity}
+                      </span>
+                      {i.reason_unavailable && (
+                        <span className="block text-[11px] text-gray italic mt-0.5">{i.reason_unavailable}</span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] tracking-[1px] uppercase font-bold text-gray">Reason</label>
+              <select
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="mt-2 w-full border border-line px-3 py-2.5 text-sm outline-none focus:border-gold"
+              >
+                {RETURN_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] tracking-[1px] uppercase font-bold text-gray">
+                Anything else? (optional)
+              </label>
+              <textarea
+                rows={3}
+                value={description}
+                maxLength={2000}
+                onChange={(e) => setDescription(e.target.value)}
+                className="mt-2 w-full border border-line px-3 py-2.5 text-sm outline-none focus:border-gold"
+              />
+            </div>
+          </div>
+        )}
+
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-line py-2.5 text-[11px] tracking-[2px] uppercase font-bold hover:bg-surface transition-colors"
+          >
+            Cancel
+          </button>
+          {anyReturnable && (
+            <button
+              onClick={submit}
+              disabled={submitting || !itemId}
+              className="flex-1 bg-ink text-white py-2.5 text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors disabled:opacity-50"
+            >
+              {submitting ? 'Submitting…' : 'Submit'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -11,7 +11,7 @@ from app.models.cart import Cart, CartItem
 from app.models.catalogue import ProductImage
 from app.models.enums import OrderStatus, TrackingStatusType
 from app.schemas.order import PlaceOrderIn, OrderListOut, OrderDetailOut
-from app.services.order_service import create_order_from_cart
+from app.services.order_service import create_order_from_cart, refund_order_if_prepaid
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/api/orders")
 
@@ -172,6 +172,9 @@ def cancel_order(order_id):
     # flips to 'cancelled' — do not add it back here as well.
     order.status = OrderStatus.cancelled
 
+    # A prepaid order cancelled by the customer must return their money.
+    refunded = refund_order_if_prepaid(order)
+
     tracking = OrderTracking(
         order_id=order.id,
         status_label="Order Cancelled",
@@ -181,4 +184,16 @@ def cancel_order(order_id):
     db.session.add(tracking)
     db.session.commit()
 
-    return jsonify(message="Order cancelled"), 200
+    if refunded is False:
+        return jsonify(
+            message="Order cancelled. Your refund could not be processed "
+                    "automatically — our team has been notified and will "
+                    "complete it shortly.",
+            refunded=False,
+        ), 200
+
+    payload = {"message": "Order cancelled"}
+    if refunded is True:
+        payload["message"] = "Order cancelled and your payment has been refunded."
+        payload["refunded"] = True
+    return jsonify(payload), 200

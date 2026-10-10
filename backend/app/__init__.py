@@ -191,6 +191,7 @@ def _register_blueprints(app):
     from app.routes.cart import cart_bp
     from app.routes.wishlist import wishlist_bp
     from app.routes.orders import orders_bp
+    from app.routes.returns import returns_bp
     from app.routes.addresses import addresses_bp
     from app.routes.reviews import reviews_bp
     from app.routes.profile import profile_bp
@@ -201,13 +202,14 @@ def _register_blueprints(app):
     from app.routes.admin import admin_bp
     from app.routes.cms import cms_bp
     from app.routes.payments import payments_bp
+    from app.routes.shipping import shipping_bp
     from app.routes.seo import seo_bp
 
     for bp in (
         auth_bp, products_bp, categories_bp, cart_bp,
-        wishlist_bp, orders_bp, addresses_bp, reviews_bp,
+        wishlist_bp, orders_bp, returns_bp, addresses_bp, reviews_bp,
         profile_bp, offers_bp, contact_bp, wholesale_bp,
-        newsletter_bp, admin_bp, cms_bp, payments_bp, seo_bp,
+        newsletter_bp, admin_bp, cms_bp, payments_bp, shipping_bp, seo_bp,
     ):
         app.register_blueprint(bp)
 
@@ -259,6 +261,40 @@ def _auto_seed_admin(app):
 
 
 def _register_cli(app):
+    @app.cli.command("reconcile-payments")
+    @click.option("--hours", default=24, help="How far back to scan.")
+    @click.option("--dry-run", is_flag=True, help="Report orphans without refunding.")
+    def reconcile_payments(hours, dry_run):
+        """Refund captured payments that never became an order.
+
+        Safety net for a webhook that was never delivered. Schedule it (cron /
+        platform scheduler) a few times a day:
+
+            flask reconcile-payments --hours 24
+        """
+        from app.routes.payments import reconcile_orphaned_captures
+
+        result = reconcile_orphaned_captures(
+            window_seconds=hours * 3600, dry_run=dry_run
+        )
+        if not result.get("configured"):
+            click.echo("Razorpay is not configured — nothing to reconcile.")
+            return
+        if result.get("error"):
+            click.echo(f"Could not reconcile: {result['error']}")
+            return
+
+        click.echo(f"Checked {result['checked']} payment(s) from the last {hours}h.")
+        if not result["orphans"]:
+            click.echo("No orphaned captures found.")
+            return
+        for o in result["orphans"]:
+            click.echo(f"  orphan {o['id']} amount={o['amount']} age={o['age']}s")
+        if dry_run:
+            click.echo(f"{len(result['orphans'])} orphan(s) found (dry run — nothing refunded).")
+        else:
+            click.echo(f"Refunded {result['refunded']} of {len(result['orphans'])} orphan(s).")
+
     @app.cli.command("seed-admin")
     @click.option("--email", default=None, help="Master admin email")
     @click.option("--password", default=None, help="Master admin password")

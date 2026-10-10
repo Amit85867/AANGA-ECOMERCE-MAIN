@@ -16,14 +16,18 @@ absent the endpoints return 503 and the storefront keeps COD-only.
 """
 import os
 import hmac
+import json
+import time
 import hashlib
 
 import requests
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from app.extensions import db, limiter
 from app.models.cart import Cart
 from app.models.order import Order
+from app.models.enums import PaymentStatus
 from app.services.order_service import compute_totals, create_order_from_cart
 
 payments_bp = Blueprint("payments", __name__, url_prefix="/api/payments")
@@ -42,6 +46,12 @@ METHOD_MAP = {
 
 def _keys():
     return os.environ.get("RAZORPAY_KEY_ID"), os.environ.get("RAZORPAY_KEY_SECRET")
+
+
+# A webhook for payment.captured routinely beats the browser's /verify call to
+# the server, so "captured but no order" is the NORMAL state for a few seconds.
+# Only a payment older than this window is treated as genuinely abandoned.
+ORPHAN_GRACE_SECONDS = int(os.environ.get("RAZORPAY_ORPHAN_GRACE_SECONDS", 900))
 
 
 def fetch_payment(payment_id):
@@ -85,6 +95,160 @@ def refund_payment(payment_id, amount_paise=None):
     except requests.RequestException:
         return False
     return resp.status_code in (200, 201)
+
+
+@payments_bp.route("/webhook", methods=["POST"])
+@limiter.exempt
+def razorpay_webhook():
+    """Razorpay server-to-server events.
+
+    Configure in the Razorpay Dashboard → Settings → Webhooks, subscribing to
+    ``payment.captured``, ``payment.failed`` and ``refund.processed``, with the
+    same secret as RAZORPAY_WEBHOOK_SECRET.
+
+    This closes the hole where a customer's browser dies between capture and
+    /verify: the money is captured, no order exists, and nothing would ever
+    notice. Here an orphaned capture past ORPHAN_GRACE_SECONDS is refunded
+    automatically.
+
+    Unauthenticated by design — the shared-secret signature over the raw body
+    is the authentication, so the body must be read verbatim (not re-serialised)
+    before it is parsed.
+    """
+    secret = os.environ.get("RAZORPAY_WEBHOOK_SECRET")
+    if not secret:
+        return jsonify(error="Webhooks are not configured"), 503
+
+    raw = request.get_data()
+    sent_sig = request.headers.get("X-Razorpay-Signature", "")
+    expected_sig = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_sig, sent_sig):
+        current_app.logger.warning("RAZORPAY_WEBHOOK_BAD_SIGNATURE")
+        return jsonify(error="Invalid signature"), 400
+
+    try:
+        event = json.loads(raw)
+    except ValueError:
+        return jsonify(error="Malformed payload"), 400
+
+    kind = event.get("event")
+    entities = event.get("payload") or {}
+
+    if kind == "payment.captured":
+        payment = (entities.get("payment") or {}).get("entity") or {}
+        _handle_captured(payment)
+    elif kind == "payment.failed":
+        payment = (entities.get("payment") or {}).get("entity") or {}
+        _mark_payment_status(payment.get("id"), PaymentStatus.failed)
+    elif kind == "refund.processed":
+        refund = (entities.get("refund") or {}).get("entity") or {}
+        _mark_payment_status(refund.get("payment_id"), PaymentStatus.refunded)
+
+    # Always 200 for a correctly signed event: a non-2xx makes Razorpay retry,
+    # and retrying will not fix anything we failed to interpret.
+    return jsonify(status="ok"), 200
+
+
+def _handle_captured(payment):
+    """Refund a capture that never became an order, once past the grace window."""
+    payment_id = payment.get("id")
+    if not payment_id:
+        return
+
+    if Order.query.filter_by(payment_ref=payment_id).first():
+        return  # the normal path — /verify already created the order
+
+    created_at = payment.get("created_at")
+    age = time.time() - created_at if created_at else 0
+    if age < ORPHAN_GRACE_SECONDS:
+        # Almost certainly an in-flight checkout; the reconcile sweep will pick
+        # it up later if /verify never lands.
+        current_app.logger.info(
+            "RAZORPAY_CAPTURE_PENDING_ORDER payment=%s age=%.0fs", payment_id, age
+        )
+        return
+
+    refunded = refund_payment(payment_id, payment.get("amount"))
+    current_app.logger.critical(
+        "ORPHANED_CAPTURE_REFUNDED payment=%s amount=%s age=%.0fs refunded=%s",
+        payment_id, payment.get("amount"), age, refunded,
+    )
+
+
+def reconcile_orphaned_captures(window_seconds=86400, dry_run=False):
+    """Find captured payments with no order and refund the abandoned ones.
+
+    The safety net behind the webhook: a webhook that was never delivered (or
+    arrived while the app was down) would otherwise leave a customer charged
+    with nothing to show for it. Run periodically — see the ``reconcile-payments``
+    CLI command.
+
+    Returns a summary dict; never raises on a single bad payment.
+    """
+    key_id, key_secret = _keys()
+    if not key_id or not key_secret:
+        return {"configured": False, "checked": 0, "refunded": 0, "orphans": []}
+
+    now = int(time.time())
+    try:
+        resp = requests.get(
+            f"{RAZORPAY_API}/payments",
+            auth=(key_id, key_secret),
+            params={"from": now - window_seconds, "to": now, "count": 100},
+            timeout=30,
+        )
+    except requests.RequestException:
+        return {"configured": True, "error": "gateway unreachable",
+                "checked": 0, "refunded": 0, "orphans": []}
+
+    if resp.status_code != 200:
+        return {"configured": True, "error": f"gateway returned {resp.status_code}",
+                "checked": 0, "refunded": 0, "orphans": []}
+
+    payments = resp.json().get("items", [])
+    orphans, refunded_count = [], 0
+
+    for payment in payments:
+        if payment.get("status") != "captured":
+            continue
+        payment_id = payment.get("id")
+        if Order.query.filter_by(payment_ref=payment_id).first():
+            continue
+        age = now - (payment.get("created_at") or now)
+        if age < ORPHAN_GRACE_SECONDS:
+            continue
+
+        orphans.append({"id": payment_id, "amount": payment.get("amount"), "age": age})
+        if dry_run:
+            continue
+        if refund_payment(payment_id, payment.get("amount")):
+            refunded_count += 1
+            current_app.logger.critical(
+                "ORPHANED_CAPTURE_REFUNDED_BY_SWEEP payment=%s amount=%s age=%ss",
+                payment_id, payment.get("amount"), age,
+            )
+        else:
+            current_app.logger.critical(
+                "ORPHANED_CAPTURE_REFUND_FAILED payment=%s amount=%s age=%ss",
+                payment_id, payment.get("amount"), age,
+            )
+
+    return {
+        "configured": True,
+        "checked": len(payments),
+        "orphans": orphans,
+        "refunded": refunded_count,
+    }
+
+
+def _mark_payment_status(payment_id, status):
+    if not payment_id:
+        return
+    order = Order.query.filter_by(payment_ref=payment_id).first()
+    if not order:
+        return
+    order.payment_status = status
+    db.session.commit()
 
 
 @payments_bp.route("/create-order", methods=["POST"])

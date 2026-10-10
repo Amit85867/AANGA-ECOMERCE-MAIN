@@ -29,6 +29,11 @@ DELIVERY_CHARGE = 49
 
 def compute_totals(cart):
     """Compute subtotal, discount, gst, delivery, and total for a cart."""
+    if not cart.items:
+        # Nothing to ship: an empty cart must not quote the delivery charge it
+        # would otherwise pick up from being under the free-shipping threshold.
+        return {"subtotal": 0, "discount": 0, "gst": 0, "delivery": 0, "total": 0}
+
     subtotal = sum(float(ci.unit_price) * ci.quantity for ci in cart.items)
     discount = 0
     if cart.coupon:
@@ -50,6 +55,36 @@ def compute_totals(cart):
         "delivery": delivery,
         "total": total,
     }
+
+
+def refund_order_if_prepaid(order):
+    """Refund a captured payment when an order is cancelled.
+
+    Returns None when there was nothing to refund (COD, or never captured),
+    otherwise True/False for the refund outcome. Does not commit — the caller
+    owns the transaction that also flips the order status.
+
+    Cancelling a prepaid order used to leave the customer's money with us: the
+    only refund path was the paid-but-no-order branch of /api/payments/verify.
+    """
+    from flask import current_app
+
+    if order.payment_status != PaymentStatus.paid or not order.payment_ref:
+        return None
+
+    # Imported lazily: app.routes.payments imports this module.
+    from app.routes.payments import refund_payment
+
+    amount_paise = int(round(float(order.total_amount) * 100))
+    ok = refund_payment(order.payment_ref, amount_paise)
+    if ok:
+        order.payment_status = PaymentStatus.refunded
+    else:
+        current_app.logger.critical(
+            "REFUND_FAILED_ON_CANCEL order=%s payment_ref=%s amount_paise=%s",
+            order.order_number, order.payment_ref, amount_paise,
+        )
+    return ok
 
 
 def create_order_from_cart(user_id, address_id, payment_method_value,

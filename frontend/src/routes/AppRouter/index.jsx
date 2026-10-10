@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
@@ -27,27 +28,39 @@ import ForgotPassword from '@/pages/auth/ForgotPassword'
 import ResetPassword from '@/pages/auth/ResetPassword'
 import Dashboard from '@/pages/account/Dashboard'
 
-import AdminLogin from '@/pages/admin/AdminLogin'
-import AdminDashboard from '@/pages/admin/AdminDashboard'
-import AdminProducts from '@/pages/admin/AdminProducts'
-import AdminProductForm from '@/pages/admin/AdminProductForm'
-import AdminCategories from '@/pages/admin/AdminCategories'
-import AdminOrders from '@/pages/admin/AdminOrders'
-import AdminOrderDetail from '@/pages/admin/AdminOrderDetail'
-import AdminUsers from '@/pages/admin/AdminUsers'
-import AdminUserDetail from '@/pages/admin/AdminUserDetail'
-import AdminCoupons from '@/pages/admin/AdminCoupons'
-import AdminOffers from '@/pages/admin/AdminOffers'
-import AdminInquiries from '@/pages/admin/AdminInquiries'
-import AdminMessages from '@/pages/admin/AdminMessages'
-import AdminNewsletter from '@/pages/admin/AdminNewsletter'
-import AdminSettings from '@/pages/admin/AdminSettings'
-import AdminBanners from '@/pages/admin/AdminBanners'
-import AdminAnnouncements from '@/pages/admin/AdminAnnouncements'
-import AdminPromoBanners from '@/pages/admin/AdminPromoBanners'
-import AdminSiteSettings from '@/pages/admin/AdminSiteSettings'
-import AdminTestimonials from '@/pages/admin/AdminTestimonials'
-import AdminFeatures from '@/pages/admin/AdminFeatures'
+// Admin pages are lazy-loaded so ordinary shoppers never download the entire
+// admin panel with the storefront bundle — it loads on demand under /admin.
+const AdminLogin = lazy(() => import('@/pages/admin/AdminLogin'))
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'))
+const AdminProducts = lazy(() => import('@/pages/admin/AdminProducts'))
+const AdminProductForm = lazy(() => import('@/pages/admin/AdminProductForm'))
+const AdminCategories = lazy(() => import('@/pages/admin/AdminCategories'))
+const AdminOrders = lazy(() => import('@/pages/admin/AdminOrders'))
+const AdminOrderDetail = lazy(() => import('@/pages/admin/AdminOrderDetail'))
+const AdminReturns = lazy(() => import('@/pages/admin/AdminReturns'))
+const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
+const AdminUserDetail = lazy(() => import('@/pages/admin/AdminUserDetail'))
+const AdminCoupons = lazy(() => import('@/pages/admin/AdminCoupons'))
+const AdminOffers = lazy(() => import('@/pages/admin/AdminOffers'))
+const AdminInquiries = lazy(() => import('@/pages/admin/AdminInquiries'))
+const AdminMessages = lazy(() => import('@/pages/admin/AdminMessages'))
+const AdminNewsletter = lazy(() => import('@/pages/admin/AdminNewsletter'))
+const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
+const AdminBanners = lazy(() => import('@/pages/admin/AdminBanners'))
+const AdminAnnouncements = lazy(() => import('@/pages/admin/AdminAnnouncements'))
+const AdminPromoBanners = lazy(() => import('@/pages/admin/AdminPromoBanners'))
+const AdminSiteSettings = lazy(() => import('@/pages/admin/AdminSiteSettings'))
+const AdminTestimonials = lazy(() => import('@/pages/admin/AdminTestimonials'))
+const AdminFeatures = lazy(() => import('@/pages/admin/AdminFeatures'))
+
+// Suspense wrapper for the lazily-loaded admin routes.
+const admin = (Component) => (
+  <Suspense
+    fallback={<div className="p-10 text-center text-sm text-gray-400">Loading…</div>}
+  >
+    <Component />
+  </Suspense>
+)
 
 const router = createBrowserRouter([
   {
@@ -85,31 +98,32 @@ const router = createBrowserRouter([
   },
   // Internal design-system reference (not linked from the storefront).
   { path: '/style-guide', element: <StyleGuide /> },
-  { path: '/admin/login', element: <AdminLogin /> },
+  { path: '/admin/login', element: admin(AdminLogin) },
   {
     element: <AdminLayout />,
     children: [
-      { index: true, path: '/admin', element: <AdminDashboard /> },
-      { path: '/admin/products', element: <AdminProducts /> },
-      { path: '/admin/products/new', element: <AdminProductForm /> },
-      { path: '/admin/products/:id', element: <AdminProductForm /> },
-      { path: '/admin/categories', element: <AdminCategories /> },
-      { path: '/admin/orders', element: <AdminOrders /> },
-      { path: '/admin/orders/:id', element: <AdminOrderDetail /> },
-      { path: '/admin/users', element: <AdminUsers /> },
-      { path: '/admin/users/:id', element: <AdminUserDetail /> },
-      { path: '/admin/coupons', element: <AdminCoupons /> },
-      { path: '/admin/offers', element: <AdminOffers /> },
-      { path: '/admin/inquiries', element: <AdminInquiries /> },
-      { path: '/admin/messages', element: <AdminMessages /> },
-      { path: '/admin/newsletter', element: <AdminNewsletter /> },
-      { path: '/admin/banners', element: <AdminBanners /> },
-      { path: '/admin/announcements', element: <AdminAnnouncements /> },
-      { path: '/admin/promo-banners', element: <AdminPromoBanners /> },
-      { path: '/admin/testimonials', element: <AdminTestimonials /> },
-      { path: '/admin/features', element: <AdminFeatures /> },
-      { path: '/admin/site-settings', element: <AdminSiteSettings /> },
-      { path: '/admin/settings', element: <AdminSettings /> },
+      { index: true, path: '/admin', element: admin(AdminDashboard) },
+      { path: '/admin/products', element: admin(AdminProducts) },
+      { path: '/admin/products/new', element: admin(AdminProductForm) },
+      { path: '/admin/products/:id', element: admin(AdminProductForm) },
+      { path: '/admin/categories', element: admin(AdminCategories) },
+      { path: '/admin/orders', element: admin(AdminOrders) },
+      { path: '/admin/orders/:id', element: admin(AdminOrderDetail) },
+      { path: '/admin/returns', element: admin(AdminReturns) },
+      { path: '/admin/users', element: admin(AdminUsers) },
+      { path: '/admin/users/:id', element: admin(AdminUserDetail) },
+      { path: '/admin/coupons', element: admin(AdminCoupons) },
+      { path: '/admin/offers', element: admin(AdminOffers) },
+      { path: '/admin/inquiries', element: admin(AdminInquiries) },
+      { path: '/admin/messages', element: admin(AdminMessages) },
+      { path: '/admin/newsletter', element: admin(AdminNewsletter) },
+      { path: '/admin/banners', element: admin(AdminBanners) },
+      { path: '/admin/announcements', element: admin(AdminAnnouncements) },
+      { path: '/admin/promo-banners', element: admin(AdminPromoBanners) },
+      { path: '/admin/testimonials', element: admin(AdminTestimonials) },
+      { path: '/admin/features', element: admin(AdminFeatures) },
+      { path: '/admin/site-settings', element: admin(AdminSiteSettings) },
+      { path: '/admin/settings', element: admin(AdminSettings) },
     ],
   },
   { path: '*', element: <NotFound /> },
