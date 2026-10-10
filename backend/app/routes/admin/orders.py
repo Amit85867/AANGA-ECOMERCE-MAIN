@@ -1,4 +1,6 @@
 """Admin order management: list, detail, update status, add tracking, manage returns."""
+from datetime import datetime, timezone
+
 from flask import request, jsonify, current_app
 from marshmallow import ValidationError
 
@@ -16,6 +18,7 @@ from app.models.enums import (
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.schemas.admin import AdminOrderStatusIn, AdminTrackingIn, AdminReturnUpdateIn
+from app.services import audit
 from app.services.order_service import refund_order_if_prepaid
 
 _status_in = AdminOrderStatusIn()
@@ -176,6 +179,11 @@ def update_order_status(order_id):
         return jsonify(error="A cancelled order cannot change status"), 409
 
     order.status = new_status
+    audit.annotate(
+        by_admin=True,
+        summary=f"Order {order.order_number}: {previous_status.value} → {new_status.value}",
+        changes={"from": previous_status.value, "to": new_status.value},
+    )
 
     refunded = None
     if new_status == OrderStatus.cancelled:
@@ -270,9 +278,21 @@ def list_returns():
     ), 200
 
 
+# A return that has been resolved or rejected is closed: money may already
+# have moved, so it cannot be reopened or resolved a second time.
+_CLOSED_RETURN_STATUSES = {ReturnStatus.resolved, ReturnStatus.rejected}
+
+
 @admin_bp.route("/returns/<int:return_id>", methods=["PATCH"])
 @admin_required
 def update_return(return_id):
+    """Move a return along, and settle it.
+
+    Resolving as a refund is where money moves: a prepaid order is refunded
+    through Razorpay for the approved amount, and only if that succeeds is the
+    return marked resolved. A COD order has nothing to reverse online, so the
+    response says the refund must be paid out manually.
+    """
     try:
         data = _return_in.load(request.get_json())
     except ValidationError as err:
@@ -282,26 +302,121 @@ def update_return(return_id):
     if not ret:
         return jsonify(error="Return not found"), 404
 
-    # A refund can be for less than the item cost (partial), never more.
+    if ret.status in _CLOSED_RETURN_STATUSES:
+        return jsonify(error=f"This return is already {ret.status.value} and cannot be changed."), 409
+
     item = ret.order_item
+    order = item.order
+    paid_for_item = float(item.total_price or float(item.unit_price) * item.quantity)
+
+    # A refund can be for less than the item cost (partial), never more.
     refund_amount = data.get("refund_amount")
-    if refund_amount is not None and item is not None:
-        paid = float(item.total_price or float(item.unit_price) * item.quantity)
-        if refund_amount > paid:
-            return jsonify(errors={"refund_amount": [
-                f"Cannot exceed the {paid:.2f} paid for this item."
+    if refund_amount is not None and refund_amount > paid_for_item:
+        return jsonify(errors={"refund_amount": [
+            f"Cannot exceed the {paid_for_item:.2f} paid for this item."
+        ]}), 422
+
+    new_status = ReturnStatus(data["status"])
+    previous_status = ret.status
+    resolution = (
+        ResolutionType(data["resolution_type"]) if data.get("resolution_type")
+        else ret.resolution_type
+    )
+
+    refund_method = None
+    if new_status == ReturnStatus.resolved:
+        if resolution is None:
+            return jsonify(errors={"resolution_type": [
+                "Choose how this return is being resolved."
             ]}), 422
 
-    ret.status = ReturnStatus(data["status"])
-    if data.get("resolution_type"):
-        ret.resolution_type = ResolutionType(data["resolution_type"])
-    if data.get("refund_amount") is not None:
-        ret.refund_amount = data["refund_amount"]
+        if resolution == ResolutionType.refund:
+            if refund_amount is None:
+                refund_amount = float(ret.refund_amount) if ret.refund_amount else paid_for_item
 
-    from datetime import datetime, timezone
-    if ret.status == ReturnStatus.resolved:
+            if order.payment_status == PaymentStatus.paid and order.payment_ref:
+                from app.routes.payments import refund_payment
+                ok = refund_payment(
+                    order.payment_ref, int(round(refund_amount * 100)),
+                    reason=f"return_{ret.id}",
+                )
+                if not ok:
+                    current_app.logger.critical(
+                        "REFUND_FAILED_ON_RETURN return=%s order=%s amount=%s",
+                        ret.id, order.order_number, refund_amount,
+                    )
+                    return jsonify(
+                        error="The payment gateway did not accept the refund. "
+                              "The return has not been resolved — try again, or "
+                              "refund it in the Razorpay Dashboard."
+                    ), 502
+                refund_method = "gateway"
+            else:
+                # COD (or never captured): nothing to reverse online.
+                refund_method = "manual"
+
+        if data.get("restock"):
+            item.variant.stock_qty += item.quantity
+
         ret.resolved_at = datetime.now(timezone.utc)
+
+    ret.status = new_status
+    ret.resolution_type = resolution
+    if refund_amount is not None:
+        ret.refund_amount = refund_amount
+
+    if new_status == ReturnStatus.rejected:
+        ret.resolved_at = datetime.now(timezone.utc)
+
+    db.session.flush()
+    _sync_order_after_return(order)
+
+    restocked = bool(new_status == ReturnStatus.resolved and data.get("restock"))
+    audit.annotate(
+        entity="refunds" if refund_method else "returns",
+        summary=(
+            f"Return #{ret.id} on order {order.order_number}: "
+            f"{previous_status.value} → {new_status.value}"
+            + (f", refunded ₹{refund_amount:.2f} ({refund_method})" if refund_method else "")
+            + (", item restocked" if restocked else "")
+        ),
+        changes={
+            "order_number": order.order_number,
+            "from": previous_status.value, "to": new_status.value,
+            "resolution_type": resolution.value if resolution else None,
+            "refund_amount": refund_amount, "refund_method": refund_method,
+            "restocked": restocked,
+        },
+    )
 
     db.session.commit()
 
-    return jsonify(message="Return updated"), 200
+    return jsonify(
+        message="Return updated",
+        status=ret.status.value,
+        refund_method=refund_method,
+        refund_amount=float(ret.refund_amount) if ret.refund_amount else None,
+    ), 200
+
+
+def _sync_order_after_return(order):
+    """Reflect the state of an order's returns on the order itself.
+
+    Every item returned and refunded -> the order is "returned". Otherwise, once
+    no return is still in progress, it goes back to "delivered".
+    """
+    returns = Return.query.join(OrderItem, Return.order_item_id == OrderItem.id).filter(
+        OrderItem.order_id == order.id
+    ).all()
+    open_returns = [r for r in returns if r.status not in _CLOSED_RETURN_STATUSES]
+    resolved_items = {
+        r.order_item_id for r in returns
+        if r.status == ReturnStatus.resolved and r.resolution_type == ResolutionType.refund
+    }
+
+    if open_returns:
+        return
+    if resolved_items and resolved_items == {i.id for i in order.items}:
+        order.status = OrderStatus.returned
+    elif order.status == OrderStatus.return_requested:
+        order.status = OrderStatus.delivered

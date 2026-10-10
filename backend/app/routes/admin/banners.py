@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.cms import HeroBanner
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminHeroBannerIn
 
 _banner_in = AdminHeroBannerIn()
@@ -39,8 +40,17 @@ def _serialize_banner(b):
 @admin_bp.route("/banners", methods=["GET"])
 @admin_required
 def admin_list_banners():
-    banners = HeroBanner.query.order_by(HeroBanner.sort_order, HeroBanner.created_at.desc()).all()
-    return jsonify(banners=[_serialize_banner(b) for b in banners]), 200
+    q = HeroBanner.query
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(HeroBanner.title.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(HeroBanner.sort_order, HeroBanner.created_at.desc()), default=50)
+    return jsonify(
+        banners=[_serialize_banner(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/banners", methods=["POST"])

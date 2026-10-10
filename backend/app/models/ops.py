@@ -1,5 +1,5 @@
 """Operational bookkeeping: webhook de-duplication and scheduled-job history."""
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 
 from app.extensions import db
@@ -34,3 +34,25 @@ class JobRun(db.Model):
     finished_at = db.Column(db.DateTime(timezone=True))
     ok = db.Column(db.Boolean, nullable=False, default=True)
     summary = db.Column(JSONB, nullable=False, default=dict)
+
+
+class AuditLog(db.Model):
+    """Who changed what. See app/services/audit.py for how rows are written."""
+    __tablename__ = "audit_log"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    # "admin", "customer" or "system" (scheduled jobs, webhooks).
+    actor_type = db.Column(db.Text, nullable=False, default="admin")
+    admin_id = db.Column(UUID(as_uuid=True))
+    # Copied onto the row so the trail outlives the account it names.
+    actor_label = db.Column(db.Text)
+    action = db.Column(db.Text, nullable=False)
+    entity_type = db.Column(db.Text, nullable=False)
+    entity_id = db.Column(db.Text)
+    summary = db.Column(db.Text)
+    changes = db.Column(JSONB, nullable=False, default=dict)
+    ip = db.Column(db.Text)
+    request_id = db.Column(db.Text)
+    created_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

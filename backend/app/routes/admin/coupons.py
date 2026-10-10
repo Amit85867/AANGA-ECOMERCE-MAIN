@@ -7,6 +7,7 @@ from app.models.engagement import Coupon
 from app.models.enums import DiscountType
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminCouponIn
 
 _coupon_in = AdminCouponIn()
@@ -32,8 +33,17 @@ def _serialize_coupon(c):
 @admin_bp.route("/coupons", methods=["GET"])
 @admin_required
 def list_coupons():
-    coupons = Coupon.query.order_by(Coupon.created_at.desc()).all()
-    return jsonify(coupons=[_serialize_coupon(c) for c in coupons]), 200
+    q = Coupon.query
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(Coupon.code.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(Coupon.created_at.desc()), default=50)
+    return jsonify(
+        coupons=[_serialize_coupon(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/coupons", methods=["POST"])

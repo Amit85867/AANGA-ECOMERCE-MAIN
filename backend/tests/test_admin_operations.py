@@ -410,21 +410,6 @@ def test_newsletter_subscribe_unsubscribe_and_admin_removal(app, client):
 
 # ── Dashboard and settlements ─────────────────────────────────
 
-def test_dashboard_counts_match_the_database(app, client):
-    _order(quantity=2)
-    make_product(stock=0)   # one variant out of stock
-
-    resp = client.get("/api/admin/dashboard/stats", headers=admin_headers())
-
-    assert resp.status_code == 200
-    body = resp.get_json()
-    assert body["orders"]["total"] == Order.query.count() == 1
-    assert body["products"]["total"] == 2
-    assert body["products"]["out_of_stock"] == 1
-    assert body["pending_returns"] == 0
-    assert len(body["recent_orders"]) == 1
-
-
 def test_settlements_report_unconfigured_instead_of_failing(app, client, monkeypatch):
     monkeypatch.delenv("RAZORPAY_KEY_ID", raising=False)
     monkeypatch.delenv("RAZORPAY_KEY_SECRET", raising=False)

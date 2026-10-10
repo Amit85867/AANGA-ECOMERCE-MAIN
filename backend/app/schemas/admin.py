@@ -118,6 +118,9 @@ class AdminReturnUpdateIn(Schema):
         validate=validate.OneOf(["refund", "exchange", "store_credit"]),
     )
     refund_amount = fields.Float(allow_none=True, validate=_NOT_NEGATIVE)
+    # Put the returned item back on sale. Off by default: a damaged or worn
+    # item should not silently reappear as sellable stock.
+    restock = fields.Bool(load_default=False)
 
 
 # ── Coupons ───────────────────────────────────────────────────

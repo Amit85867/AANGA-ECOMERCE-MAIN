@@ -16,7 +16,7 @@ from app.models.marketing import (
 )
 from app.models.admin import Admin
 from app.models.cms import HeroBanner, Announcement, PromoBanner, SiteSetting, Testimonial, Feature
-from app.models.ops import WebhookEvent, JobRun
+from app.models.ops import WebhookEvent, JobRun, AuditLog
 
 __all__ = [
     "User",
@@ -50,4 +50,5 @@ __all__ = [
     "Feature",
     "WebhookEvent",
     "JobRun",
+    "AuditLog",
 ]

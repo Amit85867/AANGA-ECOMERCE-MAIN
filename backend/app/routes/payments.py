@@ -76,22 +76,29 @@ def fetch_payment(payment_id):
     return resp.json()
 
 
-def refund_payment(payment_id, amount_paise=None):
+def refund_payment(payment_id, amount_paise=None, reason=None):
     """Refund a captured payment. Returns True on success, False otherwise.
 
     Idempotent: Razorpay dedupes refunds sharing an ``Idempotency-Key`` header,
     so a retried paid-but-no-stock path never double-refunds.
+
+    ``reason`` distinguishes separate refunds against one payment — two items
+    returned from the same order are two refunds. Without it they would share a
+    key and Razorpay would silently answer the second with the first.
     """
     key_id, key_secret = _keys()
+    if not key_id or not key_secret:
+        return False
     body = {}
     if amount_paise is not None:
         body["amount"] = int(amount_paise)
+    key = f"refund_{payment_id}" + (f"_{reason}" if reason else "")
     try:
         resp = requests.post(
             f"{RAZORPAY_API}/payments/{payment_id}/refund",
             auth=(key_id, key_secret),
             json=body,
-            headers={"Idempotency-Key": f"refund_{payment_id}"},
+            headers={"Idempotency-Key": key},
             timeout=15,
         )
     except requests.RequestException:

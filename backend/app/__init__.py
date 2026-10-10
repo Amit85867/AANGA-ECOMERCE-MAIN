@@ -28,6 +28,10 @@ def create_app(config_object=None):
     _register_error_handlers(app)
     _register_security_headers(app)
     _register_health(app)
+
+    from app.services import audit, maintenance
+    maintenance.init_app(app)
+    audit.init_app(app)
     _warn_runtime_config(app)
     _register_cli(app)
     _auto_seed_admin(app)

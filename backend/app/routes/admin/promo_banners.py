@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.cms import PromoBanner
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminPromoBannerIn
 
 _promo_in = AdminPromoBannerIn()
@@ -33,8 +34,17 @@ def _serialize_promo(p):
 @admin_bp.route("/promo-banners", methods=["GET"])
 @admin_required
 def admin_list_promos():
-    promos = PromoBanner.query.order_by(PromoBanner.sort_order, PromoBanner.created_at.desc()).all()
-    return jsonify(promo_banners=[_serialize_promo(p) for p in promos]), 200
+    q = PromoBanner.query
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(PromoBanner.title.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(PromoBanner.sort_order, PromoBanner.created_at.desc()), default=50)
+    return jsonify(
+        promo_banners=[_serialize_promo(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/promo-banners", methods=["POST"])

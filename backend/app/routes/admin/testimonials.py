@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.cms import Testimonial
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminTestimonialIn
 
 _in = AdminTestimonialIn()
@@ -28,8 +29,17 @@ def _serialize(t):
 @admin_bp.route("/testimonials", methods=["GET"])
 @admin_required
 def admin_list_testimonials():
-    items = Testimonial.query.order_by(Testimonial.sort_order, Testimonial.created_at.desc()).all()
-    return jsonify(testimonials=[_serialize(t) for t in items]), 200
+    q = Testimonial.query
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(Testimonial.name.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(Testimonial.sort_order, Testimonial.created_at.desc()), default=50)
+    return jsonify(
+        testimonials=[_serialize(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/testimonials", methods=["POST"])

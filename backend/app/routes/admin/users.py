@@ -1,11 +1,29 @@
 """Admin user management: list, detail, toggle active."""
 from flask import request, jsonify
+from marshmallow import Schema, ValidationError, fields, validate
+from sqlalchemy import func
 
 from app.extensions import db
+from app.models.enums import AccountType
 from app.models.user import User, Address
 from app.models.order import Order
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.services import audit
+
+
+class AdminUserUpdateIn(Schema):
+    """Every field optional, and booleans must be real JSON booleans.
+
+    ``bool("false")`` is True, so coercing whatever arrived used to turn the
+    string "false" into a toggle pointing the wrong way.
+    """
+    is_active = fields.Bool(truthy={True}, falsy={False})
+    is_verified = fields.Bool(truthy={True}, falsy={False})
+    account_type = fields.Str(validate=validate.OneOf(["retail", "wholesale"]))
+
+
+_user_update_in = AdminUserUpdateIn()
 
 
 @admin_bp.route("/users", methods=["GET"])
@@ -32,9 +50,17 @@ def admin_list_users():
         page=page, per_page=per_page, error_out=False
     )
 
+    # One grouped query for the whole page, not a COUNT per row.
+    order_counts = dict(
+        db.session.query(Order.user_id, func.count(Order.id))
+        .filter(Order.user_id.in_([u.id for u in paginated.items]))
+        .group_by(Order.user_id)
+        .all()
+    ) if paginated.items else {}
+
     users = []
     for u in paginated.items:
-        order_count = Order.query.filter_by(user_id=u.id).count()
+        order_count = order_counts.get(u.id, 0)
         users.append({
             "id": str(u.id),
             "full_name": u.full_name,
@@ -115,15 +141,25 @@ def admin_update_user(user_id):
     if not user:
         return jsonify(error="User not found"), 404
 
-    data = request.get_json()
+    try:
+        data = _user_update_in.load(request.get_json(silent=True) or {})
+    except ValidationError as err:
+        return jsonify(errors=err.messages), 422
+    if not data:
+        return jsonify(error="Nothing to update"), 422
+
     if "is_active" in data:
-        user.is_active = bool(data["is_active"])
+        user.is_active = data["is_active"]
     if "is_verified" in data:
-        user.is_verified = bool(data["is_verified"])
-    if "account_type" in data and data["account_type"] in ("retail", "wholesale"):
-        from app.models.enums import AccountType
+        user.is_verified = data["is_verified"]
+    if "account_type" in data:
         user.account_type = AccountType(data["account_type"])
 
+    audit.annotate(
+        summary=f"Customer {user.email}: " + ", ".join(
+            f"{field} → {value}" for field, value in data.items()
+        ),
+    )
     db.session.commit()
 
     return jsonify(message="User updated"), 200

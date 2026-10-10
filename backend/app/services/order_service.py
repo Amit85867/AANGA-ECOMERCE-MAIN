@@ -84,6 +84,24 @@ def refund_order_if_prepaid(order):
             "REFUND_FAILED_ON_CANCEL order=%s payment_ref=%s amount_paise=%s",
             order.order_number, order.payment_ref, amount_paise,
         )
+
+    # Money moving is always on the trail, whoever cancelled. Not committed
+    # here: it rides in the caller's transaction with the status change.
+    from app.services import audit
+    by_admin = audit.notes().get("by_admin", False)
+    audit.record(
+        "refund_on_cancel", "refunds", order.id,
+        summary=(
+            f"Refunded ₹{float(order.total_amount):.2f} for cancelled order "
+            f"{order.order_number}" if ok else
+            f"REFUND FAILED for cancelled order {order.order_number} — "
+            f"₹{float(order.total_amount):.2f} must be refunded manually"
+        ),
+        changes={"order_number": order.order_number, "amount": float(order.total_amount),
+                 "succeeded": ok},
+        actor_type=None if by_admin else "customer",
+        commit=False,
+    )
     return ok
 
 

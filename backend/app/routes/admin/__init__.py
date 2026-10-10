@@ -23,4 +23,6 @@ from app.routes.admin import (  # noqa: E402, F401
     testimonials,
     features,
     settlements,
+    system,
+    reviews,
 )
