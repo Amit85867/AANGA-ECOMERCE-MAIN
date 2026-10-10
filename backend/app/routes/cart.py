@@ -98,15 +98,18 @@ def add_item():
         return jsonify(errors=err.messages), 422
 
     variant = db.session.get(ProductVariant, data["variant_id"])
-    if not variant:
+    if not variant or not variant.product.is_active:
         return jsonify(error="Variant not found"), 404
-
-    if variant.stock_qty < data["quantity"]:
-        return jsonify(error="Insufficient stock"), 409
 
     cart = _get_or_create_cart(get_jwt_identity())
 
     existing = CartItem.query.filter_by(cart_id=cart.id, variant_id=variant.id).first()
+    # Stock is checked against what the line would hold afterwards, not just
+    # this request, or adding the same item twice walks past the limit.
+    wanted = data["quantity"] + (existing.quantity if existing else 0)
+    if variant.stock_qty < wanted:
+        return jsonify(error="Insufficient stock"), 409
+
     if existing:
         existing.quantity += data["quantity"]
         existing.updated_at = datetime.now(timezone.utc)

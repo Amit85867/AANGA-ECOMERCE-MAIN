@@ -77,8 +77,8 @@ def list_orders():
             "total_amount": float(o.total_amount),
             "item_summary": summary,
             "item_count": sum(i.quantity for i in o.items),
-            "placed_at": o.placed_at.isoformat(),
-            "expected_delivery": o.expected_delivery.isoformat() if o.expected_delivery else None,
+            "placed_at": o.placed_at,
+            "expected_delivery": o.expected_delivery,
         })
 
     return jsonify(orders=_list_out.dump(result)), 200
@@ -118,7 +118,7 @@ def order_detail(order_id):
             "status_label": t.status_label,
             "description": t.description,
             "status_type": t.status_type.value,
-            "event_time": t.event_time.isoformat(),
+            "event_time": t.event_time,
         }
         for t in sorted(order.tracking, key=lambda t: t.event_time)
     ]
@@ -147,8 +147,8 @@ def order_detail(order_id):
         "payment_status": order.payment_status.value,
         "courier_name": order.courier_name,
         "tracking_number": order.tracking_number,
-        "expected_delivery": order.expected_delivery.isoformat() if order.expected_delivery else None,
-        "placed_at": order.placed_at.isoformat(),
+        "expected_delivery": order.expected_delivery,
+        "placed_at": order.placed_at,
         "items": items,
         "tracking": tracking_events,
         "address": address_data,

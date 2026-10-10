@@ -282,6 +282,16 @@ def update_return(return_id):
     if not ret:
         return jsonify(error="Return not found"), 404
 
+    # A refund can be for less than the item cost (partial), never more.
+    item = ret.order_item
+    refund_amount = data.get("refund_amount")
+    if refund_amount is not None and item is not None:
+        paid = float(item.total_price or float(item.unit_price) * item.quantity)
+        if refund_amount > paid:
+            return jsonify(errors={"refund_amount": [
+                f"Cannot exceed the {paid:.2f} paid for this item."
+            ]}), 422
+
     ret.status = ReturnStatus(data["status"])
     if data.get("resolution_type"):
         ret.resolution_type = ResolutionType(data["resolution_type"])

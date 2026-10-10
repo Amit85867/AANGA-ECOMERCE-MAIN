@@ -1,4 +1,10 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, ValidationError, fields, validate, validates_schema
+
+# The database enforces these with CHECK constraints (and a generated
+# discount_percent column that divides by mrp). Mirroring them here turns a
+# bad value into a 422 with a message instead of an IntegrityError 500.
+_POSITIVE_PRICE = validate.Range(min=0, min_inclusive=False, max=10_000_000)
+_NOT_NEGATIVE = validate.Range(min=0)
 
 
 # ── Auth ──────────────────────────────────────────────────────
@@ -30,20 +36,27 @@ class AdminProductIn(Schema):
     name = fields.Str(required=True, validate=validate.Length(min=2, max=300))
     slug = fields.Str(required=True, validate=validate.Length(min=2, max=300))
     description = fields.Str(allow_none=True)
-    mrp = fields.Float(required=True)
-    selling_price = fields.Float(required=True)
+    mrp = fields.Float(required=True, validate=_POSITIVE_PRICE)
+    selling_price = fields.Float(required=True, validate=_POSITIVE_PRICE)
     badge_label = fields.Str(allow_none=True)
     badge_class = fields.Str(allow_none=True)
     is_active = fields.Bool(load_default=True)
     is_featured = fields.Bool(load_default=False)
+
+    @validates_schema
+    def _selling_price_within_mrp(self, data, **kwargs):
+        if data["selling_price"] > data["mrp"]:
+            raise ValidationError(
+                "Selling price cannot be higher than MRP.", "selling_price"
+            )
 
 
 class AdminVariantIn(Schema):
     size = fields.Str(required=True)
     color_name = fields.Str(required=True)
     color_hex = fields.Str(required=True, validate=validate.Length(equal=7))
-    stock_qty = fields.Int(load_default=0)
-    price_override = fields.Float(allow_none=True)
+    stock_qty = fields.Int(load_default=0, validate=_NOT_NEGATIVE)
+    price_override = fields.Float(allow_none=True, validate=_POSITIVE_PRICE)
     sku = fields.Str(allow_none=True)
 
 
@@ -104,7 +117,7 @@ class AdminReturnUpdateIn(Schema):
         allow_none=True,
         validate=validate.OneOf(["refund", "exchange", "store_credit"]),
     )
-    refund_amount = fields.Float(allow_none=True)
+    refund_amount = fields.Float(allow_none=True, validate=_NOT_NEGATIVE)
 
 
 # ── Coupons ───────────────────────────────────────────────────
@@ -112,12 +125,19 @@ class AdminCouponIn(Schema):
     code = fields.Str(required=True, validate=validate.Length(min=3, max=30))
     description = fields.Str(allow_none=True)
     discount_type = fields.Str(required=True, validate=validate.OneOf(["percentage", "flat"]))
-    discount_value = fields.Float(required=True)
-    min_order_value = fields.Float(load_default=0)
-    max_discount = fields.Float(allow_none=True)
-    usage_limit = fields.Int(allow_none=True)
+    discount_value = fields.Float(required=True, validate=_POSITIVE_PRICE)
+    min_order_value = fields.Float(load_default=0, validate=_NOT_NEGATIVE)
+    max_discount = fields.Float(allow_none=True, validate=_POSITIVE_PRICE)
+    usage_limit = fields.Int(allow_none=True, validate=validate.Range(min=1))
     is_active = fields.Bool(load_default=True)
     expires_at = fields.DateTime(allow_none=True)
+
+    @validates_schema
+    def _percentage_within_100(self, data, **kwargs):
+        if data["discount_type"] == "percentage" and data["discount_value"] > 100:
+            raise ValidationError(
+                "A percentage discount cannot exceed 100.", "discount_value"
+            )
 
 
 # ── Offers ────────────────────────────────────────────────────
@@ -129,7 +149,9 @@ class AdminOfferIn(Schema):
         required=True,
         validate=validate.OneOf(["percentage_off", "flat_off", "free_shipping", "bogo"]),
     )
-    discount_percent = fields.Float(allow_none=True)
+    discount_percent = fields.Float(
+        allow_none=True, validate=validate.Range(min=0, max=100)
+    )
     image_url = fields.Str(allow_none=True)
     is_active = fields.Bool(load_default=True)
     starts_at = fields.DateTime(allow_none=True)
