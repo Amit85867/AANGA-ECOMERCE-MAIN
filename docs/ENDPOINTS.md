@@ -23,7 +23,7 @@ Run `pytest`, then the script, to refresh it.
 | GET | `/api/admin/auth/admins` | master admin | ✅ | 200 401 403 | AdminSettings |
 | POST | `/api/admin/auth/admins` | master admin | ✅ | 201 400 401 403 415 422 | AdminSettings |
 | DELETE | `/api/admin/auth/admins/<admin_id>` | master admin | ✅ | 200 401 403 404 422 | AdminSettings |
-| POST | `/api/admin/auth/login` | public | ✅ | 200 400 415 422 | useAdminStore |
+| POST | `/api/admin/auth/login` | public | ✅ | 200 400 401 415 422 | useAdminStore |
 | POST | `/api/admin/auth/logout` | public | ✅ | 200 | useAdminStore |
 | GET | `/api/admin/auth/me` | admin | ✅ | 200 401 403 | useAdminStore |
 | POST | `/api/admin/auth/refresh` | refresh cookie | ✅ | 200 401 | n/a (adminApi interceptor) |

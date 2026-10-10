@@ -55,17 +55,33 @@ Legend: `[x]` done · `[ ]` open · **BLOCKED** = failed verification three time
 
 ## Phase 2 — Known loose ends
 
-- [ ] `reconcile-payments`: paginate past 100 payments, idempotent, logs what it did.
-- [ ] Webhook handler idempotent on the Razorpay event id.
-- [ ] `RAZORPAY_WEBHOOK_SECRET` / `SHIPROCKET_PICKUP_PINCODE` in `.env.example`
-  and in production config validation.
-- [ ] Every production env var documented in `.env.example`.
-- [ ] Document scheduling `reconcile-payments` as a Render Cron Job.
-- [ ] `docs/SECURITY_TODO.md`: rotating the leaked admin password and purging it
-  from history. **CHECKPOINT before the purge.**
-- [ ] OTP codes use `random`, not `secrets`, and are written to the log in every
-  environment — switch to `secrets` and log only in debug.
-- [ ] Phone-OTP sign-in has no SMS provider (the code is only logged). Hide the
+- [x] `reconcile-payments` — pages through the window 100 at a time (capped at
+  200 pages), skips anything already refunded, logs a `RECONCILE_PAYMENTS`
+  summary, records each run in `job_runs`, and exits non-zero when the gateway
+  is unreachable or a refund fails. Verified by `tests/test_reconcile_payments.py`
+  (pagination past 100, run-twice, dry run, gateway errors, CLI exit codes).
+- [x] Webhook idempotent on the Razorpay event id — `webhook_events` table; a
+  redelivery answers `duplicate`; a delivery that fails mid-handling rolls its
+  claim back so the retry is processed. Same test file.
+- [x] `RAZORPAY_WEBHOOK_SECRET` / `SHIPROCKET_PICKUP_PINCODE` in `.env.example`
+  and production validation. Both integrations stay optional (blank = COD-only,
+  no courier); validation is all-or-nothing — once an integration's key is set,
+  its companion settings are required or the app refuses to start.
+  `tests/test_config_validation.py`.
+- [x] Every env var the code reads is documented in `backend/.env.example`
+  (added `RATELIMIT_STORAGE_URI`); `frontend/.env.example` now lists
+  `VITE_GOOGLE_CLIENT_ID`. Checked by grepping `os.environ` / `import.meta.env`.
+- [x] Scheduling documented — `docs/DEPLOYMENT.md` §4a (Render Cron Job,
+  every 30 minutes).
+- [x] `docs/SECURITY_TODO.md` written: rotate, then purge. Added
+  `flask set-admin-password` because `seed-admin` cannot change an existing
+  password. The literal password was also removed from `docs/DEPLOYMENT.md`.
+- [ ] **CHECKPOINT — owner decision:** rotate the admin password
+  (`backend/.env` still holds the leaked value) and decide whether to purge it
+  from git history (force-push; two of the three commits are on `origin/main`).
+- [x] OTP codes now come from `secrets` and are logged only in debug.
+- [x] CI runs on Postgres 17, matching dev, test and the dumped schema.
+- [ ] Phone-OTP sign-in has no SMS provider (the code is never sent). Hide the
   option on the storefront unless a provider is configured. A provider is a
   paid service — **ask before adding one.**
 

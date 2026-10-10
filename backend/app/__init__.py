@@ -164,12 +164,50 @@ def _validate_config(app):
             "would be written to an ephemeral disk and lost on the next deploy"
         )
 
+    problems += _half_configured_integrations(os.environ)
+
     if problems:
         raise RuntimeError(
             "Refusing to start: insecure production configuration.\n  - "
             + "\n  - ".join(problems)
             + "\nSet these via environment variables before deploying."
         )
+
+
+def _half_configured_integrations(env):
+    """An integration is all-or-nothing.
+
+    Razorpay and Shiprocket are optional — left blank the store runs COD-only
+    and hides delivery checks. But switched on *without* their companion
+    settings they fail quietly and expensively: payments are taken with no
+    webhook to catch an abandoned checkout, or the delivery widget reports
+    every PIN code as unserviceable.
+    """
+    def has(key):
+        return bool((env.get(key) or "").strip())
+
+    problems = []
+    if has("RAZORPAY_KEY_ID") or has("RAZORPAY_KEY_SECRET"):
+        for key in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"):
+            if not has(key):
+                problems.append(f"{key} is unset but Razorpay is otherwise configured")
+        if not has("RAZORPAY_WEBHOOK_SECRET"):
+            problems.append(
+                "RAZORPAY_WEBHOOK_SECRET is unset — a checkout abandoned after "
+                "capture would leave the customer charged with no order"
+            )
+
+    if has("SHIPROCKET_EMAIL") or has("SHIPROCKET_PASSWORD"):
+        for key in ("SHIPROCKET_EMAIL", "SHIPROCKET_PASSWORD"):
+            if not has(key):
+                problems.append(f"{key} is unset but Shiprocket is otherwise configured")
+        pincode = (env.get("SHIPROCKET_PICKUP_PINCODE") or "").strip()
+        if not (len(pincode) == 6 and pincode.isdigit() and pincode[0] != "0"):
+            problems.append(
+                "SHIPROCKET_PICKUP_PINCODE must be the 6-digit PIN code of the "
+                "Shiprocket pickup address"
+            )
+    return problems
 
 
 def _init_extensions(app):
@@ -302,8 +340,9 @@ def _register_cli(app):
             click.echo("Razorpay is not configured — nothing to reconcile.")
             return
         if result.get("error"):
-            click.echo(f"Could not reconcile: {result['error']}")
-            return
+            # Non-zero exit: a sweep that could not run is a failed run, and the
+            # scheduler should say so rather than report success.
+            raise click.ClickException(f"Could not reconcile: {result['error']}")
 
         click.echo(f"Checked {result['checked']} payment(s) from the last {hours}h.")
         if not result["orphans"]:
@@ -315,6 +354,12 @@ def _register_cli(app):
             click.echo(f"{len(result['orphans'])} orphan(s) found (dry run — nothing refunded).")
         else:
             click.echo(f"Refunded {result['refunded']} of {len(result['orphans'])} orphan(s).")
+        if result.get("failed"):
+            # Non-zero exit so the scheduler flags the run: these need a manual refund.
+            raise click.ClickException(
+                f"{result['failed']} refund(s) failed - "
+                "see ORPHANED_CAPTURE_REFUND_FAILED in the logs."
+            )
 
     @app.cli.command("seed-admin")
     @click.option("--email", default=None, help="Master admin email")
@@ -345,3 +390,33 @@ def _register_cli(app):
         db.session.add(admin)
         db.session.commit()
         click.echo(f"Master admin created: {email}")
+
+    @app.cli.command("set-admin-password")
+    @click.option("--email", default=None, help="Admin email (default: ADMIN_EMAIL)")
+    def set_admin_password(email):
+        """Change an existing admin's password.
+
+        ADMIN_PASSWORD only seeds an account that does not exist yet, so editing
+        it in .env never changes a live password — this does. The new password
+        is read from ADMIN_PASSWORD, or prompted for; it is deliberately not a
+        command-line option, which would leave it in shell history.
+        """
+        from app.models.admin import Admin
+
+        email = email or os.environ.get("ADMIN_EMAIL")
+        if not email:
+            raise click.ClickException("Provide --email or set ADMIN_EMAIL.")
+
+        admin = Admin.query.filter_by(email=email).first()
+        if not admin:
+            raise click.ClickException(f"No admin with email {email}.")
+
+        password = os.environ.get("ADMIN_PASSWORD") or click.prompt(
+            "New password", hide_input=True, confirmation_prompt=True
+        )
+        if len(password) < 12:
+            raise click.ClickException("Use at least 12 characters.")
+
+        admin.password_hash = generate_password_hash(password)
+        db.session.commit()
+        click.echo(f"Password updated for {email}.")

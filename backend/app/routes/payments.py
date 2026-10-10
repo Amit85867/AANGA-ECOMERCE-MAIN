@@ -23,11 +23,13 @@ import hashlib
 import requests
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db, limiter
 from app.models.cart import Cart
 from app.models.order import Order
 from app.models.enums import PaymentStatus
+from app.models.ops import JobRun, WebhookEvent
 from app.services.order_service import compute_totals, create_order_from_cart
 
 payments_bp = Blueprint("payments", __name__, url_prefix="/api/payments")
@@ -131,8 +133,27 @@ def razorpay_webhook():
     except ValueError:
         return jsonify(error="Malformed payload"), 400
 
+    if not isinstance(event, dict):
+        return jsonify(error="Malformed payload"), 400
+
     kind = event.get("event")
     entities = event.get("payload") or {}
+
+    # Razorpay retries a delivery until it gets a 2xx, and may deliver the same
+    # event more than once regardless. Claiming the event id inside this
+    # request's transaction makes a repeat a no-op, while a failure below rolls
+    # the claim back so the retry is processed properly.
+    event_id = request.headers.get("X-Razorpay-Event-Id")
+    if event_id:
+        db.session.add(WebhookEvent(event_id=event_id, source="razorpay", kind=kind))
+        try:
+            db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            current_app.logger.info(
+                "RAZORPAY_WEBHOOK_DUPLICATE event=%s kind=%s", event_id, kind
+            )
+            return jsonify(status="duplicate"), 200
 
     if kind == "payment.captured":
         payment = (entities.get("payment") or {}).get("entity") or {}
@@ -143,6 +164,8 @@ def razorpay_webhook():
     elif kind == "refund.processed":
         refund = (entities.get("refund") or {}).get("entity") or {}
         _mark_payment_status(refund.get("payment_id"), PaymentStatus.refunded)
+
+    db.session.commit()
 
     # Always 200 for a correctly signed event: a non-2xx makes Razorpay retry,
     # and retrying will not fix anything we failed to interpret.
@@ -175,6 +198,50 @@ def _handle_captured(payment):
     )
 
 
+# Razorpay returns at most 100 payments per call; the sweep pages through the
+# window with "skip". The page cap bounds a runaway loop, not normal traffic:
+# 200 pages is 20,000 payments in one window.
+RECONCILE_PAGE_SIZE = 100
+RECONCILE_MAX_PAGES = 200
+
+
+def _list_payments(key_id, key_secret, since, until):
+    """Yield every payment created in [since, until], following pagination."""
+    for page in range(RECONCILE_MAX_PAGES):
+        resp = requests.get(
+            f"{RAZORPAY_API}/payments",
+            auth=(key_id, key_secret),
+            params={
+                "from": since, "to": until,
+                "count": RECONCILE_PAGE_SIZE,
+                "skip": page * RECONCILE_PAGE_SIZE,
+            },
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"gateway returned {resp.status_code}")
+        items = resp.json().get("items", [])
+        yield from items
+        if len(items) < RECONCILE_PAGE_SIZE:
+            return
+    current_app.logger.error(
+        "RECONCILE_PAGE_CAP_REACHED pages=%s - narrow the window with --hours",
+        RECONCILE_MAX_PAGES,
+    )
+
+
+def _is_orphan(payment, now):
+    """A capture that is ours to refund: money taken, nothing refunded yet, no
+    order, and old enough that no checkout can still be finishing."""
+    if payment.get("status") != "captured":
+        return False   # failed, or already refunded by an earlier run
+    if (payment.get("amount_refunded") or 0) >= (payment.get("amount") or 0):
+        return False
+    if now - (payment.get("created_at") or now) < ORPHAN_GRACE_SECONDS:
+        return False
+    return Order.query.filter_by(payment_ref=payment.get("id")).first() is None
+
+
 def reconcile_orphaned_captures(window_seconds=86400, dry_run=False):
     """Find captured payments with no order and refund the abandoned ones.
 
@@ -183,62 +250,76 @@ def reconcile_orphaned_captures(window_seconds=86400, dry_run=False):
     with nothing to show for it. Run periodically — see the ``reconcile-payments``
     CLI command.
 
-    Returns a summary dict; never raises on a single bad payment.
+    Safe to run twice: a refunded payment no longer reports as ``captured``, and
+    the refund call itself carries an idempotency key.
+
+    Returns a summary dict and records the run in ``job_runs``; a failing
+    payment or an unreachable gateway is reported, never raised.
     """
     key_id, key_secret = _keys()
     if not key_id or not key_secret:
-        return {"configured": False, "checked": 0, "refunded": 0, "orphans": []}
+        return {"configured": False, "checked": 0, "refunded": 0, "failed": 0,
+                "orphans": []}
 
     now = int(time.time())
+    result = {"configured": True, "checked": 0, "refunded": 0, "failed": 0,
+              "orphans": [], "dry_run": dry_run}
     try:
-        resp = requests.get(
-            f"{RAZORPAY_API}/payments",
-            auth=(key_id, key_secret),
-            params={"from": now - window_seconds, "to": now, "count": 100},
-            timeout=30,
+        for payment in _list_payments(key_id, key_secret, now - window_seconds, now):
+            result["checked"] += 1
+            if not _is_orphan(payment, now):
+                continue
+
+            payment_id, amount = payment.get("id"), payment.get("amount")
+            age = now - (payment.get("created_at") or now)
+            result["orphans"].append({"id": payment_id, "amount": amount, "age": age})
+            if dry_run:
+                continue
+
+            if refund_payment(payment_id, amount):
+                result["refunded"] += 1
+                current_app.logger.critical(
+                    "ORPHANED_CAPTURE_REFUNDED_BY_SWEEP payment=%s amount=%s age=%ss",
+                    payment_id, amount, age,
+                )
+            else:
+                result["failed"] += 1
+                current_app.logger.critical(
+                    "ORPHANED_CAPTURE_REFUND_FAILED payment=%s amount=%s age=%ss",
+                    payment_id, amount, age,
+                )
+    except (requests.RequestException, RuntimeError, ValueError) as exc:
+        result["error"] = (
+            "gateway unreachable" if isinstance(exc, requests.RequestException)
+            else str(exc)
         )
-    except requests.RequestException:
-        return {"configured": True, "error": "gateway unreachable",
-                "checked": 0, "refunded": 0, "orphans": []}
 
-    if resp.status_code != 200:
-        return {"configured": True, "error": f"gateway returned {resp.status_code}",
-                "checked": 0, "refunded": 0, "orphans": []}
+    current_app.logger.info(
+        "RECONCILE_PAYMENTS window=%ss dry_run=%s checked=%s orphans=%s "
+        "refunded=%s failed=%s error=%s",
+        window_seconds, dry_run, result["checked"], len(result["orphans"]),
+        result["refunded"], result["failed"], result.get("error"),
+    )
+    _record_job_run("reconcile-payments", result)
+    return result
 
-    payments = resp.json().get("items", [])
-    orphans, refunded_count = [], 0
 
-    for payment in payments:
-        if payment.get("status") != "captured":
-            continue
-        payment_id = payment.get("id")
-        if Order.query.filter_by(payment_ref=payment_id).first():
-            continue
-        age = now - (payment.get("created_at") or now)
-        if age < ORPHAN_GRACE_SECONDS:
-            continue
-
-        orphans.append({"id": payment_id, "amount": payment.get("amount"), "age": age})
-        if dry_run:
-            continue
-        if refund_payment(payment_id, payment.get("amount")):
-            refunded_count += 1
-            current_app.logger.critical(
-                "ORPHANED_CAPTURE_REFUNDED_BY_SWEEP payment=%s amount=%s age=%ss",
-                payment_id, payment.get("amount"), age,
-            )
-        else:
-            current_app.logger.critical(
-                "ORPHANED_CAPTURE_REFUND_FAILED payment=%s amount=%s age=%ss",
-                payment_id, payment.get("amount"), age,
-            )
-
-    return {
-        "configured": True,
-        "checked": len(payments),
-        "orphans": orphans,
-        "refunded": refunded_count,
-    }
+def _record_job_run(name, result):
+    """Best-effort history row; the outcome of the job never depends on it."""
+    try:
+        db.session.add(JobRun(
+            name=name,
+            finished_at=db.func.now(),
+            ok=not result.get("error") and not result.get("failed"),
+            summary={
+                **{k: v for k, v in result.items() if k != "orphans"},
+                "orphans": len(result.get("orphans", [])),
+            },
+        ))
+        db.session.commit()
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+        current_app.logger.exception("Could not record job run %s", name)
 
 
 def _mark_payment_status(payment_id, status):

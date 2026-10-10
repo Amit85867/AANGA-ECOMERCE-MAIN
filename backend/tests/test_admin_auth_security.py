@@ -163,3 +163,46 @@ def test_admin_logout_clears_cookies(app, client):
 def test_admin_refresh_without_cookie_is_rejected(app, client):
     resp = client.post("/api/admin/auth/refresh")
     assert resp.status_code == 401
+
+
+# ── Rotating an admin password from the CLI ───────────────────
+
+def test_set_admin_password_replaces_the_hash(app, client, monkeypatch):
+    from tests.helpers import ADMIN_PASSWORD, make_admin
+
+    admin = make_admin(email="rotate@example.com")
+    monkeypatch.setenv("ADMIN_EMAIL", admin.email)
+    monkeypatch.setenv("ADMIN_PASSWORD", "A-Brand-New-Passphrase-42")
+
+    result = app.test_cli_runner().invoke(args=["set-admin-password"])
+
+    assert result.exit_code == 0, result.output
+    # The new password is never echoed back.
+    assert "A-Brand-New-Passphrase-42" not in result.output
+    login = lambda pw: client.post(  # noqa: E731
+        "/api/admin/auth/login", json={"email": admin.email, "password": pw}
+    ).status_code
+    assert login(ADMIN_PASSWORD) == 401
+    assert login("A-Brand-New-Passphrase-42") == 200
+
+
+def test_set_admin_password_refuses_a_short_password(app, monkeypatch):
+    from tests.helpers import make_admin
+
+    admin = make_admin(email="short@example.com")
+    monkeypatch.setenv("ADMIN_EMAIL", admin.email)
+    monkeypatch.setenv("ADMIN_PASSWORD", "short")
+
+    result = app.test_cli_runner().invoke(args=["set-admin-password"])
+
+    assert result.exit_code != 0
+
+
+def test_set_admin_password_reports_an_unknown_admin(app, monkeypatch):
+    monkeypatch.setenv("ADMIN_EMAIL", "nobody@example.com")
+    monkeypatch.setenv("ADMIN_PASSWORD", "A-Brand-New-Passphrase-42")
+
+    result = app.test_cli_runner().invoke(args=["set-admin-password"])
+
+    assert result.exit_code != 0
+    assert "No admin" in result.output

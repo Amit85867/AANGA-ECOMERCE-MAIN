@@ -1,6 +1,5 @@
 """Authentication: register, login, Google OAuth, phone OTP, refresh, logout."""
 import os
-import random
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -212,7 +211,9 @@ def send_otp():
     if recent:
         return jsonify(error="Please wait 60 seconds before requesting another OTP"), 429
 
-    code = f"{random.randint(0, 999999):06d}"
+    # secrets, not random: the code is a credential, and the Mersenne Twister
+    # behind `random` is predictable from a handful of observed outputs.
+    code = f"{secrets.randbelow(1_000_000):06d}"
 
     otp = OTP(
         phone=phone,
@@ -223,7 +224,11 @@ def send_otp():
     db.session.commit()
 
     # TODO: integrate an SMS provider (MSG91 / Twilio) to actually deliver this.
-    current_app.logger.info(f"[DEV] OTP for {phone}: {code}")
+    # Until then the code only reaches the developer's console — and it must
+    # never reach a production log, where anyone with log access could sign in
+    # as any phone number.
+    if current_app.config.get("DEBUG"):
+        current_app.logger.info(f"[DEV] OTP for {phone}: {code}")
 
     resp = {"message": "OTP sent successfully"}
     # NEVER expose the code outside local development — returning it would let
