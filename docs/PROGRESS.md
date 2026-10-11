@@ -346,6 +346,20 @@ passed; `oxlint` and `vite build` clean.
   - Not done: the rules live in the application only. The restock trigger in
     the database still fires on any update to "cancelled", so a manual SQL
     update bypasses them.
+- [x] **4. FAQ.** Checked the code first: there is no COD charge, no COD order
+  limit and no express delivery option anywhere in the backend or checkout.
+  Removed from `frontend/src/pages/FAQ/index.jsx`: "Express delivery (1-2
+  days) is available for select pincodes at an additional charge"; "COD is
+  available for orders up to ₹5,000"; "A nominal COD charge of ₹49 applies";
+  "COD is available across most pincodes in India" (nothing checks pincodes
+  for COD). The COD answer now reads "Yes. You can choose Cash on Delivery at
+  checkout and pay when your order arrives."
+  - [ ] Left for the owner, same page: "you'll receive a tracking ID via SMS
+    and email" — no SMS is sent and there is no shipping email (only order
+    confirmation and password reset); "track your order … using your order
+    ID" — the Track Order page needs sign-in. Also business facts I cannot
+    check: the support phone number and hours, "10+ items" for wholesale,
+    refund in 5-7 business days, delivery in 4-7 days.
 
 ## Discovered along the way
 

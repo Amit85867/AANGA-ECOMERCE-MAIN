@@ -3,9 +3,9 @@ import { IconChevronDown } from '@tabler/icons-react'
 import PageHeader from '@/components/ui/PageHeader'
 
 const FAQS = [
-  { q: 'How long does delivery take?', a: 'Standard delivery takes 4-7 business days across India. Metro cities usually receive orders within 3-5 days. Express delivery (1-2 days) is available for select pincodes at an additional charge.' },
+  { q: 'How long does delivery take?', a: 'Standard delivery takes 4-7 business days across India. Metro cities usually receive orders within 3-5 days.' },
   { q: 'What is your return policy?', a: 'We offer a hassle-free 7-day return/exchange policy. Items must be unused, unwashed, and in original packaging with tags intact. Refunds are processed within 5-7 business days after we receive the returned item.' },
-  { q: 'Do you offer Cash on Delivery?', a: 'Yes! COD is available for orders up to ₹5,000. A nominal COD charge of ₹49 applies. COD is available across most pincodes in India.' },
+  { q: 'Do you offer Cash on Delivery?', a: 'Yes. You can choose Cash on Delivery at checkout and pay when your order arrives.' },
   { q: 'How can I track my order?', a: 'Once your order is shipped, you\'ll receive a tracking ID via SMS and email. You can also track your order on our Track Order page using your order ID.' },
   { q: 'Are the products original/authentic?', a: 'Absolutely! All products sold on AANGA are 100% authentic and sourced directly from manufacturers. We guarantee quality and authenticity on every purchase.' },
   { q: 'Do you offer wholesale pricing?', a: 'Yes, we offer special wholesale rates for bulk orders (10+ items). Visit our Wholesale page or email wholesale@aanga.in for custom quotes.' },
