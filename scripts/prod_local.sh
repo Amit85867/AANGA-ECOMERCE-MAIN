@@ -6,7 +6,7 @@
 #
 #   scripts/prod_local.sh              rebuild everything from nothing, with demo content
 #   scripts/prod_local.sh --no-demo    the same, with an empty catalogue
-#   scripts/prod_local.sh --keep       restart the containers, keep the data
+#   scripts/prod_local.sh --keep       rebuild the storefront and the containers, keep the data
 #   scripts/prod_local.sh down         stop and delete it (containers and data)
 #   scripts/prod_local.sh status
 #   scripts/prod_local.sh reset-limits forget rate-limit counters (before a test run)
@@ -107,8 +107,10 @@ docker info > /dev/null 2>&1 || fail "Docker is not running."
 make_env
 
 if [ "$cmd" = "--keep" ]; then
-  say "Restarting the containers, keeping the data"
+  say "Rebuilding the storefront and the containers, keeping the data"
+  (cd "$ROOT/frontend" && { [ -d node_modules ] || npm ci; } && npm run build > "$STATE/frontend-build.log" 2>&1)     || fail "The storefront build failed. See .prodlocal/frontend-build.log"
   compose up -d --build
+  compose restart web > /dev/null 2>&1        # picks up a changed static_server.mjs
   wait_http "$BASE/api/health" 120 || fail "The store did not come up. See: docker compose -f scripts/prod_local/docker-compose.yml logs api"
   echo "Ready: http://localhost:$PRODLOCAL_PORT"
   exit 0

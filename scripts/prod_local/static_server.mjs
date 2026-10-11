@@ -28,6 +28,10 @@ function proxy(req, res) {
   const forwarded = [req.headers['x-forwarded-for'], req.socket.remoteAddress].filter(Boolean).join(', ')
   const upstream = http.request({
     host: API.hostname, port: API.port, path: req.url, method: req.method,
+    // A new connection for each request. Reusing idle ones races with
+    // gunicorn closing them (its keep-alive is 2 s): the request lands on a
+    // socket that has just been shut and comes back as a 502.
+    agent: false,
     headers: { ...req.headers, host: req.headers.host, 'x-forwarded-for': forwarded, 'x-forwarded-proto': 'http', 'x-forwarded-host': req.headers.host },
   }, (answer) => {
     const headers = { ...answer.headers }
@@ -39,7 +43,7 @@ function proxy(req, res) {
   req.pipe(upstream)
 }
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0]
   if (REWRITTEN(url)) return proxy(req, res)
 
@@ -60,4 +64,10 @@ http.createServer((req, res) => {
   headers['content-length'] = body.length
   res.writeHead(200, headers)
   res.end(req.method === 'HEAD' ? undefined : body)
-}).listen(PORT, () => console.log(`storefront on :${PORT}, API at ${API.origin}`))
+})
+// Keep idle connections open longer than clients reuse them (as a hosting
+// provider's edge does); Node's 5 s default drops a request that arrives just
+// as the socket is being closed.
+server.keepAliveTimeout = 75_000
+server.headersTimeout = 80_000
+server.listen(PORT, () => console.log(`storefront on :${PORT}, API at ${API.origin}`))
