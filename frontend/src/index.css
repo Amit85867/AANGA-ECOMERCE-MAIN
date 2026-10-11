@@ -119,6 +119,11 @@ body {
   color: var(--festive-on-accent);
 }
 
+/* The offer chip on a hero slide. White on black: the small label under the
+   figure is 12px, which the pink accent cannot carry at AA contrast. */
+.hero-chip { background: var(--color-primary); color: var(--color-on-primary); }
+[data-festive] .hero-chip { background: var(--festive-accent); color: var(--festive-on-accent); }
+
 /* The hero's main button takes the accent while the campaign is on. */
 [data-festive] .festive-cta {
   background: var(--festive-accent);

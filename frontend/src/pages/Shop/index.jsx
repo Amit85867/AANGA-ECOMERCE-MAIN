@@ -207,7 +207,8 @@ export default function Shop() {
           title={title}
           subtitle={collection?.sale_percent
             ? `${collection.description ? `${collection.description} · ` : ''}${Math.round(collection.sale_percent)}% off everything in this collection`
-            : collection?.description}
+            // (a blank line while a collection loads, so its description does not push the grid down)
+            : collection ? collection.description : collectionSlug ? ' ' : undefined}
           crumbs={[{ label: 'Home', to: '/' }, { label: 'Shop', to: collectionSlug ? '/shop' : undefined }, ...(collectionSlug ? [{ label: title }] : [])]}
         />
 

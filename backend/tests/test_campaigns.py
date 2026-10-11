@@ -436,4 +436,4 @@ def test_accent_presets_pass_wcag_aa_on_the_frozen_theme(name):
     preset = campaigns.ACCENT_PRESETS[name]
     assert contrast(preset["on_accent"], preset["accent"]) >= 4.5       # badge / button text on the accent
     assert contrast(preset["accent_text"], "#FFFFFF") >= 4.5            # accent-coloured text on the white page
-    assert contrast(preset["accent"], "#0A0A0A") >= 3 or name != "marigold"   # marigold on the black announcement bar
+    assert contrast(preset["on_dark"], "#0A0A0A") >= 4.5               # the offer line on the black announcement bar

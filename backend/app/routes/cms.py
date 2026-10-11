@@ -70,7 +70,7 @@ def public_announcements():
             **live["announcement"],
             "bg_color": "#0A0A0A",
             "text_color": "#ffffff",
-            "highlight_color": accent["accent"],
+            "highlight_color": accent["on_dark"],
         }]), 200
 
     now = datetime.now(timezone.utc)

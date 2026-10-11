@@ -10,7 +10,7 @@ import { btnGhost, btnPrimary, fieldErrors, moveItem, useLoad } from '@/componen
 import { toast } from '@/components/ui/toastStore'
 
 // Sections whose heading the storefront actually shows.
-const HAS_HEADING = ['features', 'category_tiles', 'featured', 'testimonials', 'newsletter']
+const HAS_HEADING = ['category_tiles', 'featured', 'testimonials', 'newsletter']
 
 export default function AdminHomepage() {
   const { data, loading, error, reload, setData } = useLoad('/admin/homepage')

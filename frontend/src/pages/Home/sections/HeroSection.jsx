@@ -9,6 +9,8 @@ import { useCampaignEpoch } from '@/store/useLayoutStore'
 import { FestiveCorner } from '@/components/layout/Festive'
 
 const ROTATE_MS = 6000
+// The first slide stays put while the page is still settling in.
+const FIRST_ROTATE_MS = 20000
 
 // What the hero shows before the CMS answers, and if no banner is published.
 // The page's largest element must not wait on a network request to exist.
@@ -49,8 +51,24 @@ export default function HeroSection() {
   useEffect(() => {
     if (banners.length <= 1 || paused) return undefined
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined
-    const timer = setInterval(next, ROTATE_MS)
-    return () => clearInterval(timer)
+    // Slides start turning once the visitor has shown they are there (a
+    // scroll, a touch, a key), or after a long pause — not while the page is
+    // still loading, when a changing picture only gets in the way.
+    let timer = null
+    let started = false
+    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart']
+    const begin = () => {
+      if (started) return
+      started = true
+      timer = setInterval(next, ROTATE_MS)
+    }
+    const fallback = setTimeout(begin, FIRST_ROTATE_MS)
+    events.forEach((name) => window.addEventListener(name, begin, { once: true, passive: true }))
+    return () => {
+      clearTimeout(fallback)
+      clearInterval(timer)
+      events.forEach((name) => window.removeEventListener(name, begin))
+    }
   }, [next, banners.length, paused])
 
   const slide = banners[current] || FALLBACK
@@ -120,7 +138,7 @@ export default function HeroSection() {
             </div>
           )}
           {slide.chip_value && (
-            <div className="absolute right-5 top-5 rounded-card bg-accent px-4 py-3 text-center text-on-primary shadow-card">
+            <div className="hero-chip absolute right-5 top-5 rounded-card px-4 py-3 text-center shadow-card">
               <p className="display text-2xl leading-none">{slide.chip_value}</p>
               {slide.chip_label && <p className="mt-1 text-xs font-medium">{slide.chip_label}</p>}
             </div>

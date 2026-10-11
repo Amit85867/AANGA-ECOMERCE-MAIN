@@ -30,13 +30,14 @@ PREVIEW_MAX_AGE = 2 * 60 * 60
 
 # Accent presets for the decoration layer. Each is an overlay on the frozen
 # theme (white page, near-black text): `accent` is used as a background with
-# `on_accent` text, `accent_text` as coloured text on white. All pairs pass
+# `on_accent` text, `accent_text` as coloured text on white, and `on_dark` as
+# coloured text on the black announcement bar. All pairs pass
 # WCAG AA for normal text (4.5:1) — tests/test_campaigns.py checks the maths.
 ACCENT_PRESETS = {
-    "marigold": {"label": "Warm marigold", "accent": "#F2A900", "on_accent": "#1F1300", "accent_text": "#8A5200"},
-    "vermilion": {"label": "Vermilion red", "accent": "#B3261E", "on_accent": "#FFFFFF", "accent_text": "#B3261E"},
-    "peacock": {"label": "Peacock teal", "accent": "#00696B", "on_accent": "#FFFFFF", "accent_text": "#00696B"},
-    "rose": {"label": "Festive rose", "accent": "#B4245D", "on_accent": "#FFFFFF", "accent_text": "#B4245D"},
+    "marigold": {"label": "Warm marigold", "accent": "#F2A900", "on_accent": "#1F1300", "accent_text": "#8A5200", "on_dark": "#F2A900"},
+    "vermilion": {"label": "Vermilion red", "accent": "#B3261E", "on_accent": "#FFFFFF", "accent_text": "#B3261E", "on_dark": "#FF9A8F"},
+    "peacock": {"label": "Peacock teal", "accent": "#00696B", "on_accent": "#FFFFFF", "accent_text": "#00696B", "on_dark": "#5FD4D6"},
+    "rose": {"label": "Festive rose", "accent": "#B4245D", "on_accent": "#FFFFFF", "accent_text": "#B4245D", "on_dark": "#FF9BC0"},
 }
 
 
@@ -109,7 +110,7 @@ def _snapshot(campaign):
         "decoration": {
             "enabled": bool(campaign.decoration_enabled),
             "preset": campaign.accent_preset if campaign.accent_preset in ACCENT_PRESETS else "marigold",
-            **{k: preset[k] for k in ("accent", "on_accent", "accent_text")},
+            **{k: preset[k] for k in ("accent", "on_accent", "accent_text", "on_dark")},
         },
         "show_countdown": bool(campaign.show_countdown),
     }

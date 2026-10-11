@@ -32,21 +32,26 @@ export default function AnnounceBar() {
     // Colours stay CMS-controlled (admin sets them); only the type scale is
     // aligned to the design system here.
     <div
-      className="relative flex min-h-9 flex-wrap items-center justify-center gap-x-1 gap-y-1 px-4 py-2 text-center text-xs font-medium tracking-[0.1em] uppercase"
+      // One line of fixed height on a phone (the same 36px the page shell
+      // reserves), so the page below never moves when this arrives. Wider
+      // screens have room for the whole message.
+      className="relative flex h-9 items-center justify-center gap-x-1 px-3 text-center text-xs font-medium tracking-[0.1em] uppercase sm:h-auto sm:min-h-9 sm:flex-wrap sm:px-4 sm:py-2"
       style={{ backgroundColor: a.bg_color, color: a.text_color }}
     >
-      {a.text}{' '}
+      {/* On a phone the offer and the countdown are what matter; the greeting
+          joins them when there is room. */}
+      <span className={a.highlight_text ? 'hidden sm:inline' : 'truncate'}>{a.text}</span>{' '}
       {a.highlight_text && (
-        <span className="font-semibold" style={{ color: a.highlight_color }}>
+        <span className="min-w-0 truncate font-semibold" style={{ color: a.highlight_color }}>
           {a.highlight_text}
         </span>
       )}
       {a.link_text && a.link_url && (
-        <Link to={a.link_url} className="ml-2 underline underline-offset-2 hover:opacity-80">
+        <Link to={a.link_url} className="ml-2 hidden shrink-0 underline underline-offset-2 hover:opacity-80 sm:inline">
           {a.link_text}
         </Link>
       )}
-      {countdown && <Countdown endsAt={countdown} className="ml-2" />}
+      {countdown && <Countdown endsAt={countdown} className="ml-2 shrink-0" />}
       <FestiveBorder />
     </div>
   )

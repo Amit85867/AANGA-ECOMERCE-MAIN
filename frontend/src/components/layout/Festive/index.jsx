@@ -91,25 +91,27 @@ function remaining(endsAt) {
   return { d: Math.floor(total / 86400), h: Math.floor(total / 3600) % 24, m: Math.floor(total / 60) % 60, s: total % 60 }
 }
 
-/* "Ends in 20d 04h 12m 09s". Fixed-width digits so the line does not jitter;
-   ticks once a minute (and drops the seconds) for visitors who ask for less motion. */
+/* "Ends in 20d 04h 12m". Fixed-width digits so the line does not jitter. It
+   changes once a minute; seconds are shown only in the last hour, when they
+   matter — and never for visitors who ask for less motion. */
 export function Countdown({ endsAt, className = '' }) {
   const calm = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   const [left, setLeft] = useState(() => remaining(endsAt))
+  const lastHour = Boolean(left) && left.d === 0 && left.h === 0 && !calm
 
   useEffect(() => {
     setLeft(remaining(endsAt))
-    const id = setInterval(() => setLeft(remaining(endsAt)), calm ? 60_000 : 1000)
+    const id = setInterval(() => setLeft(remaining(endsAt)), lastHour ? 1000 : 30_000)
     return () => clearInterval(id)
-  }, [endsAt, calm])
+  }, [endsAt, lastHour])
 
   if (!left) return null
-  const text = `${left.d > 0 ? `${left.d}d ` : ''}${pad(left.h)}h ${pad(left.m)}m${calm ? '' : ` ${pad(left.s)}s`}`
+  const text = `${left.d > 0 ? `${left.d}d ` : ''}${pad(left.h)}h ${pad(left.m)}m${lastHour ? ` ${pad(left.s)}s` : ''}`
   return (
     <span className={`festive-countdown inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold normal-case tracking-normal tabular-nums ${className}`}>
       <span className="sr-only">Offer ends in </span>
       <span aria-hidden="true">Ends in</span>
-      {/* The live text changes every second; screen readers get it once. */}
+      {/* The text keeps changing; screen readers get it once. */}
       <time dateTime={endsAt} aria-live="off">{text}</time>
     </span>
   )

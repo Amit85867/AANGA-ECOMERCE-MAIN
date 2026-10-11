@@ -9,7 +9,7 @@ load_dotenv()
 # The dockerized Postgres from backend/docker-compose.yml. Used as the
 # development fallback, and recognised by _validate_config so a production app
 # that forgot to set DATABASE_URL fails on boot rather than on first query.
-DEV_DATABASE_URL = "postgresql://aanga:aanga@localhost:55433/aanga"
+DEV_DATABASE_URL = "postgresql://aanga:aanga@127.0.0.1:55433/aanga"
 
 
 class BaseConfig:
