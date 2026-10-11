@@ -253,17 +253,24 @@ export default function AdminProductForm() {
             <span className="mb-1 block text-sm font-medium text-gray-700">Category *</span>
             <select name="category_id" value={form.category_id} onChange={handleChange} required className={inputCls}>
               <option value="">Select category</option>
-              {categories.map((root) =>
-                root.children?.length > 0 ? (
-                  <optgroup key={root.id} label={root.name}>
-                    {root.children.map((child) => (
-                      <option key={child.id} value={child.id}>{child.name}</option>
-                    ))}
-                  </optgroup>
-                ) : (
-                  <option key={root.id} value={root.id}>{root.name}</option>
-                )
-              )}
+              {categories.map((root) => {
+                // Deactivated categories are not offered. The one this product is
+                // already in stays, marked, so opening and saving does not move it.
+                const current = (c) => String(c.id) === String(form.category_id)
+                const offered = (c) => (root.is_active && c.is_active) || current(c)
+                const name = (c) => (root.is_active && c.is_active ? c.name : `${c.name} (inactive)`)
+                if (root.children?.length > 0) {
+                  const children = root.children.filter(offered)
+                  return children.length > 0 && (
+                    <optgroup key={root.id} label={root.name}>
+                      {children.map((child) => (
+                        <option key={child.id} value={child.id}>{name(child)}</option>
+                      ))}
+                    </optgroup>
+                  )
+                }
+                return offered(root) && <option key={root.id} value={root.id}>{name(root)}</option>
+              })}
             </select>
           </label>
 

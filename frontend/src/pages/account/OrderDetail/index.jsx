@@ -169,11 +169,21 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null)
   const [error, setError] = useState(null)
   const [dialog, setDialog] = useState(null)   // 'cancel' | 'return' | null
+  const [anyReturnable, setAnyReturnable] = useState(false)
 
   const load = useCallback(() => {
     setError(null)
     return apiClient.get(`/orders/${id}`)
-      .then(({ data }) => setOrder(data))
+      .then(({ data }) => {
+        setOrder(data)
+        if (!RETURNABLE.includes(data.status)) return setAnyReturnable(false)
+        // The status alone is not enough: the window may have closed, or every
+        // item may already be in a return. If the check itself fails, offer
+        // the button and let the dialog report it.
+        return apiClient.get(`/returns/eligibility/${data.id}`)
+          .then((r) => setAnyReturnable(r.data.items.some((i) => i.returnable)))
+          .catch(() => setAnyReturnable(true))
+      })
       .catch((err) => setError(err.response?.status === 404 ? 'not-found' : 'failed'))
   }, [id])
 
@@ -200,7 +210,7 @@ export default function OrderDetail() {
   if (!order) return <><Skeleton className="h-8 w-48" /><Skeleton className="mt-6 h-72" /></>
 
   const canCancel = CANCELLABLE.includes(order.status)
-  const canReturn = RETURNABLE.includes(order.status)
+  const canReturn = RETURNABLE.includes(order.status) && anyReturnable
 
   return (
     <>

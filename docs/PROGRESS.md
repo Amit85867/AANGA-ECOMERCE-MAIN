@@ -142,7 +142,7 @@ Browser verification is Phase 7.
   errors; dashboard revenue and order count matched the database (3 orders,
   ₹10,495.80); Returns and System Health rendered as designed. Destructive
   actions and the maintenance switch were not exercised here — that is Phase 7.
-- [ ] Admin sign-ins are not written to the audit log (only changes are).
+- [x] Admin sign-ins are written to the audit log — Round 2, item 5.
 - [x] Order status transition rules — done in Round 2, item 3.
 - [x] Admin status changes now add the matching tracking event, and a
   delivered cash-on-delivery order is marked paid. Found in Phase 7: without
@@ -298,10 +298,8 @@ passed; `oxlint` and `vite build` clean.
   courier steps. Checked instead: "Pay online" is shown as unavailable at
   checkout, the delivery checker is hidden, Settlements and System Health say
   "Not configured". Re-run these two steps once the keys are in `backend/.env`.
-- [ ] Not fixed, small: admin create forms on the CMS screens use placeholders
-  instead of visible labels; a deactivated category still appears in the
-  product form's category list; "Return an item" stays visible on an order
-  whose only item is already being returned (the dialog then offers nothing).
+- [x] The three small items left here (CMS form labels, deactivated category
+  in the product form, "Return an item" with nothing to return) — Round 2, item 6.
 - [x] QA data left in the local database on purpose (see Phase 6). The
   temporary QA admin is removed; `backend/db/qa_cleanup.sql` also removes the
   walkthrough's product and category.
@@ -368,6 +366,19 @@ passed; `oxlint` and `vite build` clean.
   audit page has a "Not signed in" filter and a "Sign ins" area. 3 tests.
   Attempts stopped by the rate limiter (429) are not recorded. Customer
   sign-ins are not audited.
+- [x] **6. Small fixes.**
+  - Product form: deactivated categories (and everything under a deactivated
+    parent) are no longer offered. The category a product is already in stays
+    in the list marked "(inactive)", so opening and saving does not move it.
+  - Order page: "Return an item" is shown only when the eligibility check
+    says at least one item can still be returned (window open, not already in
+    a return).
+  - CMS admin forms: Offers, Categories and Coupons had placeholders only and
+    now have visible labels; Promo banners, Testimonials, Announcements,
+    Features and Hero banners had visible labels that were not tied to their
+    fields and now are (`htmlFor`/`id`); upload buttons, colour hex boxes and
+    sale-item rows have accessible names.
+  - Lint and build clean. Not yet re-checked in the browser.
 
 ## Discovered along the way
 

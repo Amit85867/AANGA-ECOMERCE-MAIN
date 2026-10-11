@@ -135,50 +135,50 @@ export default function AdminPromoBanners() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className={labelCls}>Title *</label>
-              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className={inputCls} />
+              <label htmlFor="promobanners-title" className={labelCls}>Title *</label>
+              <input id="promobanners-title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Subtitle (accent word)</label>
-              <input value={form.subtitle} onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))} placeholder="e.g. Sale" className={inputCls} />
+              <label htmlFor="promobanners-subtitle-accent-word" className={labelCls}>Subtitle (accent word)</label>
+              <input id="promobanners-subtitle-accent-word" value={form.subtitle} onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))} placeholder="e.g. Sale" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Badge Text</label>
-              <input value={form.badge_text} onChange={(e) => setForm((f) => ({ ...f, badge_text: e.target.value }))} placeholder="e.g. Limited Time" className={inputCls} />
+              <label htmlFor="promobanners-badge-text" className={labelCls}>Badge Text</label>
+              <input id="promobanners-badge-text" value={form.badge_text} onChange={(e) => setForm((f) => ({ ...f, badge_text: e.target.value }))} placeholder="e.g. Limited Time" className={inputCls} />
             </div>
           </div>
 
           <div className="mt-4">
-            <label className={labelCls}>Description</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={inputCls} />
+            <label htmlFor="promobanners-description" className={labelCls}>Description</label>
+            <textarea id="promobanners-description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={inputCls} />
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div>
-              <label className={labelCls}>Image URL</label>
-              <input value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-image-url" className={labelCls}>Image URL</label>
+              <input id="promobanners-image-url" value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Button Text</label>
-              <input value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop the Sale" className={inputCls} />
+              <label htmlFor="promobanners-button-text" className={labelCls}>Button Text</label>
+              <input id="promobanners-button-text" value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop the Sale" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Button URL</label>
-              <input value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
+              <label htmlFor="promobanners-button-url" className={labelCls}>Button URL</label>
+              <input id="promobanners-button-url" value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
             </div>
           </div>
 
           {/* Sale items grid */}
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <label className={labelCls + ' mb-0'}>Sale Items (shown as grid cards)</label>
+              <span className={labelCls + ' mb-0'}>Sale Items (shown as grid cards)</span>
               <button type="button" onClick={addItem} className="text-xs text-gold hover:underline">+ Add Item</button>
             </div>
             <div className="grid gap-2">
               {form.items.map((item, idx) => (
                 <div key={idx} className="flex gap-2 items-center">
-                  <input value={item.pct} onChange={(e) => updateItem(idx, 'pct', e.target.value)} placeholder="e.g. 50%" className={inputCls + ' max-w-[120px]'} />
-                  <input value={item.label} onChange={(e) => updateItem(idx, 'label', e.target.value)} placeholder="e.g. On Jackets" className={inputCls} />
+                  <input aria-label={`Sale item ${idx + 1} discount`} value={item.pct} onChange={(e) => updateItem(idx, 'pct', e.target.value)} placeholder="e.g. 50%" className={inputCls + ' max-w-[120px]'} />
+                  <input aria-label={`Sale item ${idx + 1} label`} value={item.label} onChange={(e) => updateItem(idx, 'label', e.target.value)} placeholder="e.g. On Jackets" className={inputCls} />
                   {form.items.length > 1 && (
                     <button type="button" onClick={() => removeItem(idx)} aria-label="Remove item" title="Remove item" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
                       <IconX size={16} />
@@ -191,16 +191,16 @@ export default function AdminPromoBanners() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-4">
             <div>
-              <label className={labelCls}>Sort Order</label>
-              <input type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-sort-order" className={labelCls}>Sort Order</label>
+              <input id="promobanners-sort-order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Starts At</label>
-              <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-starts-at" className={labelCls}>Starts At</label>
+              <input id="promobanners-starts-at" type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Ends At</label>
-              <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-ends-at" className={labelCls}>Ends At</label>
+              <input id="promobanners-ends-at" type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2">

@@ -111,29 +111,29 @@ export default function AdminFeatures() {
           <h3 className="mb-4 text-lg font-medium text-gray-900">{editing ? 'Edit Card' : 'New Card'}</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className={labelCls}>Icon</label>
+              <label htmlFor="features-icon" className={labelCls}>Icon</label>
               <div className="flex items-center gap-2">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ink"><PreviewIcon size={18} className="text-gold" /></span>
-                <select value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className={inputCls}>
+                <select id="features-icon" value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className={inputCls}>
                   {ICON_NAMES.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
             </div>
-            <div><label className={labelCls}>Title *</label><input required value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={inputCls} /></div>
-            <div><label className={labelCls}>Sort Order</label><input type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="features-title" className={labelCls}>Title *</label><input id="features-title" required value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="features-sort-order" className={labelCls}>Sort Order</label><input id="features-sort-order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} /></div>
           </div>
           <div className="mt-4">
-            <label className={labelCls}>Description</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={inputCls} />
+            <label htmlFor="features-description" className={labelCls}>Description</label>
+            <textarea id="features-description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={inputCls} />
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Image (optional — replaces the icon)</label>
+              <label htmlFor="features-image-optional-replaces-the-icon" className={labelCls}>Image (optional — replaces the icon)</label>
               <div className="flex gap-2">
-                <input value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} placeholder="Image URL or upload →" className={inputCls} />
+                <input id="features-image-optional-replaces-the-icon" value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} placeholder="Image URL or upload →" className={inputCls} />
                 <label className="shrink-0 cursor-pointer rounded-lg border border-gray-200 px-3 py-2.5 text-gray-500 hover:bg-gray-50">
                   <IconPhoto size={18} />
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+                  <input type="file" accept="image/*" aria-label="Upload image" className="hidden" onChange={handleUpload} />
                 </label>
               </div>
               {form.image_url && <img src={form.image_url} alt="" className="mt-2 h-14 rounded border object-cover" />}

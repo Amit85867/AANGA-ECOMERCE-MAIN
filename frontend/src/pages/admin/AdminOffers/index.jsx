@@ -122,19 +122,43 @@ export default function AdminOffers() {
         <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
           <h3 className="mb-4 font-medium text-gray-900">{editing ? 'Edit Offer' : 'New Offer'}</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Title *" required className={inputCls} />
-            <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Description" className={inputCls} />
-            <select value={form.offer_type} onChange={(e) => setForm((f) => ({ ...f, offer_type: e.target.value }))} className={inputCls}>
-              {OFFER_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-            </select>
-            <input type="number" step="0.01" value={form.discount_percent} onChange={(e) => setForm((f) => ({ ...f, discount_percent: e.target.value }))} placeholder="Discount %" className={inputCls} />
-            <select value={form.category_id} onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value }))} className={inputCls}>
-              <option value="">All categories</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <input value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} placeholder="Image URL" className={inputCls} />
-            <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
-            <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Title *</span>
+              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Description</span>
+              <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Offer type</span>
+              <select value={form.offer_type} onChange={(e) => setForm((f) => ({ ...f, offer_type: e.target.value }))} className={inputCls}>
+                {OFFER_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Discount %</span>
+              <input type="number" step="0.01" value={form.discount_percent} onChange={(e) => setForm((f) => ({ ...f, discount_percent: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Category</span>
+              <select value={form.category_id} onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value }))} className={inputCls}>
+                <option value="">All categories</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Image URL</span>
+              <input value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Starts at</span>
+              <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Ends at</span>
+              <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
+            </label>
             <label className="flex items-center gap-2 py-2">
               <input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="rounded" />
               <span className="text-sm text-gray-700">Active</span>

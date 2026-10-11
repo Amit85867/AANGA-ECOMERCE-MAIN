@@ -106,17 +106,41 @@ export default function AdminCoupons() {
         <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
           <h3 className="mb-4 font-medium text-gray-900">{editing ? 'Edit Coupon' : 'New Coupon'}</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="Code *" required className={inputCls} />
-            <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Description" className={inputCls} />
-            <select value={form.discount_type} onChange={(e) => setForm((f) => ({ ...f, discount_type: e.target.value }))} className={inputCls}>
-              <option value="percentage">Percentage</option>
-              <option value="flat">Flat</option>
-            </select>
-            <input type="number" step="0.01" value={form.discount_value} onChange={(e) => setForm((f) => ({ ...f, discount_value: e.target.value }))} placeholder="Discount value *" required className={inputCls} />
-            <input type="number" step="0.01" value={form.min_order_value} onChange={(e) => setForm((f) => ({ ...f, min_order_value: e.target.value }))} placeholder="Min order value" className={inputCls} />
-            <input type="number" step="0.01" value={form.max_discount} onChange={(e) => setForm((f) => ({ ...f, max_discount: e.target.value }))} placeholder="Max discount cap" className={inputCls} />
-            <input type="number" value={form.usage_limit} onChange={(e) => setForm((f) => ({ ...f, usage_limit: e.target.value }))} placeholder="Usage limit" className={inputCls} />
-            <input type="datetime-local" value={form.expires_at} onChange={(e) => setForm((f) => ({ ...f, expires_at: e.target.value }))} className={inputCls} />
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Code *</span>
+              <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} required className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Description</span>
+              <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Discount type</span>
+              <select value={form.discount_type} onChange={(e) => setForm((f) => ({ ...f, discount_type: e.target.value }))} className={inputCls}>
+                <option value="percentage">Percentage</option>
+                <option value="flat">Flat</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Discount value *</span>
+              <input type="number" step="0.01" value={form.discount_value} onChange={(e) => setForm((f) => ({ ...f, discount_value: e.target.value }))} required className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Minimum order value</span>
+              <input type="number" step="0.01" value={form.min_order_value} onChange={(e) => setForm((f) => ({ ...f, min_order_value: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Maximum discount</span>
+              <input type="number" step="0.01" value={form.max_discount} onChange={(e) => setForm((f) => ({ ...f, max_discount: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Usage limit</span>
+              <input type="number" value={form.usage_limit} onChange={(e) => setForm((f) => ({ ...f, usage_limit: e.target.value }))} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Expires at</span>
+              <input type="datetime-local" value={form.expires_at} onChange={(e) => setForm((f) => ({ ...f, expires_at: e.target.value }))} className={inputCls} />
+            </label>
             <label className="flex items-center gap-2 py-2">
               <input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="rounded" />
               <span className="text-sm text-gray-700">Active</span>

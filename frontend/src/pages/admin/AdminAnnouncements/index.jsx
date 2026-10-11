@@ -117,53 +117,53 @@ export default function AdminAnnouncements() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Main Text *</label>
-              <input value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} placeholder="e.g. Summer Sale Live" required className={inputCls} />
+              <label htmlFor="announcements-main-text" className={labelCls}>Main Text *</label>
+              <input id="announcements-main-text" value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} placeholder="e.g. Summer Sale Live" required className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Highlight Text (shown in accent color)</label>
-              <input value={form.highlight_text} onChange={(e) => setForm((f) => ({ ...f, highlight_text: e.target.value }))} placeholder="e.g. Free shipping on orders above ₹999" className={inputCls} />
+              <label htmlFor="announcements-highlight-text-shown-in-accent-color" className={labelCls}>Highlight Text (shown in accent color)</label>
+              <input id="announcements-highlight-text-shown-in-accent-color" value={form.highlight_text} onChange={(e) => setForm((f) => ({ ...f, highlight_text: e.target.value }))} placeholder="e.g. Free shipping on orders above ₹999" className={inputCls} />
             </div>
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Link URL</label>
-              <input value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
+              <label htmlFor="announcements-link-url" className={labelCls}>Link URL</label>
+              <input id="announcements-link-url" value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Link Text</label>
-              <input value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop Now" className={inputCls} />
+              <label htmlFor="announcements-link-text" className={labelCls}>Link Text</label>
+              <input id="announcements-link-text" value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop Now" className={inputCls} />
             </div>
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div>
-              <label className={labelCls}>Background Color</label>
+              <label htmlFor="announcements-background-color" className={labelCls}>Background Color</label>
               <div className="flex gap-2">
-                <input type="color" value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
-                <input value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className={inputCls} />
+                <input id="announcements-background-color" type="color" value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
+                <input aria-label="Background Color (hex code)" value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className={inputCls} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>Text Color</label>
+              <label htmlFor="announcements-text-color" className={labelCls}>Text Color</label>
               <div className="flex gap-2">
-                <input type="color" value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
-                <input value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className={inputCls} />
+                <input id="announcements-text-color" type="color" value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
+                <input aria-label="Text Color (hex code)" value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className={inputCls} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>Highlight Color</label>
+              <label htmlFor="announcements-highlight-color" className={labelCls}>Highlight Color</label>
               <div className="flex gap-2">
-                <input type="color" value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
-                <input value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className={inputCls} />
+                <input id="announcements-highlight-color" type="color" value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
+                <input aria-label="Highlight Color (hex code)" value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className={inputCls} />
               </div>
             </div>
           </div>
 
           {/* Live preview */}
           <div className="mt-4">
-            <label className={labelCls}>Preview</label>
+            <div className={labelCls}>Preview</div>
             <div
               className="rounded-lg py-2.5 px-4 text-center text-[11px] tracking-[1.5px] uppercase"
               style={{ backgroundColor: form.bg_color, color: form.text_color + 'd9' }}
@@ -176,16 +176,16 @@ export default function AdminAnnouncements() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-4">
             <div>
-              <label className={labelCls}>Sort Order</label>
-              <input type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
+              <label htmlFor="announcements-sort-order" className={labelCls}>Sort Order</label>
+              <input id="announcements-sort-order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Starts At</label>
-              <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="announcements-starts-at" className={labelCls}>Starts At</label>
+              <input id="announcements-starts-at" type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Ends At</label>
-              <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="announcements-ends-at" className={labelCls}>Ends At</label>
+              <input id="announcements-ends-at" type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2">

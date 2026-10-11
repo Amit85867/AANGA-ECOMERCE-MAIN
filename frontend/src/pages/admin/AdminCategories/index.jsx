@@ -157,13 +157,25 @@ export default function AdminCategories() {
         <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
           <h3 className="mb-4 font-medium text-gray-900">{editing ? 'Edit Category' : 'New Category'}</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <input name="name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value, ...(!editing && { slug: autoSlug(e.target.value) }) }))} placeholder="Name *" required className={inputCls} />
-            <input name="slug" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} placeholder="Slug *" required className={inputCls} />
-            <select name="parent_id" value={form.parent_id} onChange={(e) => setForm((f) => ({ ...f, parent_id: e.target.value }))} className={inputCls}>
-              <option value="">No parent (root)</option>
-              {flatCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <input name="sort_order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} placeholder="Sort order" className={inputCls} />
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Name *</span>
+              <input name="name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value, ...(!editing && { slug: autoSlug(e.target.value) }) }))} required className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Slug *</span>
+              <input name="slug" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} required className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Parent category</span>
+              <select name="parent_id" value={form.parent_id} onChange={(e) => setForm((f) => ({ ...f, parent_id: e.target.value }))} className={inputCls}>
+                <option value="">No parent (root)</option>
+                {flatCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Sort order</span>
+              <input name="sort_order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
+            </label>
             <label className="flex items-center gap-2 py-2">
               <input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="rounded" />
               <span className="text-sm text-gray-700">Active</span>

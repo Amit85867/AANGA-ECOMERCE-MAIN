@@ -104,33 +104,33 @@ export default function AdminTestimonials() {
         <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
           <h3 className="mb-4 text-lg font-medium text-gray-900">{editing ? 'Edit Testimonial' : 'New Testimonial'}</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className={labelCls}>Customer Name *</label><input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
-            <div><label className={labelCls}>Location</label><input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="e.g. Patna, Bihar" className={inputCls} /></div>
+            <div><label htmlFor="testimonials-customer-name" className={labelCls}>Customer Name *</label><input id="testimonials-customer-name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="testimonials-location" className={labelCls}>Location</label><input id="testimonials-location" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="e.g. Patna, Bihar" className={inputCls} /></div>
             <div>
-              <label className={labelCls}>Rating</label>
-              <select value={form.rating} onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))} className={inputCls}>
+              <label htmlFor="testimonials-rating" className={labelCls}>Rating</label>
+              <select id="testimonials-rating" value={form.rating} onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))} className={inputCls}>
                 {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} Star{r > 1 ? 's' : ''}{r >= 4 ? ' (shown up front)' : ' (in View more)'}</option>)}
               </select>
             </div>
           </div>
           <div className="mt-4">
-            <label className={labelCls}>Review Quote *</label>
-            <textarea required value={form.quote} onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))} rows={3} className={inputCls} />
+            <label htmlFor="testimonials-review-quote" className={labelCls}>Review Quote *</label>
+            <textarea id="testimonials-review-quote" required value={form.quote} onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))} rows={3} className={inputCls} />
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Customer Photo</label>
+              <label htmlFor="testimonials-customer-photo" className={labelCls}>Customer Photo</label>
               <div className="flex gap-2">
-                <input value={form.avatar_url} onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))} placeholder="Image URL or upload →" className={inputCls} />
+                <input id="testimonials-customer-photo" value={form.avatar_url} onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))} placeholder="Image URL or upload →" className={inputCls} />
                 <label className="shrink-0 cursor-pointer rounded-lg border border-gray-200 px-3 py-2.5 text-gray-500 hover:bg-gray-50">
                   <IconPhoto size={18} />
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+                  <input type="file" accept="image/*" aria-label="Upload image" className="hidden" onChange={handleUpload} />
                 </label>
               </div>
               {form.avatar_url && <img src={form.avatar_url} alt="" className="mt-2 h-14 w-14 rounded-full border object-cover" />}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className={labelCls}>Sort Order</label><input type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} /></div>
+              <div><label htmlFor="testimonials-sort-order" className={labelCls}>Sort Order</label><input id="testimonials-sort-order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} /></div>
               <div className="flex items-end pb-1">
                 <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="rounded" /><span className="text-sm text-gray-700">Active</span></label>
               </div>
