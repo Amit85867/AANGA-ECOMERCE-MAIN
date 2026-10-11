@@ -24,6 +24,14 @@ export const setAccessToken = (token) => {
 }
 export const getAccessToken = () => accessToken
 
+// Resolves once the first attempt to restore a session has finished, either
+// way. A returning customer who presses "Add to bag" or the heart in the first
+// moment after the page appears is still being signed back in; without
+// waiting for this they were told to sign in.
+let settle
+export const sessionSettled = new Promise((resolve) => { settle = resolve })
+export const markSessionSettled = () => settle()
+
 apiClient.interceptors.request.use((config) => {
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
   // Campaign preview (admin only): see services/preview.

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import apiClient, { setAccessToken, refreshAccessToken } from '@/services/apiClient'
+import apiClient, { setAccessToken, refreshAccessToken, markSessionSettled } from '@/services/apiClient'
 import { useCartStore } from '@/store/useCartStore'
 import { useWishlistStore } from '@/store/useWishlistStore'
 
@@ -115,6 +115,8 @@ export const useAuthStore = create((set, get) => ({
     } catch {
       setAccessToken(null)
       set({ user: null, isAuthenticated: false, initializing: false })
+    } finally {
+      markSessionSettled()
     }
   },
 

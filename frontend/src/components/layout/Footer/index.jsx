@@ -67,7 +67,8 @@ export default function Footer() {
           <div>
             <div className="display text-3xl text-fg mb-4">{storeName}</div>
             <p className="text-sm leading-relaxed text-muted max-w-[280px]">
-              {s(
+              {/* Store settings → Tagline wins; the older "Other text" entry is the fallback. */}
+              {s('store_tagline', '') || s(
                 'footer_tagline',
                 "Bihar's premium fashion destination for men, women & kids. Wholesale and retail clothing with 1,200+ styles.",
               )}

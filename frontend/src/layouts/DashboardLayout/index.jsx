@@ -52,8 +52,8 @@ export default function DashboardLayout() {
   } else {
     content = (
       <Container className="py-8 lg:py-12">
-        <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12">
-          <aside>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12">
+          <aside className="min-w-0">
             <div className="mb-6">
               <p className="text-xs uppercase tracking-[0.08em] text-muted">Signed in as</p>
               <p className="mt-1 truncate text-sm font-semibold text-fg">{user?.full_name}</p>
