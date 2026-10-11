@@ -9,6 +9,7 @@ key) the message is logged instead, so local development is unchanged.
 Configure with RESEND_API_KEY + EMAIL_FROM. EMAIL_ENABLED is a manual kill
 switch (default on).
 """
+from html import escape
 import atexit
 from concurrent.futures import ThreadPoolExecutor
 
@@ -97,33 +98,96 @@ def _deliver(api_key, payload, logger):
 
 # ── Templates ──────────────────────────────────────────────────────────────
 
+def _store_name():
+    """The owner's store name (Admin -> Store settings), for subjects and headers."""
+    try:
+        from app.services import store_settings
+        return store_settings.get("store_name") or "AANGA"
+    except Exception:  # noqa: BLE001 - an email must not fail over a settings lookup
+        return "AANGA"
+
+
 def _wrap(inner):
+    name = escape(_store_name())
     return (
         '<div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;'
         'color:#1a1a1a">'
-        '<h1 style="font-size:20px;letter-spacing:2px">AANGA</h1>'
+        f'<h1 style="font-size:20px;letter-spacing:2px">{name}</h1>'
         f"{inner}"
         '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
         '<p style="font-size:12px;color:#888">You are receiving this because you have '
-        "an account at AANGA.</p></div>"
+        f"an account at {name}.</p></div>"
     )
 
 
 def send_password_reset(email, reset_link):
+    store = _store_name()
     html = _wrap(
         "<p>We received a request to reset your password. This link expires in "
         "one hour:</p>"
-        f'<p><a href="{reset_link}" style="background:#1a1a1a;color:#fff;'
+        f'<p><a href="{escape(reset_link, quote=True)}" style="background:#1a1a1a;color:#fff;'
         'padding:12px 20px;text-decoration:none;display:inline-block">Reset '
         "password</a></p>"
         "<p>If you didn't ask for this, you can safely ignore this email.</p>"
     )
     return send_email(
         email,
-        "Reset your AANGA password",
+        f"Reset your {store} password",
         html,
-        text=f"Reset your AANGA password (expires in 1 hour): {reset_link}",
+        text=f"Reset your {store} password (expires in 1 hour): {reset_link}",
     )
+
+
+def _money(value):
+    return f"&#8377;{float(value):.2f}"
+
+
+def order_confirmation_content(order):
+    """``(subject, html, text)`` for an order. Separate from sending so the
+    figures can be checked against the order itself."""
+    user = order.user
+    store = _store_name()
+    cell = 'style="padding:6px 0"'
+    right = 'style="padding:6px 0;text-align:right"'
+
+    rows = ""
+    for item in order.items:
+        variant = item.variant
+        # Everything a person typed is escaped: a product or customer name is
+        # text, never markup.
+        label = escape(f"{variant.product.name} ({variant.size}/{variant.color_name})")
+        rows += (
+            f"<tr><td {cell}>{label} &times; {item.quantity}</td>"
+            f"<td {right}>{_money(float(item.unit_price) * item.quantity)}</td></tr>"
+        )
+
+    summary = f"<tr><td {cell}>Subtotal</td><td {right}>{_money(order.subtotal)}</td></tr>"
+    if float(order.discount_amount or 0) > 0:
+        summary += f"<tr><td {cell}>Discount</td><td {right}>&minus;{_money(order.discount_amount)}</td></tr>"
+    summary += f"<tr><td {cell}>GST</td><td {right}>{_money(order.gst_amount)}</td></tr>"
+    delivery = "Free" if float(order.delivery_charge or 0) == 0 else _money(order.delivery_charge)
+    summary += f"<tr><td {cell}>Delivery</td><td {right}>{delivery}</td></tr>"
+
+    payment = "Cash on delivery" if order.payment_method.value == "cod" else "Paid online"
+    site = (current_app.config.get("SITE_URL") or current_app.config.get("FRONTEND_ORIGIN") or "").rstrip("/")
+    link = f"{site}/account/orders/{order.id}"
+
+    html = _wrap(
+        f"<p>Thanks for your order, {escape(user.full_name or '')}! We&rsquo;ve received it and "
+        "will let you know when it ships.</p>"
+        f"<p><strong>Order {escape(order.order_number)}</strong> &middot; {payment}</p>"
+        f'<table style="width:100%;border-collapse:collapse;font-size:14px">{rows}'
+        f'<tr><td colspan="2" style="border-top:1px solid #eee;padding:0"></td></tr>{summary}'
+        f'<tr><td style="padding-top:10px;font-weight:600">Total</td>'
+        f'<td style="padding-top:10px;text-align:right;font-weight:600">'
+        f"{_money(order.total_amount)}</td></tr></table>"
+        f'<p><a href="{escape(link, quote=True)}">View your order</a></p>'
+    )
+    text = (
+        f"Order {order.order_number} confirmed ({payment}). "
+        f"Total: Rs.{float(order.total_amount):.2f}. View it: {link}"
+    )
+    return f"Your {store} order {order.order_number} is confirmed", html, text
 
 
 def send_order_confirmation(order):
@@ -132,30 +196,5 @@ def send_order_confirmation(order):
     email = getattr(user, "email", None)
     if not _deliverable(email):
         return False
-
-    rows = ""
-    for item in order.items:
-        variant = item.variant
-        name = variant.product.name
-        rows += (
-            f'<tr><td style="padding:6px 0">{name} '
-            f"({variant.size}/{variant.color_name}) &times; {item.quantity}</td>"
-            f'<td style="padding:6px 0;text-align:right">'
-            f"&#8377;{float(item.unit_price) * item.quantity:.2f}</td></tr>"
-        )
-
-    html = _wrap(
-        f"<p>Thanks for your order, {user.full_name}! We&rsquo;ve received it and "
-        "will let you know when it ships.</p>"
-        f"<p><strong>Order {order.order_number}</strong></p>"
-        f'<table style="width:100%;border-collapse:collapse;font-size:14px">{rows}'
-        f'<tr><td style="padding-top:10px;font-weight:600">Total</td>'
-        f'<td style="padding-top:10px;text-align:right;font-weight:600">'
-        f"&#8377;{float(order.total_amount):.2f}</td></tr></table>"
-    )
-    return send_email(
-        email,
-        f"Your AANGA order {order.order_number} is confirmed",
-        html,
-        text=f"Order {order.order_number} confirmed. Total: Rs.{float(order.total_amount):.2f}",
-    )
+    subject, html, text = order_confirmation_content(order)
+    return send_email(email, subject, html, text=text)

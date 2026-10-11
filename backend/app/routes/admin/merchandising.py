@@ -18,7 +18,7 @@ from app.routes.admin.content import no_markup, valid_image, valid_link
 from app.routes.admin.decorators import admin_required
 from app.services import audit, campaigns, media
 from app.services.catalogue import primary_images
-from app.services.storage import StorageError, save_image
+from app.services.storage import InvalidImage, StorageError, save_image
 from app.utils.pagination import page_meta, paginate
 
 
@@ -429,6 +429,8 @@ def store_upload(file_storage, alt_text=None, source_note=None):
         return None, ("File too large (max 5 MB)", 400)
     try:
         url = save_image(file_storage)
+    except InvalidImage as exc:
+        return None, (str(exc), 400)
     except StorageError as exc:
         current_app.logger.error("Image upload failed: %s", exc)
         return None, ("Could not store the image. Please try again.", 502)

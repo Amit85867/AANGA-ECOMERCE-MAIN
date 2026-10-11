@@ -65,7 +65,12 @@ if command -v psql >/dev/null 2>&1; then
   run_psql() { PGOPTIONS="--client-min-messages=warning" psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X -q "$@"; }
   run_file() { run_psql -f "$1"; }
 elif command -v docker >/dev/null 2>&1; then
-  run_psql() { docker run --rm -i -e PGOPTIONS="--client-min-messages=warning" postgres:17 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X -q "$@"; }
+  # psql runs inside a container here. For a database on this machine
+  # (localhost / 127.0.0.1) "localhost" would be the container itself, so
+  # the address is pointed at the host instead. Remote databases (Render)
+  # are untouched.
+  PSQL_URL="$(printf '%s' "$DATABASE_URL" | sed -E 's#@(localhost|127\.0\.0\.1)([:/])#@host.docker.internal\2#')"
+  run_psql() { docker run --rm -i --add-host=host.docker.internal:host-gateway -e PGOPTIONS="--client-min-messages=warning" postgres:17 psql "$PSQL_URL" -v ON_ERROR_STOP=1 -X -q "$@"; }
   run_file() { run_psql -f - < "$1"; }
 else
   echo "Need either psql or docker on this machine." >&2
@@ -93,7 +98,8 @@ verify() {
   query "SELECT '  triggers: ' || count(*) FROM information_schema.triggers WHERE trigger_schema='public'"
   missing=0
   for object in \
-      "orders.idempotency_key" "addresses.archived_at" "hero_banners.pill_label" \n      "products.is_demo" "hero_banners.campaign_id" "coupons.campaign_id" "products.meta_title"; do
+      "orders.idempotency_key" "addresses.archived_at" "hero_banners.pill_label" \
+      "products.is_demo" "hero_banners.campaign_id" "coupons.campaign_id" "products.meta_title"; do
     table="${object%%.*}"; column="${object##*.}"
     found="$(query "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='$table' AND column_name='$column'")"
     [ "$found" = "1" ] && echo "  ok   column $object" || { echo "  MISSING column $object"; missing=1; }

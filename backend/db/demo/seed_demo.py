@@ -206,6 +206,9 @@ class Api:
         self.http = requests.Session()
         self.token = None
         self.manifest = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else []
+        # False for a throwaway environment: its uploads are not the demo
+        # assets the repository documents.
+        self.keep_manifest = True
 
     def call(self, method, path, token=None, ok=(200, 201), **kw):
         headers = kw.pop("headers", {})
@@ -238,7 +241,8 @@ class Api:
         return asset["url"]
 
     def save_manifest(self):
-        MANIFEST.write_text(json.dumps(self.manifest, indent=1))
+        if self.keep_manifest:
+            MANIFEST.write_text(json.dumps(self.manifest, indent=1))
 
 
 def login(api, email, password):
@@ -411,6 +415,43 @@ def step_content(api):
             api.put(f"/admin/promo-banners/{promo['id']}", json={**{k: promo.get(k) for k in (
                 "title", "subtitle", "description", "badge_text", "link_url", "link_text", "items", "sort_order", "is_active")}, "image_url": url})
             print("  picture for the promo banner")
+
+    # A database built from schema.sql alone has none of the home page's
+    # supporting content, so make it. (An older database got these rows from
+    # the one-off CMS migrations and they are left as they are.)
+    if not api.get("/admin/announcements?per_page=50")["announcements"]:
+        api.post("/admin/announcements", json={
+            "text": "New season, new styles", "highlight_text": "Free shipping on orders above ₹999",
+            "link_url": "/shop", "link_text": "Shop now", "is_active": True})
+        print("  announcement")
+    if not promos:
+        url = api.upload(art.promo_scene(), "promo-everyday", "Promo banner: End of season sale")
+        api.post("/admin/promo-banners", json={
+            "title": "End of Season Sale", "subtitle": "Sale", "badge_text": "Limited time",
+            "description": "Selected styles at up to 40% off while stocks last.", "image_url": url,
+            "link_url": "/offers", "link_text": "Shop the sale", "is_active": True,
+            "items": [{"pct": "40%", "label": "On jackets"}, {"pct": "30%", "label": "On knitwear"},
+                      {"pct": "25%", "label": "On denim"}, {"pct": "20%", "label": "On accessories"}]})
+        print("  promo banner")
+    if not api.get("/admin/features?per_page=50")["features"]:
+        for order, (icon, title, text) in enumerate((
+            ("shield-check", "Premium Quality", "Every piece is checked by hand. Good fabric, clean stitching, made to last."),
+            ("truck", "Fast Delivery", "Delivered across India. Free shipping on orders above ₹999."),
+            ("refresh", "Easy Returns", "Changed your mind? Return within 7 days of delivery."),
+            ("headset", "Real Support", "Questions answered by real people, usually within a working day."),
+        )):
+            api.post("/admin/features", json={"icon": icon, "title": title, "description": text, "sort_order": order, "is_active": True})
+        print("  4 feature cards")
+    if not api.get("/admin/testimonials?per_page=50")["testimonials"]:
+        for order, (name, place, rating, quote) in enumerate((
+            ("Rahul Kumar", "Patna, Bihar", 5, "Ordered three shirts for a wedding. The fabric and the fit were far better than I expected at this price."),
+            ("Priya Singh", "Muzaffarpur, Bihar", 5, "I run a small boutique and buy wholesale here. Fair pricing and something new every month."),
+            ("Arjun Verma", "Ranchi, Jharkhand", 5, "The hoodie arrived in four days and has survived a winter of daily wear."),
+            ("Neha Gupta", "Gaya, Bihar", 4, "Lovely quality. The size ran a little large for me, but the exchange was quick."),
+            ("Sana Rizvi", "Lucknow, Uttar Pradesh", 5, "The festive kurta looked exactly like the picture. I have already ordered another colour."),
+        )):
+            api.post("/admin/testimonials", json={"name": name, "location": place, "rating": rating, "quote": quote, "sort_order": order, "is_active": True})
+        print("  5 testimonials")
 
     palette = ["#7A1F3D", "#1F6F78", "#31506E", "#B5542B", "#5B6C5D", "#6B5540"]
     for index, t in enumerate(api.get("/admin/testimonials?per_page=50")["testimonials"]):
@@ -603,6 +644,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--api", default="http://localhost:5000")
     parser.add_argument("--only", help="comma-separated steps: " + ", ".join(STEPS))
+    parser.add_argument("--no-manifest", action="store_true", help="do not record uploads in assets_manifest.json or rewrite docs/DEMO_ASSETS.md (throwaway environments)")
     parser.add_argument("--secrets-out", help="write the generated demo logins to this JSON file (keep it out of git)")
     args = parser.parse_args()
 
@@ -615,6 +657,7 @@ def main():
         raise SystemExit("Set DEMO_OWNER_EMAIL and DEMO_OWNER_PASSWORD (an Owner account).")
 
     api = Api(args.api)
+    api.keep_manifest = not args.no_manifest
     login(api, email, password)
     logins = {}
     chosen = [s.strip() for s in args.only.split(",")] if args.only else STEPS
@@ -625,7 +668,8 @@ def main():
         function = globals()[f"step_{step}"]
         function(api, logins) if step in ("staff", "customers") else function(api)
         api.save_manifest()
-    write_doc(api)
+    if api.keep_manifest:
+        write_doc(api)
     if logins and args.secrets_out:
         path = pathlib.Path(args.secrets_out)
         known = json.loads(path.read_text()) if path.exists() else {}

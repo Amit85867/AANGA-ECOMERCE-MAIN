@@ -174,8 +174,12 @@ def _validate_config(app):
 
     # Uploads would land on an ephemeral filesystem and be lost on redeploy,
     # silently breaking every product image.
+    # ALLOW_LOCAL_UPLOADS=true is the explicit statement that static/uploads is
+    # a persistent volume (scripts/prod_local.sh, or a self-hosted server with
+    # a mounted disk). Never set it on Render, whose disk is wiped on deploy.
+    local_uploads_ok = str(os.environ.get("ALLOW_LOCAL_UPLOADS", "")).lower() == "true"
     from app.services.storage import is_object_storage_configured
-    if not is_object_storage_configured(app.config):
+    if not is_object_storage_configured(app.config) and not local_uploads_ok:
         problems.append(
             "SUPABASE_URL / SUPABASE_SERVICE_KEY are unset — product images "
             "would be written to an ephemeral disk and lost on the next deploy"
@@ -321,7 +325,7 @@ def _check_database(app):
         return
     # Flask's own commands (including the one that fixes this) say it themselves.
     import sys
-    if any(arg in ("apply-migrations", "check-schema") for arg in sys.argv):
+    if any(arg in ("apply-migrations", "check-schema", "check-integrations") for arg in sys.argv):
         return
     from app.services import schema_check
 
@@ -394,6 +398,23 @@ def _register_cli(app):
         if after["pending"]:
             raise click.ClickException(schema_check.describe(after))
         click.echo("Database is up to date." if applied else "Nothing to apply: the database is up to date.")
+
+    @app.cli.command("check-integrations")
+    @click.option("--offline", is_flag=True, help="Check the settings only; contact nobody.")
+    def check_integrations(offline):
+        """Check every outside service: settings present, and one read-only call each.
+
+            flask check-integrations
+
+        Prints what is wrong and how to fix it. Never prints a key or password.
+        Exits 1 if anything that is switched on is not working.
+        """
+        from app.services import integrations_check
+
+        lines, code = integrations_check.run(probe=not offline)
+        for line in lines:
+            click.echo(line)
+        raise SystemExit(code)
 
     @app.cli.command("check-schema")
     def check_schema():

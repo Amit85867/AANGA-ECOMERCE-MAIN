@@ -62,6 +62,36 @@ class StorageError(Exception):
     """Raised when a file could not be persisted."""
 
 
+class InvalidImage(StorageError):
+    """The upload is not an image this store accepts (the caller answers 400)."""
+
+
+# What the picture actually is, whatever its file name says.
+ALLOWED_FORMATS = {"PNG", "JPEG", "WEBP", "GIF"}
+# Far beyond any product photo; stops a tiny file that unpacks to gigabytes.
+MAX_PIXELS = 50_000_000
+
+
+def inspect_image(raw):
+    """Check ``raw`` really is an acceptable image. Returns its format.
+
+    A file is judged by its contents, never by its name: a page of HTML
+    renamed photo.png, or an SVG with a script in it, is refused here.
+    """
+    try:
+        with Image.open(io.BytesIO(raw)) as probe:
+            image_format = probe.format
+            width, height = probe.size
+            probe.verify()
+    except Exception:  # noqa: BLE001 - anything Pillow cannot read is not an image
+        raise InvalidImage("This file is not a valid image.") from None
+    if image_format not in ALLOWED_FORMATS:
+        raise InvalidImage("Use a JPG, PNG, WebP or GIF image.")
+    if width * height > MAX_PIXELS:
+        raise InvalidImage("This image is too large. Use one under 50 megapixels.")
+    return image_format
+
+
 def is_object_storage_configured(config=None):
     cfg = config if config is not None else current_app.config
     return bool(cfg.get("SUPABASE_URL") and cfg.get("SUPABASE_SERVICE_KEY"))
@@ -76,6 +106,9 @@ def optimize_image(file_storage):
     original_ext = file_storage.filename.rsplit(".", 1)[1].lower()
     file_storage.stream.seek(0)
     raw = file_storage.stream.read()
+    image_format = inspect_image(raw)
+    # Stored under what it is, not what it was called.
+    original_ext = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp", "GIF": "gif"}[image_format]
 
     if original_ext in PASSTHROUGH_EXTS:
         return raw, original_ext, CONTENT_TYPES.get(original_ext, "application/octet-stream")
