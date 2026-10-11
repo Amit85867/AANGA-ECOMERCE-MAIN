@@ -134,7 +134,18 @@ What it applies, in order:
 | 7 | `backend/migrations_admin_ops.sql` | `audit_log`, dashboard indexes |
 
 Steps 3–7 are already contained in `schema.sql`; they run again because they
-are idempotent and because the same list is the upgrade path:
+are idempotent and because the same list is the upgrade path.
+
+`migrations_orders_idempotency.sql` (step 3) used to be listed as "still to
+apply to the live Supabase database". That no longer applies: the app does not
+run on a Supabase database any more (`DATABASE_URL` points at the Docker
+database locally and will point at Render Postgres in production; Supabase is
+used for image storage only). The script above is the only place the
+migration needs to run, and it checks for both indexes when it finishes. If
+you ever point `DATABASE_URL` back at the old Supabase database, run
+`scripts/render_bootstrap_db.sh --migrate` against it first.
+
+To upgrade a database that already has data:
 
 ```bash
 scripts/render_bootstrap_db.sh --migrate   # bring an existing database up to date

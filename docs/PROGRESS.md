@@ -399,6 +399,16 @@ passed; `oxlint` and `vite build` clean.
     One listing run scored 83 because the first database query after an idle
     minute took 2 s locally — the app worked, the number did not; worth
     watching `/api/products` latency on staging.
+- [x] **8. Supabase database.** Not in use. `DATABASE_URL` in `backend/.env`
+  points at the local Docker database (`localhost:55433`), which already has
+  both unique indexes; the two Supabase connection strings left in `.env` are
+  read only by `db/migrate-from-supabase.ps1`, never by the app. Supabase is
+  still used for image storage. `migrations_orders_idempotency.sql` was
+  already the first migration in `scripts/render_bootstrap_db.sh` (added in
+  Phase 6) and the script verifies both indexes, so nothing had to move;
+  DEPLOYMENT.md and the migration's header now say it is not to be applied to
+  Supabase by hand. Not checked: whether the old Supabase project still
+  exists — I did not connect to it.
 
 ## Discovered along the way
 

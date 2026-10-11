@@ -42,9 +42,9 @@ export default defineConfig({
         // tiny requests before it could start. One file for all of them.
         advancedChunks: {
           groups: [
-            { name: 'icons', test: /node_modules[\/]@tabler[\/]/ },
-            { name: 'vendor', test: /node_modules[\/](react|react-dom|scheduler|react-router|react-router-dom|zustand)[\/]/ },
-            { name: 'common', test: /[\/]src[\/]/, minShareCount: 3 },
+            { name: 'icons', test: /node_modules\/@tabler\// },
+            { name: 'vendor', test: /node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|zustand)\// },
+            { name: 'common', test: /\/src\//, minShareCount: 3 },
           ],
         },
       },

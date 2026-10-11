@@ -1,7 +1,10 @@
 -- Migration: order integrity guards (Phase 1c + 1e)
 --
--- Apply to the live Supabase database via the SQL editor / psql. Safe to run
--- more than once (IF NOT EXISTS guards). No ON CONFLICT seed data here.
+-- Applied by scripts/render_bootstrap_db.sh (fresh load and --migrate) and,
+-- when moving data off Supabase, by db/migrate-from-supabase.ps1 after the
+-- restore. The application no longer runs on a Supabase database, so there is
+-- nothing to apply there by hand. Safe to run more than once (IF NOT EXISTS
+-- guards). No ON CONFLICT seed data here.
 --
 -- 1c. A partial UNIQUE index on payment_ref makes prepaid order creation
 --     race-proof: a concurrent double-verify can no longer create two orders
