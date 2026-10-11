@@ -39,10 +39,20 @@ def _deliverable(email):
     return bool(email) and not email.endswith(_SYNTHETIC_EMAIL_SUFFIX)
 
 
+def mask(address):
+    """``priya.nair@example.com`` -> ``p***@example.com``. Logs say that an
+    email went to someone, not who: a log line is not the place for a
+    customer's address."""
+    if isinstance(address, (list, tuple)):
+        address = address[0] if address else ""
+    name, _, domain = str(address or "").partition("@")
+    return f"{name[:1]}***@{domain}" if domain else "***"
+
+
 def send_email(to, subject, html, text=None):
     """Send one transactional email. Returns True on success. Never raises."""
     if not current_app.config.get("EMAIL_ENABLED", True) or not is_email_configured():
-        current_app.logger.info("[email disabled] to=%s subject=%r", to, subject)
+        current_app.logger.info("[email disabled] to=%s subject=%r", mask(to), subject)
         return False
     if not _deliverable(to):
         return False
@@ -72,7 +82,7 @@ def _deliver_in_app(app, api_key, payload):
         try:
             _deliver(api_key, payload, app.logger)
         except Exception:  # noqa: BLE001 - nothing can catch this for us
-            app.logger.exception("Email delivery crashed to=%s", payload.get("to"))
+            app.logger.exception("Email delivery crashed to=%s", mask(payload.get("to")))
 
 
 def _deliver(api_key, payload, logger):
@@ -85,12 +95,12 @@ def _deliver(api_key, payload, logger):
             timeout=15,
         )
     except requests.RequestException:
-        logger.exception("Email send failed to=%s", to)
+        logger.exception("Email send failed to=%s", mask(to))
         return False
 
     if resp.status_code >= 300:
         logger.error(
-            "Email rejected status=%s to=%s body=%s", resp.status_code, to, resp.text[:300]
+            "Email rejected status=%s to=%s body=%s", resp.status_code, mask(to), resp.text[:300]
         )
         return False
     return True
@@ -138,8 +148,19 @@ def send_password_reset(email, reset_link):
     )
 
 
+def _rupees(value):
+    """12,34,567.50 — grouped the Indian way, as the storefront shows prices."""
+    whole, paise = f"{abs(float(value)):.2f}".split(".")
+    head, tail = whole[:-3], whole[-3:]
+    groups = []
+    while head:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    return ("-" if float(value) < 0 else "") + ",".join(groups + [tail]) + "." + paise
+
+
 def _money(value):
-    return f"&#8377;{float(value):.2f}"
+    return f"&#8377;{_rupees(value)}"
 
 
 def order_confirmation_content(order):
@@ -185,7 +206,7 @@ def order_confirmation_content(order):
     )
     text = (
         f"Order {order.order_number} confirmed ({payment}). "
-        f"Total: Rs.{float(order.total_amount):.2f}. View it: {link}"
+        f"Total: Rs.{_rupees(order.total_amount)}. View it: {link}"
     )
     return f"Your {store} order {order.order_number} is confirmed", html, text
 

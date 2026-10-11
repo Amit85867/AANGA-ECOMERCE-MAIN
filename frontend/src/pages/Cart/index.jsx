@@ -148,6 +148,9 @@ export default function Cart() {
             <h2 className="display text-xl text-fg mb-5">Order summary</h2>
             <OrderSummary cart={cart}>
               <div className="mt-5 border-t border-hairline/60 pt-5">
+                {cart.coupon_notice && (
+                  <p role="status" className="mb-3 rounded-card bg-fill px-4 py-3 text-sm text-fg">{cart.coupon_notice}</p>
+                )}
                 {cart.coupon_code ? (
                   <div className="flex items-center justify-between gap-3 rounded-card bg-fill px-4 py-3">
                     <span className="inline-flex items-center gap-2 text-sm font-medium text-fg">

@@ -81,6 +81,7 @@ def _serialize_cart(cart):
         "total": totals["total"],
         "savings": savings,
         "item_count": sum(ci.quantity for ci in cart.items),
+        "coupon_notice": totals.get("coupon_notice"),
     })
 
 
@@ -88,7 +89,9 @@ def _serialize_cart(cart):
 @jwt_required()
 def get_cart():
     cart = _get_or_create_cart(get_jwt_identity())
-    return jsonify(_serialize_cart(cart)), 200
+    body = _serialize_cart(cart)
+    db.session.commit()          # keeps a repriced line, or a coupon taken off, off
+    return jsonify(body), 200
 
 
 @cart_bp.route("/items", methods=["POST"])

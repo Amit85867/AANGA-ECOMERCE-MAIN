@@ -50,3 +50,4 @@ class CartOut(Schema):
     total = fields.Float()
     savings = fields.Float()
     item_count = fields.Int()
+    coupon_notice = fields.Str(allow_none=True)
