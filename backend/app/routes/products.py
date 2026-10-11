@@ -38,6 +38,30 @@ def _size_key(size):
     return (2, 0, upper)
 
 
+def category_ids(slug):
+    """The ids a category filter covers: the category itself and everything
+    under it. Products are filed under the most specific category ("Shirts"),
+    so choosing its parent ("Men") has to include the children or it matches
+    nothing. An unknown or inactive slug covers nothing.
+    """
+    rows = Category.query.filter(Category.is_active.is_(True)).with_entities(
+        Category.id, Category.parent_id, Category.slug).all()
+    start = next((cid for cid, _parent, cslug in rows if cslug == slug), None)
+    if start is None:
+        return []
+    children = {}
+    for cid, parent, _slug in rows:
+        children.setdefault(parent, []).append(cid)
+    found, queue = [], [start]
+    while queue:
+        current = queue.pop()
+        if current in found:
+            continue
+        found.append(current)
+        queue.extend(children.get(current, []))
+    return found
+
+
 @products_bp.route("/facets", methods=["GET"])
 @cached_view(120)
 def product_facets():
@@ -54,11 +78,10 @@ def product_facets():
     ).filter(Product.is_active.is_(True))
 
     category_slug = request.args.get("category")
+    covered = category_ids(category_slug) if category_slug else None
     if category_slug:
-        variants = variants.join(Category, Product.category_id == Category.id).filter(
-            Category.slug == category_slug)
-        prices = prices.join(Category, Product.category_id == Category.id).filter(
-            Category.slug == category_slug)
+        variants = variants.filter(Product.category_id.in_(covered))
+        prices = prices.filter(Product.category_id.in_(covered))
 
     sizes, colours = set(), {}
     for size, colour_name, colour_hex in variants.distinct().all():
@@ -73,7 +96,7 @@ def product_facets():
         price = campaigns.effective_price_sql(live)
         ranged = db.session.query(func.min(price), func.max(price)).select_from(Product).filter(Product.is_active.is_(True))
         if category_slug:
-            ranged = ranged.join(Category, Product.category_id == Category.id).filter(Category.slug == category_slug)
+            ranged = ranged.filter(Product.category_id.in_(covered))
         low, high = ranged.one()
     return jsonify(
         sizes=sorted(sizes, key=_size_key),
@@ -116,7 +139,7 @@ def list_products():
     q = Product.query.filter(Product.is_active.is_(True))
 
     if category_slug:
-        q = q.join(Category).filter(Category.slug == category_slug)
+        q = q.filter(Product.category_id.in_(category_ids(category_slug)))
 
     # A hand-picked collection, in the order the owner arranged it.
     collection_slug = request.args.get("collection")

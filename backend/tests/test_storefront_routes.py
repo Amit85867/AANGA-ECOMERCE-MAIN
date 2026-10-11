@@ -515,3 +515,54 @@ def test_facets_list_only_what_can_be_bought(app, client):
     assert [c["name"] for c in body["colors"]] == ["Indigo", "Red"]
     assert body["price"] == {"min": 400.0, "max": 2400.0}
     assert client.get("/api/products/facets?category=nope").get_json()["sizes"] == []
+
+
+# ── A parent category includes its sub-categories ─────────────
+
+def test_parent_category_filter_includes_sub_categories(client):
+    from app.models.catalogue import Category
+    from app.services import cache
+
+    men = Category(name="Men", slug="men")
+    women = Category(name="Women", slug="women")
+    db.session.add_all([men, women])
+    db.session.flush()
+    shirts = Category(name="Shirts", slug="mens-shirts", parent_id=men.id)
+    formal = Category(name="Formal Shirts", slug="mens-formal-shirts")          # a grandchild
+    dresses = Category(name="Dresses", slug="womens-dresses", parent_id=women.id)
+    retired = Category(name="Retired", slug="mens-retired", parent_id=men.id, is_active=False)
+    db.session.add_all([shirts, formal, dresses, retired])
+    db.session.flush()
+    formal.parent_id = shirts.id
+    db.session.commit()
+
+    def product_in(category, price):
+        product, _ = make_product(price=price, stock=5)
+        product.category_id = category.id
+        db.session.commit()
+        return product.id
+
+    in_men = product_in(men, 500)
+    in_shirts = product_in(shirts, 900)
+    in_formal = product_in(formal, 1500)
+    in_dresses = product_in(dresses, 2500)
+    product_in(retired, 700)
+    cache.invalidate()
+
+    def ids(query):
+        resp = client.get(f"/api/products?per_page=48&{query}")
+        assert resp.status_code == 200
+        return {p["id"] for p in resp.get_json()["products"]}
+
+    assert ids("category=men") == {in_men, in_shirts, in_formal}
+    assert ids("category=women") == {in_dresses}
+    assert ids("category=mens-shirts") == {in_shirts, in_formal}
+    assert ids("category=mens-formal-shirts") == {in_formal}
+    assert ids("category=mens-retired") == set() and ids("category=nope") == set()
+    # together with the other filters
+    assert ids("category=men&max_price=1000") == {in_men, in_shirts}
+    assert [p["id"] for p in client.get("/api/products?category=men&sort=price_desc").get_json()["products"]] == [in_formal, in_shirts, in_men]
+
+    facets = client.get("/api/products/facets?category=men").get_json()
+    assert facets["price"] == {"min": 500, "max": 1500}
+    assert client.get("/api/products/facets?category=women").get_json()["price"] == {"min": 2500, "max": 2500}

@@ -590,6 +590,13 @@ banners, which the scanner cannot resolve).
   (4), Diwali Edit sorted low to high (prices in order, 12), and "up to
   Rs 1,500" sorted low to high (7, including a sale item at Rs 1,439 whose
   stored price is Rs 1,799). No console errors.
+- [x] **"Men" and "Women" filters showed nothing.** Products are filed under
+  sub-categories (Shirts, Dresses...) and the category filter matched only the
+  exact category, so a parent matched none. A category now covers itself and
+  everything under it, in the listing and in the filter panel's sizes, colours
+  and price range. This also fixes the header menu's Men / Women links. One
+  test (parent, child, grandchild, inactive, unknown, with price filter and
+  sort). 559 passed.
 
 ## Discovered along the way
 
