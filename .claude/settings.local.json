@@ -6,7 +6,19 @@
       "Bash(npm create *)",
       "Bash(npm install *)",
       "Bash(ls migrations *)",
-      "Bash(grep -rl \"migrate\\\\|Migrate\\\\|alembic\" app/*.py)"
+      "Bash(grep -rl \"migrate\\\\|Migrate\\\\|alembic\" app/*.py)",
+      "Bash(grep -c '^\\\\\\\\\\\\\\\\restrict\\\\|^\\\\\\\\\\\\\\\\unrestrict' schema.sql)",
+      "Bash(docker version *)",
+      "Bash(docker compose *)",
+      "Bash(netstat -ano -p tcp)",
+      "Bash(venv/Scripts/python -c ' *)",
+      "Bash(docker info *)",
+      "Bash(python -)",
+      "Bash(awk '{print $1}')",
+      "Bash(python -c ' *)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, @{n='Cmd';e={\\(Get-CimInstance Win32_Process -Filter \"ProcessId=$\\($_.Id\\)\"\\).CommandLine}} | Format-List)",
+      "Bash(curl -s \"http://localhost:5000/api/products?per_page=1\")",
+      "Bash(backend/venv/Scripts/python -c \"import sys,json; print\\(json.load\\(sys.stdin\\)['products'][0]['primary_image']\\)\")"
     ]
   }
 }
