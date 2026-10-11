@@ -237,6 +237,38 @@ def demo_summary():
     return jsonify(counts=counts, total=sum(counts.values()), confirm_phrase=CONFIRM_PHRASE), 200
 
 
+@admin_bp.route("/demo/tag", methods=["POST"])
+@admin_required
+def demo_tag():
+    """Mark things that already exist as demo content (or as real again).
+
+    ``{"kind": "products", "ids": [1, 2], "is_demo": true}`` — or ``"all": true``
+    in place of ids. Used once, to tag the sample catalogue the project was
+    built with; from then on demo mode tags new items as they are made.
+    """
+    body = request.get_json(silent=True) or {}
+    model = demo._models().get(body.get("kind"))
+    flag = body.get("is_demo")
+    ids = body.get("ids")
+    if model is None or not isinstance(flag, bool):
+        return jsonify(error="Send a kind and is_demo (true or false)."), 422
+    query = model.query
+    if body.get("all") is True:
+        pass
+    elif isinstance(ids, list) and ids and len(ids) <= 500:
+        query = query.filter(model.id.in_(ids))
+    else:
+        return jsonify(error="Send the ids to change, or all: true."), 422
+    try:
+        changed = query.update({"is_demo": flag}, synchronize_session=False)
+    except Exception:  # noqa: BLE001 - ids of the wrong type for this kind
+        db.session.rollback()
+        return jsonify(error="Those ids do not belong to this kind of item."), 422
+    audit.annotate(entity="demo", summary=f"{changed} {body['kind']} marked as {'demo' if flag else 'real'}")
+    db.session.commit()
+    return jsonify(changed=changed), 200
+
+
 @admin_bp.route("/demo/remove", methods=["POST"])
 @admin_required
 def demo_remove():

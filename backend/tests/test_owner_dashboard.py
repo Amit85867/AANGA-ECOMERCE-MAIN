@@ -751,3 +751,20 @@ def test_remove_demo_content_command(app, fake_storage):
     assert FaqItem.query.count() == 0 and Category.query.count() == 0 and MediaAsset.query.count() == 0
     assert fake_storage == ["/static/uploads/demo.webp"]
     assert "no demo content" in runner.invoke(args=["remove-demo-content", "--yes"]).output
+
+
+def test_existing_items_can_be_tagged_as_demo_by_the_owner(client):
+    a, _ = make_product()
+    b, _ = make_product()
+    user = make_user()
+    assert client.post("/api/admin/demo/tag", headers=manager(), json={"kind": "products", "all": True, "is_demo": True}).status_code == 403
+    tagged = client.post("/api/admin/demo/tag", headers=owner(), json={"kind": "products", "ids": [a.id], "is_demo": True})
+    assert tagged.status_code == 200 and tagged.get_json()["changed"] == 1
+    assert client.post("/api/admin/demo/tag", headers=owner(), json={"kind": "customers", "ids": [str(user.id)], "is_demo": True}).get_json()["changed"] == 1
+    db.session.expire_all()
+    assert db.session.get(Product, a.id).is_demo is True and db.session.get(Product, b.id).is_demo is False
+    assert client.post("/api/admin/demo/tag", headers=owner(), json={"kind": "products", "all": True, "is_demo": False}).get_json()["changed"] == 2
+
+    for bad in ({"kind": "orders", "ids": [1], "is_demo": True}, {"kind": "products", "is_demo": True},
+                {"kind": "products", "ids": [a.id], "is_demo": "yes"}, {"kind": "customers", "ids": ["not-a-uuid"], "is_demo": True}):
+        assert client.post("/api/admin/demo/tag", headers=owner(), json=bad).status_code == 422, bad
