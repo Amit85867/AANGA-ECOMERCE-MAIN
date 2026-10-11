@@ -172,8 +172,8 @@ errors, no horizontal overflow at 360px) and Lighthouse.
 - [x] Accessibility (Lighthouse mobile): home 100, listing 100, product 100.
 - [x] **Performance target met in Round 2, item 7**: home 94, listing 93-94,
   product 95 (was 81 / 78 / 86). See there for what changed.
-- [ ] Content claims to check with the owner: FAQ mentions a COD charge, a
-  Rs 5,000 COD limit and express delivery that the store does not implement.
+- [x] FAQ claims about a COD charge, COD limit and express delivery removed —
+  Round 2, item 4.
 - [ ] `/style-guide` page not updated for the new components.
 
 ## Phase 5 — Scalability and production readiness
@@ -409,6 +409,22 @@ passed; `oxlint` and `vite build` clean.
   DEPLOYMENT.md and the migration's header now say it is not to be applied to
   Supabase by hand. Not checked: whether the old Supabase project still
   exists — I did not connect to it.
+- [x] **9. Load test planned, not run.** `loadtest/storefront.js` (k6) and
+  `docs/LOAD_TEST.md`. Anonymous browsing plus an optional signed-in cart
+  scenario; four profiles (smoke, load at 50 visitors, stress to 300, spike);
+  thresholds on error rate, p95 latency and 429s. It never places orders or
+  calls payments, Shiprocket, registration or admin, and refuses to start
+  without `TARGET_ENV=staging`. k6 is a standalone binary, so nothing was
+  added to the project. The script was syntax-checked and its endpoints
+  checked against the code, but k6 has never executed it.
+- **DEFERRED — 1. Razorpay / Shiprocket re-run.** Not done: when this round
+  started `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `SHIPROCKET_EMAIL` and
+  `SHIPROCKET_PASSWORD` were still empty in `backend/.env` (file last saved
+  8 August). With no key there is nothing starting with `rzp_test_`, so no
+  payment call was made. Still to run once the values are saved: test
+  checkout, payment verification, refund on cancel, webhook with locally
+  signed payloads (needs `RAZORPAY_WEBHOOK_SECRET` too), `reconcile-payments`,
+  and the live pincode check.
 
 ## Discovered along the way
 
