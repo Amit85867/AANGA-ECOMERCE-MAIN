@@ -5,33 +5,6 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!--
-      Web fonts are fetched only once the page itself has loaded. They are the
-      largest thing on the page after the pictures, and on a slow phone they
-      used to compete with the product image for the connection. Text shows in
-      the system font first and swaps when they arrive.
-    -->
-    <script>
-      window.addEventListener('load', function () {
-        var link = document.createElement('link')
-        link.rel = 'stylesheet'
-        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap'
-        document.head.appendChild(link)
-      })
-    </script>
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" /></noscript>
-    <meta
-      name="description"
-      content="AANGA — premium fashion for men, women and kids. Discover curated clothing, accessories and more, with fast delivery across India."
-    />
-    <meta property="og:site_name" content="AANGA" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="AANGA — Premium Fashion for Men, Women & Kids" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <title>AANGA — Premium Fashion for Men, Women & Kids</title>
-  </head>
-  <body>
     <!--
       Start the landing page's main API request while the app's JavaScript is
       still downloading, instead of after it has run, and preload the image
@@ -41,6 +14,10 @@
       The app picks the same promises up from window.__early (each is used
       once; see services/early). If anything here fails the app simply makes
       the request itself.
+
+      It must stay above the stylesheet: a script placed after a stylesheet
+      does not run until that stylesheet has downloaded, which on a slow
+      phone held this request back by more than a second.
     -->
     <script>
       (function () {
@@ -107,7 +84,34 @@
         } catch (e) { /* the app will make the request itself */ }
       })()
     </script>
-
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Web fonts are fetched only once the page itself has loaded. They are the
+      largest thing on the page after the pictures, and on a slow phone they
+      used to compete with the product image for the connection. Text shows in
+      the system font first and swaps when they arrive.
+    -->
+    <script>
+      window.addEventListener('load', function () {
+        var link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap'
+        document.head.appendChild(link)
+      })
+    </script>
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" /></noscript>
+    <meta
+      name="description"
+      content="AANGA — premium fashion for men, women and kids. Discover curated clothing, accessories and more, with fast delivery across India."
+    />
+    <meta property="og:site_name" content="AANGA" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AANGA — Premium Fashion for Men, Women & Kids" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>AANGA — Premium Fashion for Men, Women & Kids</title>
+  </head>
+  <body>
     <!--
       A static shell with the store's header bar, painted from this HTML alone
       so the visitor sees the page taking shape before any JavaScript runs.

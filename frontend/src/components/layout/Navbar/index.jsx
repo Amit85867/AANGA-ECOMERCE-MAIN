@@ -13,7 +13,8 @@ import { useCartStore, selectCartCount } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/utils/constants";
 import logoMain from "@/assets/images/logo-main.webp";
-import titleImg from "@/assets/images/logo-title.webp";
+// 168px copy: three times the 56px it is shown at here, a third of the bytes.
+import titleImg from "@/assets/images/logo-title-168.webp";
 
 const MEN_MENU = [
   {

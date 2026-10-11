@@ -170,16 +170,8 @@ errors, no horizontal overflow at 360px) and Lighthouse.
 - [x] Admin shell: sidebar grouped into sections. Colours unchanged.
 - [x] Legacy palette and serif font removed; logos 2.8 MB -> 28 kB (WebP).
 - [x] Accessibility (Lighthouse mobile): home 100, listing 100, product 100.
-- [ ] **Performance target not met.** Lighthouse mobile, production build served
-  compressed, real (devtools) throttling, final run: home 81, listing 78,
-  product 86 (target 90). CLS is about 0.01 and TBT under 200 ms; the gap is
-  LCP (3.8-5.1 s). Done to get here: 480px and 800px image copies generated on
-  upload (backfill with `backend/db/make_thumbnails.py`) and used by cards,
-  gallery and hero; the landing page's API request and main image start from
-  `index.html` before the JavaScript runs; fonts load after the page; static
-  header shell; no layout shift. What is left is the cost of rendering in the
-  browser at all — reaching 90 needs the three landing pages prerendered or
-  server-rendered, which is a larger change and an owner decision.
+- [x] **Performance target met in Round 2, item 7**: home 94, listing 93-94,
+  product 95 (was 81 / 78 / 86). See there for what changed.
 - [ ] Content claims to check with the owner: FAQ mentions a COD charge, a
   Rs 5,000 COD limit and express delivery that the store does not implement.
 - [ ] `/style-guide` page not updated for the new components.
@@ -379,6 +371,34 @@ passed; `oxlint` and `vite build` clean.
     fields and now are (`htmlFor`/`id`); upload buttons, colour hex boxes and
     sale-item rows have accessible names.
   - Lint and build clean. Not yet re-checked in the browser.
+- [x] **7. Performance.** Lighthouse mobile, production build served
+  compressed, devtools throttling, same setup as before.
+
+  | Page | Before (re-run on the current build) | After |
+  |---|---|---|
+  | Home | 82 — FCP 2.0 s, LCP 4.2 s | 94 — FCP 0.7 s, LCP 2.4 s |
+  | Listing | 80 — FCP 2.0 s, LCP 4.3 s | 93-94 — FCP 0.7 s, LCP 2.6 s |
+  | Product | 86 — FCP 2.0 s, LCP 3.8 s | 95 — FCP 0.7 s, LCP 2.5 s |
+
+  Accessibility 100 on all three; CLS about 0.01; TBT 140-220 ms.
+  - The three things asked for were already in place from Phase 4 (LCP image
+    preloaded with `fetchpriority="high"`, 480/800/1400 `srcset`, font
+    preconnect). The waterfall showed why they were not paying off: the script
+    in `index.html` that starts the API request and the image preload sat
+    after the stylesheet, and a script does not run until the stylesheet
+    before it has downloaded. It started at 1.95 s instead of 0.6 s.
+  - Changed: that script moved to the top of `<head>`; the stylesheet (10 kB
+    compressed) is inlined into the page at build time by a small plugin in
+    `vite.config.js`, so the first paint no longer waits for a second
+    request; JavaScript ships as 5 files instead of 14 (icons, vendor and
+    shared code grouped); preconnect added for `fonts.googleapis.com`; the
+    navbar logo uses a 168 px copy (7 kB instead of 17 kB).
+  - No SSR or prerendering was added.
+  - Caveats: measured on this machine against the local backend, one to three
+    runs per page; Render will differ (HTTP/2, real latency to the API).
+    One listing run scored 83 because the first database query after an idle
+    minute took 2 s locally — the app worked, the number did not; worth
+    watching `/api/products` latency on staging.
 
 ## Discovered along the way
 
