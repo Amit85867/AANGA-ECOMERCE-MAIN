@@ -64,7 +64,7 @@ export default function AdminNewsletter() {
                 <th className="px-6 py-3 font-medium">Email</th>
                 <th className="px-6 py-3 font-medium">Status</th>
                 <th className="px-6 py-3 font-medium">Subscribed</th>
-                <th className="px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
+                <th className="relative px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>

@@ -146,8 +146,21 @@ def admin_login():
     return _admin_auth_response(admin)
 
 
+def _session_key():
+    """Whose session is being renewed: the admin in the refresh cookie, or the
+    caller's address when there is no valid cookie.
+
+    Counting by address alone locked out whole teams: every page reload renews
+    the session, and a shop's staff usually share one internet connection.
+    """
+    try:
+        return f"admin-session:{decode_token(request.cookies.get(ADMIN_REFRESH_COOKIE))['sub']}"
+    except Exception:
+        return f"admin-session-ip:{request.remote_addr}"
+
+
 @admin_bp.route("/auth/refresh", methods=["POST"])
-@limiter.limit("60 per hour")
+@limiter.limit("300 per hour", key_func=_session_key)
 def admin_refresh():
     """Mint a new admin access token from the httpOnly admin refresh cookie.
 

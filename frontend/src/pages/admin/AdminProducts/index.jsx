@@ -128,7 +128,7 @@ export default function AdminProducts() {
                 <th className="px-6 py-3 text-right font-medium">Price</th>
                 <th className="px-6 py-3 text-right font-medium">Stock</th>
                 <th className="px-6 py-3 font-medium">Status</th>
-                <th className="px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
+                <th className="relative px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>

@@ -138,3 +138,37 @@ def test_admin_login_guessing_from_many_addresses_is_limited(client):
     ]
     assert 429 not in codes[:10]
     assert codes[10] == 429
+
+
+# ── Renewing an admin session is limited per admin, not per address ──
+
+def _renew(client, admin, ip="198.51.100.9"):
+    from flask_jwt_extended import create_refresh_token, decode_token
+    from app.routes.admin.auth import ADMIN_COOKIE_PATH, ADMIN_REFRESH_COOKIE
+
+    token = create_refresh_token(identity=str(admin.id), additional_claims={"actor": "admin", "role": admin.role})
+    client.set_cookie(ADMIN_REFRESH_COOKIE, token, path=ADMIN_COOKIE_PATH)
+    return client.post(
+        "/api/admin/auth/refresh",
+        headers={"X-CSRF-TOKEN": decode_token(token)["csrf"]},
+        environ_base={"REMOTE_ADDR": ip},
+    ).status_code
+
+
+def test_a_team_on_one_connection_is_not_locked_out_of_the_dashboard(client):
+    """Every page reload renews the session. Counted per address (60 an hour),
+    three people at one shop were sent back to the sign-in page mid-morning."""
+    from tests.helpers import make_admin
+
+    team = [make_admin("master"), make_admin("manager"), make_admin("staff")]
+    codes = [_renew(client, admin) for _ in range(61) for admin in team]
+    assert set(codes) == {200}
+
+
+def test_renewal_without_a_session_is_limited_by_address(client):
+    codes = [
+        client.post("/api/admin/auth/refresh", environ_base={"REMOTE_ADDR": "198.51.100.10"}).status_code
+        for _ in range(301)
+    ]
+    assert set(codes[:300]) == {401}
+    assert codes[300] == 429

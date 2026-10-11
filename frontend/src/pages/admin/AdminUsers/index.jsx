@@ -118,7 +118,7 @@ export default function AdminUsers() {
                 <th className="px-6 py-3 text-right font-medium">Orders</th>
                 <th className="px-6 py-3 font-medium">Status</th>
                 <th className="px-6 py-3 font-medium">Joined</th>
-                <th className="px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
+                <th className="relative px-6 py-3 font-medium"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>

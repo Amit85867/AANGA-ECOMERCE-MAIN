@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Navigate, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAdminStore } from '@/store/useAdminStore'
 import {
   IconDashboard,
@@ -113,11 +113,19 @@ const NAV = [
   },
 ]
 
+// The screen an address belongs to: the menu entry whose address it starts with
+// (so /admin/products/12 is "Products").
+const SCREENS = NAV.flatMap((g) => g.items).filter((n) => n.area && !n.end)
+function screenFor(pathname) {
+  return SCREENS.find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`))
+}
+
 const ROLE_LABELS = { master: 'Owner', manager: 'Manager', staff: 'Staff' }
 
 export default function AdminLayout() {
   const { admin, isAuthenticated, initializing, restoreSession, logout } = useAdminStore()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Demo mode is switched on the Demo content screen; this keeps the banner in step.
   const [demoMode, setDemo] = useState(isDemoMode())
@@ -147,6 +155,12 @@ export default function AdminLayout() {
     await logout()
     navigate('/admin/login')
   }
+
+  // Someone who types the address of a screen their role cannot open gets a
+  // plain explanation, not a page of failed requests. (The server refuses the
+  // data either way.)
+  const screen = screenFor(pathname)
+  const refused = Boolean(screen) && !(admin?.areas || []).includes(screen.area)
 
   const groups = NAV
     .map((g) => ({ ...g, items: g.items.filter((n) => !n.area || (admin?.areas || []).includes(n.area)) }))
@@ -241,7 +255,15 @@ export default function AdminLayout() {
         )}
 
         <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+          {refused ? (
+            <div className="mx-auto mt-16 max-w-md rounded-xl border border-gray-200 bg-white p-8 text-center">
+              <h1 className="text-xl font-semibold text-gray-900">{screen.label} is not part of your role</h1>
+              <p className="mt-2 text-sm text-gray-500">
+                You are signed in as {ROLE_LABELS[admin?.role] || admin?.role}. Ask the store owner if you need this screen.
+              </p>
+              <Link to="/admin" className="mt-6 inline-block rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">Back to the dashboard</Link>
+            </div>
+          ) : <Outlet />}
         </main>
       </div>
       <ConfirmDialog />
