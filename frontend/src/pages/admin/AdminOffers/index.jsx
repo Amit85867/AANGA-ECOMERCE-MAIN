@@ -44,6 +44,8 @@ export default function AdminOffers() {
       }
       flatten(r.data.categories)
       setCategories(flat)
+    }).catch(() => {
+      // The offers list reports the failure; the category picker just stays empty.
     })
   }, [])
 

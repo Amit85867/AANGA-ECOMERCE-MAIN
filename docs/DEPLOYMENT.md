@@ -366,3 +366,27 @@ after pulling new migrations:
 DATABASE_URL=postgresql://<user>:<password>@localhost:55433/<db> \
   scripts/render_bootstrap_db.sh --migrate
 ```
+
+## Rehearse a deploy locally
+
+`scripts/prod_local.sh` builds what `render.yaml` describes on your own
+machine: a new, empty Postgres 17 built only by `scripts/render_bootstrap_db.sh`,
+the image from `backend/Dockerfile` under gunicorn with `FLASK_ENV=production`
+and Redis, and the built storefront behind the same rewrites. If this command
+fails, the deploy would have failed.
+
+| Command | What it does |
+| --- | --- |
+| `scripts/prod_local.sh` | Rebuild everything from nothing, with the demo content. |
+| `scripts/prod_local.sh --keep` | Rebuild the storefront and containers, keep the data. |
+| `scripts/prod_local.sh throwaway-check` | Back up, restore into a second database, remove the demo content there, check, delete the copy. |
+| `scripts/prod_local.sh flask <command>` | Run a `flask` command inside the API container. |
+| `scripts/prod_local.sh down` | Stop and delete the copy. |
+| `scripts/e2e.sh` | Run the browser suite against it (the check before every deploy). |
+
+Secrets for the copy are generated into `.prodlocal/` (git-ignored) and are not
+used anywhere else. Payments and courier keys: `docs/GO_LIVE.md`.
+
+Backups on Render: the managed Postgres (`aanga-db`) is backed up by Render
+according to its plan; check the plan's retention before launch.
+`throwaway-check` proves that a `pg_dump` of this schema restores row for row.

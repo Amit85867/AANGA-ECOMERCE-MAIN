@@ -1,7 +1,7 @@
 // The dashboard, as each of the three roles: every screen opens, the everyday
 // jobs work from the screens, and a role cannot reach what it should not.
 import { test, expect } from '@playwright/test'
-import { apiAs, authFile, isNarrow, noSidewaysScroll, people, unique, watch } from './helpers.js'
+import { apiAs, authFile, isNarrow, noSidewaysScroll, people, resetLimits, unique, watch } from './helpers.js'
 
 // address, the area of the admin API it uses, the menu label, the page heading
 const SCREENS = [
@@ -58,6 +58,7 @@ async function menu(page) {
 
 test.describe('owner', () => {
   test.use({ storageState: authFile('owner') })
+  test.beforeAll(resetLimits)
 
   for (const [path, , , heading] of SCREENS) {
     test(`AD-SCREEN-${slugOf(path)} owner: ${path} opens with no errors`, async ({ page }) => {

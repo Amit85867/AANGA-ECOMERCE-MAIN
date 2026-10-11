@@ -7,6 +7,8 @@
 #   scripts/prod_local.sh              rebuild everything from nothing, with demo content
 #   scripts/prod_local.sh --no-demo    the same, with an empty catalogue
 #   scripts/prod_local.sh --keep       rebuild the storefront and the containers, keep the data
+#   scripts/prod_local.sh throwaway-check   back up, restore into a second database, remove the demo
+#                                           content there, check it, delete the copy (main data untouched)
 #   scripts/prod_local.sh down         stop and delete it (containers and data)
 #   scripts/prod_local.sh status
 #   scripts/prod_local.sh reset-limits forget rate-limit counters (before a test run)
@@ -97,6 +99,72 @@ case "$cmd" in
   db-url)
     [ -f "$ENV_FILE" ] || fail "Not created yet. Run scripts/prod_local.sh"
     db_url
+    exit 0 ;;
+  throwaway-check)
+    # Destructive things are proved on a copy, never on the main database:
+    # back the database up, restore the backup into a second database, remove
+    # the demo content THERE, check the result, and delete the copy.
+    [ -f "$ENV_FILE" ] || fail "Not created yet. Run scripts/prod_local.sh"
+    psql_in() { compose exec -T db psql -v ON_ERROR_STOP=1 -U aanga -d "$1" -At "${@:2}"; }
+    counts() {
+      psql_in "$1" -c "SELECT table_name || '=' || (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY 1"
+    }
+    demo_rows() {   # "<table>=<demo rows>/<other rows>" for every table that can hold demo content
+      psql_in "$1" -c "SELECT table_name || '=' || (xpath('/row/c/text()', query_to_xml(format('select count(*) filter (where is_demo) || ''/'' || count(*) filter (where not is_demo) as c from %I', table_name), false, true, '')))[1]::text FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'is_demo' ORDER BY 1"
+    }
+    uploads() { compose exec -T api sh -c 'find /app/static/uploads -type f | wc -l' | tr -d '[:space:]'; }
+
+    say "1/6 Backing up the main database (pg_dump, custom format)"
+    compose exec -T db pg_dump -U aanga -d aanga --format=custom --file=/tmp/throwaway.dump
+    main_before="$(counts aanga)"; main_demo_before="$(demo_rows aanga)"; files_before="$(uploads)"
+
+    say "2/6 Restoring the backup into a second, throwaway database"
+    psql_in postgres -c "DROP DATABASE IF EXISTS aanga_throwaway" > /dev/null
+    psql_in postgres -c "CREATE DATABASE aanga_throwaway" > /dev/null
+    compose exec -T db pg_restore --no-owner --exit-on-error -U aanga -d aanga_throwaway /tmp/throwaway.dump
+    copy="$(counts aanga_throwaway)"
+    [ "$copy" = "$main_before" ] || { diff <(echo "$main_before") <(echo "$copy") || true; fail "The restored copy does not have the same rows as the original."; }
+    echo "    PASS  backup and restore: $(echo "$copy" | wc -l | tr -d ' ') tables, every row count identical"
+
+    say "3/6 The restored copy passes the schema check"
+    api_env="$STATE/throwaway.env"
+    docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' aanga-prodlocal-api-1 | grep -vE '^(DATABASE_URL|PATH|HOME|HOSTNAME)=' > "$api_env"
+    image="$(docker inspect -f '{{.Config.Image}}' aanga-prodlocal-api-1)"
+    network="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' aanga-prodlocal-api-1)"
+    # No uploads volume is mounted: whatever the removal deletes from disk, it
+    # cannot be the main copy's pictures.
+    on_copy() {
+      MSYS_NO_PATHCONV=1 docker run --rm --network "$network" --env-file "$api_env" \
+        -e "DATABASE_URL=postgresql://aanga:$(value POSTGRES_PASSWORD)@db:5432/aanga_throwaway" "$image" flask --app run "$@"
+    }
+    trap 'rm -f "$api_env"' EXIT
+    on_copy check-schema | tail -1
+
+    say "4/6 Removing the demo content from the copy"
+    demo_before="$(demo_rows aanga_throwaway)"
+    on_copy remove-demo-content --yes | tail -4
+    demo_after="$(demo_rows aanga_throwaway)"
+    echo "$demo_after" | grep -qvE '=0/' && { echo "$demo_after"; fail "Demo rows are left in the copy."; }
+    kept_before="$(echo "$demo_before" | sed -E 's#=[0-9]+/#=#')"; kept_after="$(echo "$demo_after" | sed -E 's#=[0-9]+/#=#')"
+    [ "$kept_before" = "$kept_after" ] || { diff <(echo "$kept_before") <(echo "$kept_after") || true; fail "Removing the demo content also removed rows that were not demo content."; }
+    removed="$(echo "$demo_before" | sed -E 's#.*=([0-9]+)/.*#\1#' | awk '{ total += $1 } END { print total + 0 }')"
+    echo "    PASS  $removed demo rows removed from $(echo "$demo_before" | wc -l | tr -d ' ') tables; every row that was not demo content is still there"
+    owners="$(psql_in aanga_throwaway -c "SELECT count(*) FROM admins WHERE role = 'master' AND is_active")"
+    [ "$owners" -ge 1 ] || fail "No owner account is left in the copy."
+    orphans="$(psql_in aanga_throwaway -c "SELECT (SELECT count(*) FROM order_items oi LEFT JOIN orders o ON o.id = oi.order_id WHERE o.id IS NULL) + (SELECT count(*) FROM product_variants v LEFT JOIN products p ON p.id = v.product_id WHERE p.id IS NULL) + (SELECT count(*) FROM cart_items ci LEFT JOIN product_variants v ON v.id = ci.variant_id WHERE v.id IS NULL)")"
+    [ "$orphans" = "0" ] || fail "$orphans orphaned rows are left in the copy."
+    echo "    PASS  the owner account is still there; no orphaned order lines, variants or bag lines"
+
+    say "5/6 The copy still passes the schema check after the removal"
+    on_copy check-schema | tail -1
+
+    say "6/6 The main database and its pictures were not touched"
+    [ "$(demo_rows aanga)" = "$main_demo_before" ] || fail "The main database changed."
+    [ "$(uploads)" = "$files_before" ] || fail "Files in the main copy's uploads changed."
+    echo "    PASS  main database: same demo content as before; uploads: $files_before files, unchanged"
+    psql_in postgres -c "DROP DATABASE aanga_throwaway" > /dev/null
+    compose exec -T db rm -f /tmp/throwaway.dump
+    echo "Throwaway copy deleted."
     exit 0 ;;
   up|--no-demo|--keep) ;;
   *) fail "Unknown command: $cmd (see the top of this file)" ;;

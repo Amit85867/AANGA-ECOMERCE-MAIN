@@ -103,3 +103,17 @@ npm run lint && npm run build
 | `docs/LOAD_TEST.md` | The k6 load test for staging |
 | `docs/SECURITY_TODO.md` | Security follow-ups |
 | `docs/PROGRESS.md` | What has been done, round by round |
+
+## Before a deploy
+
+```
+scripts/prod_local.sh        # a production-like copy on http://localhost:8080 (Docker)
+scripts/e2e.sh               # every customer and admin flow, at four screen widths
+scripts/prod_local.sh down   # remove the copy
+```
+
+`scripts/prod_local.sh` builds the store the way Render will (new database from
+`scripts/render_bootstrap_db.sh`, the backend image under gunicorn, Redis, the
+built storefront) and loads the demo content. `scripts/e2e.sh --fresh` rebuilds
+it first. The audit that these came from is in `docs/PRELAUNCH_REPORT.md`; the
+steps for adding payment and courier keys are in `docs/GO_LIVE.md`.

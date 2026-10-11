@@ -6,7 +6,7 @@
 // backend is slow or down does not change with the width; its layout at every
 // width is checked by the page's own test.
 import { test, expect } from '@playwright/test'
-import { authFile } from './helpers.js'
+import { authFile, resetLimits } from './helpers.js'
 
 const STATE_WIDTHS = ['w390', 'w1280']
 test.beforeEach(({}, testInfo) => {
@@ -155,6 +155,7 @@ test.describe('storefront, signed-in customer', () => {
 
 test.describe('dashboard, owner', () => {
   test.use({ storageState: authFile('owner') })
+  test.beforeAll(resetLimits)
 
   for (const path of ADMIN) {
     test(`ST-ADMIN-SLOW-${slug(path)} ${path} on a slow network`, async ({ page }) => {

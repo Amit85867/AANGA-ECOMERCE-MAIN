@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { execSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, request } from '@playwright/test'
@@ -74,6 +75,21 @@ export async function apiAs(baseURL, role) {
     delete: (url) => context.delete(url, { headers }),
     dispose: () => context.dispose(),
   }
+}
+
+/**
+ * Clear the rate-limit counters. The suite reloads the dashboard several
+ * hundred times in a few minutes as one person, which is more than any admin
+ * is allowed (300 session renewals an hour); the groups that do the most
+ * reloading start from zero.
+ */
+export function resetLimits() {
+  const root = path.resolve(here, '..', '..')
+  const env = fs.readFileSync(path.join(root, '.prodlocal', 'env'), 'utf8')
+  const password = env.split('\n').find((l) => l.startsWith('POSTGRES_PASSWORD='))?.slice('POSTGRES_PASSWORD='.length).trim()
+  execSync('docker compose -f scripts/prod_local/docker-compose.yml exec -T redis redis-cli FLUSHALL', {
+    cwd: root, stdio: 'ignore', env: { ...process.env, POSTGRES_PASSWORD: password },
+  })
 }
 
 /** Is this the phone / tablet layout (menus behind a button)? */
