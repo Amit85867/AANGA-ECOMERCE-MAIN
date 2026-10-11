@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   IconSearch,
   IconUser,
@@ -12,54 +12,27 @@ import {
 import { useCartStore, selectCartCount } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/utils/constants";
+import { useLayoutStore } from "@/store/useLayoutStore";
+import { useProductStore } from "@/store/useProductStore";
+import { useSetting } from "@/store/useSettingsStore";
 import logoMain from "@/assets/images/logo-main.webp";
 // 168px copy: three times the 56px it is shown at here, a third of the bytes.
 import titleImg from "@/assets/images/logo-title-168.webp";
 
-const MEN_MENU = [
-  {
-    title: "Topwear",
-    items: [
-      "T-Shirts",
-      "Casual Shirts",
-      "Formal Shirts",
-      "Polo T-Shirts",
-      "Sweatshirts",
-      "Hoodies",
-    ],
-  },
-  {
-    title: "Bottomwear",
-    items: ["Jeans", "Formal Trousers", "Casual Trousers", "Shorts"],
-  },
-  {
-    title: "More",
-    items: ["Jackets & Coats", "Innerwear", "Ethnic Wear", "Accessories"],
-  },
+// Shown until the menu has loaded. The real one is edited under Admin → Menus.
+const FALLBACK_LINKS = [
+  { label: "Shop", url: "/shop" },
+  { label: "Offers", url: "/offers" },
 ];
 
-const WOMEN_MENU = [
-  {
-    title: "Topwear",
-    items: ["Tops & Tees", "Shirts & Blouses", "Sweatshirts", "Dresses"],
-  },
-  { title: "Bottomwear", items: ["Jeans", "Trousers", "Skirts", "Leggings"] },
-  {
-    title: "Collections",
-    items: ["Ethnic Wear", "Winter Wear", "Innerwear", "Accessories"],
-  },
-];
+// A menu link that points at a category (/shop?category=men) gets that
+// category's sub-categories as a drop-down, straight from the catalogue.
+const categoryOf = (url, categories) => {
+  const match = /^\/shop\?category=([a-z0-9-]+)$/.exec(url || "");
+  return match ? categories.find((c) => c.slug === match[1]) : null;
+};
 
-const KIDS_MENU = [
-  {
-    title: "Boys",
-    items: ["T-Shirts & Shirts", "Jeans & Trousers", "Hoodies & Sweatshirts"],
-  },
-  {
-    title: "Girls",
-    items: ["Dresses & Skirts", "Tops & Blouses", "Ethnic Wear"],
-  },
-];
+const isExternal = (url) => /^https?:|^mailto:|^tel:/.test(url || "");
 
 const navLinkClass = ({ isActive }) =>
   [
@@ -70,38 +43,43 @@ const navLinkClass = ({ isActive }) =>
       : "text-muted hover:text-fg after:w-0 hover:after:w-full",
   ].join(" ");
 
-function Dropdown({ columns, wide = true }) {
+function Dropdown({ category }) {
   return (
     <div
       className={[
         "invisible opacity-0 translate-y-1 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0",
+        "group-focus-within:visible group-focus-within:opacity-100 group-focus-within:translate-y-0",
         "absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[300]",
         "bg-card rounded-card shadow-lift border border-hairline p-7",
-        "transition-all duration-200",
-        wide ? "min-w-[600px] grid grid-cols-3 gap-7" : "min-w-[240px] grid gap-5",
+        "transition-all duration-200 min-w-[260px]",
       ].join(" ")}
     >
-      {columns.map((col) => (
-        <div key={col.title}>
-          <h4 className="text-xs tracking-[0.1em] uppercase text-muted font-semibold mb-3">
-            {col.title}
-          </h4>
-          {col.items.map((item) => (
-            <Link
-              key={item}
-              to="/shop"
-              className="block py-1.5 text-sm text-muted hover:text-fg transition-colors"
-            >
-              {item}
-            </Link>
-          ))}
-        </div>
-      ))}
+      <p className="text-xs tracking-[0.1em] uppercase text-muted font-semibold mb-3">{category.name}</p>
+      <div className={category.children.length > 5 ? "grid grid-cols-2 gap-x-8 min-w-[420px]" : ""}>
+        {category.children.map((child) => (
+          <Link
+            key={child.id}
+            to={`/shop?category=${child.slug}`}
+            className="block py-1.5 text-sm text-muted hover:text-fg transition-colors"
+          >
+            {child.name}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
 
 export default function Navbar() {
+  const headerLinks = useLayoutStore((st) => st.navigation.header);
+  const categories = useProductStore((st) => st.categories);
+  const fetchCategories = useProductStore((st) => st.fetchCategories);
+  const s = useSetting();
+  const storeName = s("store_name", "AANGA");
+  const logo = s("logo_url") || titleImg;
+  const links = headerLinks.length ? headerLinks : FALLBACK_LINKS;
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+
   const cartCount = useCartStore(selectCartCount);
   const { isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
@@ -134,41 +112,29 @@ export default function Navbar() {
           </button>
 
           <Link to={ROUTES.HOME} className="shrink-0 flex items-center mr-2">
-            <img src={titleImg} alt="AANGA" width="56" height="56" className="h-12 w-12 md:h-14 md:w-14 object-contain" />
+            <img src={logo} alt={storeName} width="56" height="56" className="h-12 w-12 md:h-14 md:w-14 object-contain" />
           </Link>
 
           {/* Primary navigation */}
           <ul className="hidden lg:flex items-center gap-7 list-none h-full">
-            <li className="group relative h-full flex items-center">
-              <NavLink to="/shop" className={navLinkClass}>
-                <span className="flex items-center gap-1">
-                  Men <IconChevronDown size={13} />
-                </span>
-              </NavLink>
-              <Dropdown columns={MEN_MENU} />
-            </li>
-            <li className="group relative h-full flex items-center">
-              <NavLink to="/shop" className={navLinkClass}>
-                <span className="flex items-center gap-1">
-                  Women <IconChevronDown size={13} />
-                </span>
-              </NavLink>
-              <Dropdown columns={WOMEN_MENU} />
-            </li>
-            <li className="group relative h-full flex items-center">
-              <NavLink to="/shop" className={navLinkClass}>
-                <span className="flex items-center gap-1">
-                  Kids <IconChevronDown size={13} />
-                </span>
-              </NavLink>
-              <Dropdown columns={KIDS_MENU} wide={false} />
-            </li>
-            <li className="h-full flex items-center">
-              <NavLink to="/offers" className={navLinkClass}>Offers</NavLink>
-            </li>
-            <li className="h-full flex items-center">
-              <NavLink to="/wholesale" className={navLinkClass}>Wholesale</NavLink>
-            </li>
+            {links.map((link) => {
+              const category = categoryOf(link.url, categories);
+              const hasMenu = category?.children?.length > 0;
+              return (
+                <li key={`${link.label}-${link.url}`} className={`h-full flex items-center ${hasMenu ? "group relative" : ""}`}>
+                  {isExternal(link.url) ? (
+                    <a href={link.url} target="_blank" rel="noreferrer" className={navLinkClass({ isActive: false })}>{link.label}</a>
+                  ) : (
+                    <Link to={link.url} className={navLinkClass({ isActive: false })}>
+                      <span className="flex items-center gap-1">
+                        {link.label} {hasMenu && <IconChevronDown size={13} aria-hidden="true" />}
+                      </span>
+                    </Link>
+                  )}
+                  {hasMenu && <Dropdown category={category} />}
+                </li>
+              );
+            })}
           </ul>
 
           {/* Search — pill, per the design system */}
@@ -237,7 +203,7 @@ export default function Navbar() {
             <div className="flex items-center justify-between p-5 border-b border-hairline">
               <div className="flex items-center gap-2">
                 <img src={logoMain} alt="" width="32" height="32" className="h-8 w-8 object-contain" />
-                <img src={titleImg} alt="AANGA" width="28" height="28" className="h-7 w-7 object-contain" />
+                <img src={logo} alt={storeName} width="28" height="28" className="h-7 w-7 object-contain" />
               </div>
               <button onClick={closeMobile} aria-label="Close menu" className="text-fg">
                 <IconX size={22} />
@@ -276,62 +242,49 @@ export default function Navbar() {
               >
                 Home
               </Link>
-              {[
-                { label: "Men", key: "men", menu: MEN_MENU },
-                { label: "Women", key: "women", menu: WOMEN_MENU },
-                { label: "Kids", key: "kids", menu: KIDS_MENU },
-              ].map(({ label, key, menu }) => (
-                <div key={key}>
-                  <button
-                    onClick={() => setMobileSubmenu(mobileSubmenu === key ? null : key)}
-                    aria-expanded={mobileSubmenu === key}
-                    className="w-full flex items-center justify-between py-3.5 text-sm font-medium
-                               uppercase tracking-[0.05em] text-fg border-b border-hairline"
-                  >
-                    {label}
-                    <IconChevronDown
-                      size={16}
-                      className={`transition-transform ${mobileSubmenu === key ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {mobileSubmenu === key && (
-                    <div className="pl-4 py-3">
-                      {menu.map((col) => (
-                        <div key={col.title} className="mb-4">
-                          <div className="text-xs tracking-[0.1em] uppercase text-muted font-semibold mb-1.5">
-                            {col.title}
-                          </div>
-                          {col.items.map((item) => (
-                            <Link
-                              key={item}
-                              to="/shop"
-                              onClick={closeMobile}
-                              className="block py-1.5 text-sm text-muted hover:text-fg"
-                            >
-                              {item}
-                            </Link>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {[
-                { to: "/offers", label: "Offers" },
-                { to: "/wholesale", label: "Wholesale" },
-                { to: "/contact", label: "Contact" },
-                { to: "/about", label: "About" },
-              ].map(({ to, label }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  onClick={closeMobile}
-                  className="block py-3.5 text-sm font-medium uppercase tracking-[0.05em] text-fg border-b border-hairline last:border-0"
-                >
-                  {label}
-                </Link>
-              ))}
+              {links.map((link) => {
+                const category = categoryOf(link.url, categories);
+                const key = `${link.label}-${link.url}`;
+                if (!category?.children?.length) {
+                  return isExternal(link.url) ? (
+                    <a key={key} href={link.url} target="_blank" rel="noreferrer"
+                      className="block py-3.5 text-sm font-medium uppercase tracking-[0.05em] text-fg border-b border-hairline">
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link key={key} to={link.url} onClick={closeMobile}
+                      className="block py-3.5 text-sm font-medium uppercase tracking-[0.05em] text-fg border-b border-hairline">
+                      {link.label}
+                    </Link>
+                  );
+                }
+                return (
+                  <div key={key}>
+                    <button
+                      onClick={() => setMobileSubmenu(mobileSubmenu === key ? null : key)}
+                      aria-expanded={mobileSubmenu === key}
+                      className="w-full flex items-center justify-between py-3.5 text-sm font-medium
+                                 uppercase tracking-[0.05em] text-fg border-b border-hairline"
+                    >
+                      {link.label}
+                      <IconChevronDown size={16} className={`transition-transform ${mobileSubmenu === key ? "rotate-180" : ""}`} />
+                    </button>
+                    {mobileSubmenu === key && (
+                      <div className="pl-4 py-3">
+                        <Link to={link.url} onClick={closeMobile} className="block py-1.5 text-sm font-medium text-fg">
+                          All {category.name}
+                        </Link>
+                        {category.children.map((child) => (
+                          <Link key={child.id} to={`/shop?category=${child.slug}`} onClick={closeMobile}
+                            className="block py-1.5 text-sm text-muted hover:text-fg">
+                            {child.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </nav>
           </aside>
         </div>

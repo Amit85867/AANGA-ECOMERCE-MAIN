@@ -1,11 +1,13 @@
 import { inr } from '@/utils/format'
+import { useSetting } from '@/store/useSettingsStore'
 
-// Must match FREE_SHIPPING_THRESHOLD in backend/app/services/order_service.py.
-// Only used for the "add ₹X more" nudge; the charge itself comes from the API.
-const FREE_DELIVERY_FROM = 999
+// The owner's "free shipping from" setting. Only used for the "add ₹X more"
+// nudge; the charge itself comes from the API.
 
 /* The money lines of a cart, identical on the cart and checkout pages. */
 export default function OrderSummary({ cart, children }) {
+  const s = useSetting()
+  const FREE_DELIVERY_FROM = Number(s('free_shipping_threshold', '999')) || 0
   const short = FREE_DELIVERY_FROM - cart.subtotal
   return (
     <div>

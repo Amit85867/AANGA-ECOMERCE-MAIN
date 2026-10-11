@@ -8,6 +8,8 @@
  * Usage:
  *   <Seo title="Silk Kurta" description="…" image={url} type="product" jsonLd={…} />
  */
+import { useSettingsStore } from '@/store/useSettingsStore'
+
 const SITE_NAME = 'AANGA'
 const DEFAULT_TITLE = 'AANGA — Premium Fashion for Men, Women & Kids'
 const DEFAULT_DESCRIPTION =
@@ -16,14 +18,21 @@ const DEFAULT_DESCRIPTION =
 
 export default function Seo({
   title,
-  description = DEFAULT_DESCRIPTION,
+  description,
   image,
   type = 'website',
   canonical,
   jsonLd,
   noindex = false,
 }) {
-  const fullTitle = title ? `${title} — ${SITE_NAME}` : DEFAULT_TITLE
+  // The owner's store name, default title, description and share image
+  // (Admin → Store settings), falling back to the built-in ones.
+  const settings = useSettingsStore((st) => st.settings)
+  const siteName = settings.store_name || SITE_NAME
+  const fullTitle = title ? `${title} — ${siteName}` : settings.seo_title || DEFAULT_TITLE
+  description = description || settings.seo_description || DEFAULT_DESCRIPTION
+  image = image || settings.seo_share_image || undefined
+  if (image && image.startsWith('/') && typeof window !== 'undefined') image = window.location.origin + image
   const url =
     canonical ||
     (typeof window !== 'undefined'
@@ -37,7 +46,7 @@ export default function Seo({
       {noindex && <meta name="robots" content="noindex,nofollow" />}
       {url && <link rel="canonical" href={url} />}
 
-      <meta property="og:site_name" content={SITE_NAME} />
+      <meta property="og:site_name" content={siteName} />
       <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={description} />
       <meta property="og:type" content={type} />

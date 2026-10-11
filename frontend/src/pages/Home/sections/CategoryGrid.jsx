@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { IconArrowUpRight } from '@tabler/icons-react'
 import { Container } from '@/components/ui/Display'
@@ -5,9 +6,12 @@ import SectionHeading from './SectionHeading'
 import { useProductStore } from '@/store/useProductStore'
 import { useSetting } from '@/store/useSettingsStore'
 
-export default function CategoryGrid() {
+export default function CategoryGrid({ heading }) {
   // Loaded by CategoryStrip above; shared through the store, not fetched twice.
   const categories = useProductStore((s) => s.categories).slice(0, 8)
+  const fetchCategories = useProductStore((s) => s.fetchCategories)
+  // (A no-op when the strip above already loaded them; needed when the owner has hidden it.)
+  useEffect(() => { fetchCategories() }, [fetchCategories])
   const s = useSetting()
 
   if (categories.length === 0) return null
@@ -16,8 +20,8 @@ export default function CategoryGrid() {
     <Container as="section" className="py-14 lg:py-20" aria-labelledby="categories-heading">
       <SectionHeading
         id="categories-heading"
-        eyebrow={s('section_categories_tag', 'Explore')}
-        title={s('section_categories_title', 'Shop by category')}
+        eyebrow={heading?.subtitle || s('section_categories_tag', 'Explore')}
+        title={heading?.title || s('section_categories_title', 'Shop by category')}
       />
       <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {categories.map((cat) => (

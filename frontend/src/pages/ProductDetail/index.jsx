@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useCampaignEpoch } from '@/store/useLayoutStore'
+import { useSetting } from '@/store/useSettingsStore'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   IconHeart, IconTruck, IconRefresh, IconShieldCheck, IconChevronDown,
@@ -51,10 +53,13 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1)
   const [related, setRelated] = useState([])
   const [adding, setAdding] = useState(false)
+  const epoch = useCampaignEpoch()
+  const setting = useSetting()
 
+  // Loaded again when a campaign starts or ends: the price may have changed.
   useEffect(() => {
     fetchProduct(slug)
-  }, [slug, fetchProduct])
+  }, [slug, fetchProduct, epoch])
 
   useEffect(() => {
     if (product?.category_slug) {
@@ -123,7 +128,7 @@ export default function ProductDetail() {
   const primaryImage =
     images.find((i) => i.is_primary)?.image_url || images[0]?.image_url
   const inStock = (product.variants || []).some((v) => v.stock_qty > 0)
-  const seoDescription = (product.description || `${product.name} — shop now at AANGA.`)
+  const seoDescription = (product.meta_description || product.description || `${product.name} — shop now at ${setting('store_name', 'AANGA')}.`)
     .replace(/\s+/g, ' ')
     .slice(0, 160)
   const productJsonLd = {
@@ -201,9 +206,9 @@ export default function ProductDetail() {
   return (
     <div className="bg-bg">
       <Seo
-        title={product.name}
+        title={product.meta_title || product.name}
         description={seoDescription}
-        image={primaryImage}
+        image={product.share_image_url || primaryImage}
         type="product"
         jsonLd={productJsonLd}
       />
@@ -239,7 +244,13 @@ export default function ProductDetail() {
                     height="1200"
                     className="w-full h-full object-cover"
                   />
-                  {i === 0 && product.badge_label && (
+                  {i === 0 && product.on_sale && (
+                    <span className="sale-badge absolute top-4 left-4 px-2.5 py-1 rounded-full
+                                     text-xs tracking-[0.05em] uppercase font-semibold">
+                      {product.sale_name}{product.sale_percent ? ` · ${Math.round(product.sale_percent)}% off` : ''}
+                    </span>
+                  )}
+                  {i === 0 && !product.on_sale && product.badge_label && (
                     <span className="absolute top-4 left-4 px-2.5 py-1 rounded-full bg-primary
                                      text-on-primary text-xs tracking-[0.05em] uppercase font-semibold">
                       {product.badge_label}
@@ -389,15 +400,24 @@ export default function ProductDetail() {
                   <p className="text-sm leading-relaxed text-muted">{product.description}</p>
                 </Accordion>
               )}
+              {product.care_details && (
+                <Accordion title="Fabric & Care">
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-muted">{product.care_details}</p>
+                </Accordion>
+              )}
               <Accordion title="Delivery & Returns">
                 <ul className="space-y-3">
                   <li className="flex items-center gap-3 text-sm text-muted">
                     <IconTruck size={18} stroke={1.5} className="text-fg shrink-0" />
-                    Free delivery on orders above &#8377;999
+                    {Number(setting('free_shipping_threshold', '999')) > 0
+                      ? `Free delivery on orders above ₹${Number(setting('free_shipping_threshold', '999')).toLocaleString('en-IN')}`
+                      : 'Free delivery on every order'}
                   </li>
                   <li className="flex items-center gap-3 text-sm text-muted">
                     <IconRefresh size={18} stroke={1.5} className="text-fg shrink-0" />
-                    Easy 7-day return &amp; exchange
+                    {Number(setting('return_window_days', '7')) > 0
+                      ? `Easy ${setting('return_window_days', '7')}-day return & exchange`
+                      : 'This store does not accept returns'}
                   </li>
                   <li className="flex items-center gap-3 text-sm text-muted">
                     <IconShieldCheck size={18} stroke={1.5} className="text-fg shrink-0" />

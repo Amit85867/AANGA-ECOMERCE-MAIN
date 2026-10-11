@@ -9,7 +9,7 @@ import { useSetting } from '@/store/useSettingsStore'
 const INITIAL = 3
 
 /* Testimonials set up under Admin → Testimonials. */
-export default function Reviews() {
+export default function Reviews({ heading }) {
   const [items, setItems] = useState([])
   const [expanded, setExpanded] = useState(false)
   const s = useSetting()
@@ -28,8 +28,8 @@ export default function Reviews() {
       <Container>
         <SectionHeading
           id="testimonials-heading"
-          eyebrow={s('reviews_tag', 'Testimonials')}
-          title={s('reviews_title', 'What our customers say')}
+          eyebrow={heading?.subtitle || s('reviews_tag', 'Testimonials')}
+          title={heading?.title || s('reviews_title', 'What our customers say')}
         />
         <ul className="grid gap-4 md:grid-cols-3">
           {shown.map((r) => (

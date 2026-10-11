@@ -38,11 +38,13 @@ PAGE_PATHS = {"about": "/about", "contact": "/contact", "faq": "/faq", "shipping
 
 DEFAULT_NAV = [
     # (location, group, label, url)
-    ("header", None, "New In", "/shop?sort=newest"),
+    # A link to a category (/shop?category=<slug>) shows that category's
+    # sub-categories as a drop-down on the storefront.
+    ("header", None, "New In", "/shop"),
     ("header", None, "Men", "/shop?category=men"),
     ("header", None, "Women", "/shop?category=women"),
-    ("header", None, "Kids", "/shop?category=kids"),
     ("header", None, "Offers", "/offers"),
+    ("header", None, "Wholesale", "/wholesale"),
     ("footer", "Shop", "All Products", "/shop"),
     ("footer", "Shop", "Offers", "/offers"),
     ("footer", "Shop", "Wholesale", "/wholesale"),

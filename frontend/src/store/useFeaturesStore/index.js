@@ -10,7 +10,8 @@ import apiClient from '@/services/apiClient'
  * Everything defaults to off: until the answer arrives — or if it never does —
  * the page shows only what is certain to work.
  */
-const OFF = { online_payments: false, delivery_check: false, google_login: false, phone_login: false }
+// (Cash on delivery is the exception: it is on unless the owner switches it off.)
+const OFF = { online_payments: false, delivery_check: false, google_login: false, phone_login: false, cash_on_delivery: true }
 
 export const useFeaturesStore = create((set, get) => ({
   features: OFF,

@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react'
 import apiClient from '@/services/apiClient'
 import Button from '@/components/ui/Button'
 import { Container } from '@/components/ui/Display'
+import { useCampaignEpoch } from '@/store/useLayoutStore'
 
 /* The promotional block set up under Admin → Promo Banners. */
 export default function SaleBanner() {
   const [promo, setPromo] = useState(null)
+  const epoch = useCampaignEpoch()
 
   useEffect(() => {
     apiClient.get('/cms/promo-banners')
       .then((r) => setPromo(r.data.promo_banners?.[0] || null))
       .catch(() => {})
-  }, [])
+  }, [epoch])
 
   if (!promo) return null
   const items = promo.items || []

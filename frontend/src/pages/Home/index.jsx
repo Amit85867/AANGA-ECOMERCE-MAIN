@@ -7,21 +7,37 @@ import SaleBanner from './sections/SaleBanner'
 import WhyChoose from './sections/WhyChoose'
 import Reviews from './sections/Reviews'
 import Newsletter from './sections/Newsletter'
+import { useLayoutStore } from '@/store/useLayoutStore'
+import { useSetting } from '@/store/useSettingsStore'
+
+const SECTIONS = {
+  hero: HeroSection,
+  category_strip: CategoryStrip,
+  features: WhyChoose,
+  category_tiles: CategoryGrid,
+  featured: ProductGrid,
+  promo: SaleBanner,
+  testimonials: Reviews,
+  newsletter: Newsletter,
+}
 
 export default function Home() {
+  const sections = useLayoutStore((st) => st.homepage)
+  const st = useSetting()
+  const storeName = st('store_name', 'AANGA')
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'Organization',
-        name: 'AANGA',
+        name: storeName,
         url: origin || undefined,
         logo: origin ? `${origin}/favicon.svg` : undefined,
       },
       {
         '@type': 'WebSite',
-        name: 'AANGA',
+        name: storeName,
         url: origin || undefined,
         potentialAction: {
           '@type': 'SearchAction',
@@ -35,19 +51,13 @@ export default function Home() {
   return (
     <>
       <Seo jsonLd={jsonLd} />
-      {/* Order: hook, then reassure, then sell, then prove, then capture.
-          WhyChoose carries the delivery/returns promises, so it sits directly
-          under the hero where it answers the first objection instead of at the
-          bottom where most visitors never reach it. Reviews follow the promo
-          so the social proof lands next to the call to action. */}
-      <HeroSection />
-      <CategoryStrip />
-      <WhyChoose />
-      <CategoryGrid />
-      <ProductGrid />
-      <SaleBanner />
-      <Reviews />
-      <Newsletter />
+      {/* Which sections show, and in what order, is the owner's choice
+          (Admin → Homepage). The default order is: hook, reassure, sell,
+          prove, capture. */}
+      {sections.map((section) => {
+        const Section = SECTIONS[section.key]
+        return Section ? <Section key={section.key} heading={section} collection={section.collection} /> : null
+      })}
     </>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IconCircleCheck, IconClock, IconMail, IconMapPin, IconPhone } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
 import Button from '@/components/ui/Button'
@@ -7,13 +7,17 @@ import Input from '@/components/ui/Input'
 import { Select, Textarea } from '@/components/ui/Field'
 import { Container, PageTitle } from '@/components/ui/Display'
 import Seo from '@/components/Seo'
+import { CmsBody } from '@/components/common/CmsPage'
+import { useSetting } from '@/store/useSettingsStore'
 
-const CONTACT_INFO = [
-  { icon: IconMapPin, title: 'Visit us', lines: ['Amit Enterprises', 'Boring Road, Patna', 'Bihar — 800001'] },
-  { icon: IconPhone, title: 'Call us', lines: ['+91 98765 43210', '+91 61200 00000'] },
-  { icon: IconMail, title: 'Email us', lines: ['support@aanga.in', 'wholesale@aanga.in'] },
-  { icon: IconClock, title: 'Working hours', lines: ['Mon–Sat: 10 AM – 8 PM', 'Sunday: closed'] },
-]
+// Address, phone and email come from Admin → Store settings; anything the
+// owner has left empty is simply not shown.
+const contactInfo = (s) => [
+  { icon: IconMapPin, title: 'Visit us', lines: s('store_address').split(/\n|,\s*/).map((l) => l.trim()).filter(Boolean) },
+  { icon: IconPhone, title: 'Call us', lines: [s('store_phone')].filter(Boolean) },
+  { icon: IconMail, title: 'Email us', lines: [s('store_email')].filter(Boolean) },
+  { icon: IconClock, title: 'WhatsApp', lines: [s('whatsapp_number')].filter(Boolean) },
+].filter((item) => item.lines.length > 0)
 
 const SUBJECTS = [
   ['general', 'General inquiry'],
@@ -32,6 +36,13 @@ export default function Contact() {
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
+  const s = useSetting()
+  const CONTACT_INFO = contactInfo(s)
+  // Optional introduction written under Admin → Pages → Contact.
+  const [intro, setIntro] = useState('')
+  useEffect(() => {
+    apiClient.get('/content/pages/contact').then(({ data }) => setIntro(data.body_html || '')).catch(() => {})
+  }, [])
 
   const field = (name) => ({
     name: `contact-${name}`,
@@ -82,6 +93,7 @@ export default function Contact() {
 
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            {intro && <CmsBody html={intro} className="mb-6" />}
             {CONTACT_INFO.map(({ icon: Icon, title, lines }) => (
               <li key={title} className="flex gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-fill text-fg">

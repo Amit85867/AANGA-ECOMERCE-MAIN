@@ -5,6 +5,8 @@ import { SIZES, responsive } from '@/utils/image'
 import Button from '@/components/ui/Button'
 import { Container } from '@/components/ui/Display'
 import { useSetting } from '@/store/useSettingsStore'
+import { useCampaignEpoch } from '@/store/useLayoutStore'
+import { FestiveCorner } from '@/components/layout/Festive'
 
 const ROTATE_MS = 6000
 
@@ -23,6 +25,7 @@ export default function HeroSection() {
   const [current, setCurrent] = useState(0)
   const [paused, setPaused] = useState(false)
   const s = useSetting()
+  const epoch = useCampaignEpoch()
 
   useEffect(() => {
     // index.html starts this request before the app's code has loaded; use
@@ -32,9 +35,9 @@ export default function HeroSection() {
       ? early.then((data) => data ?? apiClient.get('/cms/banners').then((r) => r.data))
       : apiClient.get('/cms/banners').then((r) => r.data)
     request
-      .then((data) => setBanners(data?.banners || []))
+      .then((data) => { setBanners(data?.banners || []); setCurrent(0) })
       .catch(() => {}) // the fallback hero stays
-  }, [])
+  }, [epoch]) // a campaign's slides replace these while it is live
 
   const next = useCallback(
     () => setCurrent((c) => (banners.length ? (c + 1) % banners.length : 0)),
@@ -78,7 +81,7 @@ export default function HeroSection() {
             <p className="mt-5 max-w-md text-base leading-relaxed text-muted">{slide.description}</p>
           )}
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button to={slide.link_url || '/shop'} size="lg">{slide.link_text || 'Shop now'}</Button>
+            <Button to={slide.link_url || '/shop'} size="lg" className="festive-cta">{slide.link_text || 'Shop now'}</Button>
             {slide.secondary_link_url && (
               <Button to={slide.secondary_link_url} size="lg" variant="secondary">
                 {slide.secondary_link_text || 'View offers'}
@@ -106,6 +109,9 @@ export default function HeroSection() {
               className="h-full w-full object-cover"
             />
           )}
+
+          <FestiveCorner className="left-2 top-2" />
+          <FestiveCorner className="bottom-2 right-2 rotate-180" />
 
           {slide.pill_value && (
             <div className="absolute bottom-5 left-5 rounded-card bg-card/95 px-4 py-3 shadow-card backdrop-blur">

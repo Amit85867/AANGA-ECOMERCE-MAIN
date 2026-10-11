@@ -59,7 +59,7 @@ export default function Checkout() {
   const initializing = useAuthStore((s) => s.initializing)
   const user = useAuthStore((s) => s.user)
   const { cart, loading: cartLoading, fetchCart, clearLocal } = useCartStore()
-  const { online_payments: onlineAvailable, loaded: featuresLoaded } = useFeatures()
+  const { online_payments: onlineAvailable, cash_on_delivery: codAvailable, loaded: featuresLoaded } = useFeatures()
   const idempotencyKey = useRef(null)
 
   const [step, setStep] = useState(0)
@@ -68,6 +68,10 @@ export default function Checkout() {
   const [selectedId, setSelectedId] = useState(null)
   const [editing, setEditing] = useState(null)       // null | 'new' | address
   const [payment, setPayment] = useState('cod')
+  // Cash on delivery switched off by the owner: start on online payment.
+  useEffect(() => {
+    if (featuresLoaded && !codAvailable && payment === 'cod' && onlineAvailable) setPayment('online')
+  }, [featuresLoaded, codAvailable, onlineAvailable, payment])
   const [placing, setPlacing] = useState(false)
 
   const loadAddresses = useCallback(() => {
@@ -275,12 +279,14 @@ export default function Checkout() {
                 <h2 id="step-payment" className="display text-xl text-fg mb-5">Payment method</h2>
                 <fieldset className="space-y-3">
                   <legend className="sr-only">Choose how to pay</legend>
-                  <Choice name="payment" checked={payment === 'cod'} onChange={() => setPayment('cod')}>
+                  <Choice name="payment" checked={payment === 'cod'} disabled={!codAvailable} onChange={() => setPayment('cod')}>
                     <div className="flex items-center gap-3">
                       <IconCash size={22} stroke={1.5} className="text-fg" aria-hidden="true" />
                       <div>
                         <div className="text-sm font-medium text-fg">Cash on delivery</div>
-                        <div className="text-xs text-muted">Pay in cash when your order arrives.</div>
+                        <div className="text-xs text-muted">
+                          {codAvailable ? 'Pay in cash when your order arrives.' : 'Not available on this store at the moment.'}
+                        </div>
                       </div>
                     </div>
                   </Choice>

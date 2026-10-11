@@ -59,6 +59,12 @@
             urls.filter(Boolean).forEach(function (u) { preload(u, opts.sizes) })
           }
 
+          // The storefront's shape (homepage order, menus, live campaign) is
+          // needed by every customer page, so ask for it straight away too.
+          if (!/^\/admin(\/|$)/.test(path) && !/[?&]campaign_preview=/.test(location.search)) {
+            early.layout = get('/api/content/layout')
+          }
+
           var product = path.match(/^\/product\/([^/]+)\/?$/)
           if (path === '/') {
             early.banners = get('/api/cms/banners').then(function (data) {

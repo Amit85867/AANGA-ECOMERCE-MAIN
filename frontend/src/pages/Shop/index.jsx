@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { useCampaignEpoch } from '@/store/useLayoutStore'
 import { IconAdjustmentsHorizontal, IconSearchOff, IconX } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
 import { useProductStore } from '@/store/useProductStore'
@@ -104,6 +105,10 @@ function Filters({ filters, facets, categories, set }) {
 
 export default function Shop() {
   const [params, setParams] = useSearchParams()
+  // /collections/<slug> is this same page, narrowed to one hand-picked collection.
+  const { slug: collectionSlug } = useParams()
+  const [collection, setCollection] = useState(null)
+  const epoch = useCampaignEpoch()
   const {
     products, loading, loadingMore, error, total, page, pages,
     fetchProducts, categories, fetchCategories,
@@ -137,19 +142,32 @@ export default function Shop() {
 
   const query = useMemo(() => {
     const out = { per_page: PER_PAGE, sort: filters.sort }
+    if (collectionSlug) {
+      out.collection = collectionSlug
+      // No sort chosen: keep the order the owner arranged.
+      if (!params.get('sort')) delete out.sort
+    }
     if (filters.q) out.q = filters.q
     if (filters.category) out.category = filters.category
     if (filters.sizes.length) out.size = filters.sizes.join(',')
     if (filters.colors.length) out.color = filters.colors.join(',')
     if (filters.maxPrice) out.max_price = filters.maxPrice
     return out
-  }, [filters])
+  }, [filters, collectionSlug, params])
 
   useEffect(() => { fetchCategories() }, [fetchCategories])
 
   useEffect(() => {
     fetchProducts({ ...query, page: 1 })
-  }, [query, fetchProducts])
+  }, [query, fetchProducts, epoch])
+
+  useEffect(() => {
+    setCollection(null)
+    if (!collectionSlug) return
+    apiClient.get(`/content/collections/${collectionSlug}`)
+      .then(({ data }) => setCollection(data))
+      .catch(() => setCollection({ missing: true }))
+  }, [collectionSlug, epoch])
 
   // Sizes and colours on offer depend on the category being browsed.
   useEffect(() => {
@@ -174,17 +192,24 @@ export default function Shop() {
   ].filter(Boolean)
   const clearAll = () => setParams(filters.sort !== 'newest' ? { sort: filters.sort } : {}, { replace: true })
 
-  const title = filters.q ? `Results for “${filters.q}”` : categoryName || 'All products'
+  const title = collection?.name || (filters.q ? `Results for “${filters.q}”` : categoryName || 'All products')
   const panel = <Filters filters={filters} facets={facets} categories={flatCategories} set={set} />
 
   return (
     <>
       <Seo
-        title={categoryName || 'Shop All Products'}
-        description="Browse the full AANGA collection — clothing, accessories and more for men, women and kids, with fast delivery across India."
+        title={collection?.meta_title || collection?.name || categoryName || 'Shop All Products'}
+        description={collection?.meta_description || collection?.description || 'Browse the full collection — clothing, accessories and more, with fast delivery across India.'}
+        image={collection?.share_image_url || collection?.image_url || undefined}
       />
       <Container className="pb-16">
-        <PageTitle title={title} crumbs={[{ label: 'Home', to: '/' }, { label: 'Shop' }]} />
+        <PageTitle
+          title={title}
+          subtitle={collection?.sale_percent
+            ? `${collection.description ? `${collection.description} · ` : ''}${Math.round(collection.sale_percent)}% off everything in this collection`
+            : collection?.description}
+          crumbs={[{ label: 'Home', to: '/' }, { label: 'Shop', to: collectionSlug ? '/shop' : undefined }, ...(collectionSlug ? [{ label: title }] : [])]}
+        />
 
         <div className="grid gap-10 lg:grid-cols-[15rem_minmax(0,1fr)]">
           <aside className="hidden lg:block" aria-label="Filters">

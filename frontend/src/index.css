@@ -89,3 +89,56 @@ body {
   from { opacity: 0; transform: translateX(100%); }
   to { opacity: 1; transform: translateX(0); }
 }
+
+/*
+ * Festive decoration layer (campaigns).
+ *
+ * An overlay on the theme, not a change to it: no token above is touched.
+ * <html data-festive="…"> and the three --festive-* variables are set by
+ * components/layout/Festive only while a live campaign has decoration on, and
+ * these are the only rules that read them. Static: no animation.
+ */
+.festive-only { display: none; }
+[data-festive] .festive-only { display: block; }
+
+/* Sale badge on product cards and the product page. */
+.sale-badge {
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
+}
+[data-festive] .sale-badge {
+  background: var(--festive-accent);
+  color: var(--festive-on-accent);
+}
+
+/* Countdown chip in the announcement bar. */
+.festive-countdown { border: 1px solid currentColor; }
+[data-festive] .festive-countdown {
+  border-color: transparent;
+  background: var(--festive-accent);
+  color: var(--festive-on-accent);
+}
+
+/* The hero's main button takes the accent while the campaign is on. */
+[data-festive] .festive-cta {
+  background: var(--festive-accent);
+  border-color: var(--festive-accent);
+  color: var(--festive-on-accent);
+}
+[data-festive] .festive-text { color: var(--festive-accent-text); }
+
+/* Owner-written page text (Admin → Pages). Theme tokens only. */
+.cms-prose { color: var(--color-muted); font-size: 0.9375rem; line-height: 1.75; }
+.cms-prose > * + * { margin-top: 1rem; }
+.cms-prose h2, .cms-prose h3, .cms-prose h4 { color: var(--color-fg); font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; }
+.cms-prose h2 { font-size: 1.5rem; margin-top: 2.25rem; }
+.cms-prose h3 { font-size: 1.2rem; margin-top: 1.75rem; }
+.cms-prose h4 { font-size: 1rem; margin-top: 1.5rem; }
+.cms-prose > :first-child { margin-top: 0; }
+.cms-prose strong { color: var(--color-fg); font-weight: 600; }
+.cms-prose ul { list-style: disc; padding-left: 1.25rem; }
+.cms-prose ol { list-style: decimal; padding-left: 1.25rem; }
+.cms-prose li + li { margin-top: 0.35rem; }
+.cms-prose a { color: var(--color-fg); text-decoration: underline; text-underline-offset: 3px; }
+.cms-prose blockquote { border-left: 2px solid var(--color-hairline); padding-left: 1rem; font-style: italic; }
+.cms-prose hr { border: 0; border-top: 1px solid var(--color-hairline); margin: 2rem 0; }

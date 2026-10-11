@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { describeApiError } from '@/utils/apiError'
+import { previewToken } from '@/services/preview'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -25,6 +26,8 @@ export const getAccessToken = () => accessToken
 
 apiClient.interceptors.request.use((config) => {
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
+  // Campaign preview (admin only): see services/preview.
+  if (previewToken()) config.headers['X-Campaign-Preview'] = previewToken()
   return config
 })
 

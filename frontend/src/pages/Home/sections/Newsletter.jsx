@@ -3,7 +3,7 @@ import apiClient from '@/services/apiClient'
 import { Container } from '@/components/ui/Display'
 import { useSetting } from '@/store/useSettingsStore'
 
-export default function Newsletter() {
+export default function Newsletter({ heading }) {
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
   // The outcome is shown in place, next to the field it belongs to.
@@ -36,9 +36,9 @@ export default function Newsletter() {
   return (
     <section className="bg-primary py-14 text-on-primary lg:py-20" aria-labelledby="newsletter-heading">
       <Container className="max-w-2xl text-center">
-        <h2 id="newsletter-heading" className="display text-3xl sm:text-4xl">{s('newsletter_heading', 'Stay in style')}</h2>
+        <h2 id="newsletter-heading" className="display text-3xl sm:text-4xl">{heading?.title || s('newsletter_heading', 'Stay in style')}</h2>
         <p className="mt-3 text-sm leading-relaxed text-white/80">
-          {s('newsletter_subheading', 'New arrivals and offers, a couple of times a month. No spam.')}
+          {heading?.subtitle || s('newsletter_subheading', 'New arrivals and offers, a couple of times a month. No spam.')}
         </p>
 
         <form onSubmit={subscribe} className="mx-auto mt-7 flex max-w-md flex-col gap-3 sm:flex-row" noValidate>

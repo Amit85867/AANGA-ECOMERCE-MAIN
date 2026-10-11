@@ -4,6 +4,7 @@ import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
 import DashboardLayout from '@/layouts/DashboardLayout'
 import { RouteError } from '@/components/ErrorBoundary'
+import CmsPage from '@/components/common/CmsPage'
 import Home from '@/pages/Home'
 import Shop from '@/pages/Shop'
 import ProductDetail from '@/pages/ProductDetail'
@@ -94,13 +95,15 @@ const router = createBrowserRouter([
       { path: '/wishlist', element: page(Wishlist) },
       { path: '/track-order', element: page(OrderTracking) },
       { path: '/contact', element: page(Contact) },
-      { path: '/about', element: page(About) },
+      { path: '/about', element: <CmsPage slug="about" crumb="About" fallback={page(About)} /> },
+      { path: '/shipping', element: <CmsPage slug="shipping" crumb="Shipping" /> },
+      { path: '/collections/:slug', element: page(Shop) },
       { path: '/offers', element: page(Offers) },
       { path: '/faq', element: page(FAQ) },
       { path: '/wholesale', element: page(Wholesale) },
-      { path: '/returns', element: page(Returns) },
-      { path: '/privacy-policy', element: page(Privacy) },
-      { path: '/terms', element: page(Terms) },
+      { path: '/returns', element: <CmsPage slug="returns" crumb="Returns" fallback={page(Returns)} /> },
+      { path: '/privacy-policy', element: <CmsPage slug="privacy" crumb="Privacy Policy" fallback={page(Privacy)} /> },
+      { path: '/terms', element: <CmsPage slug="terms" crumb="Terms" fallback={page(Terms)} /> },
     ],
   },
   {

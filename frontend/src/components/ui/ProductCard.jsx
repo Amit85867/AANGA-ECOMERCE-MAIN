@@ -13,6 +13,8 @@ export default function ProductCard({ product, priority = false }) {
     mrp,
     selling_price,
     badge_label,
+    on_sale,
+    sale_percent,
     primary_image,
     colors = [],
     avg_rating,
@@ -53,7 +55,12 @@ export default function ProductCard({ product, priority = false }) {
           </div>
         )}
 
-        {badge_label && (
+        {on_sale ? (
+          <span className="sale-badge absolute top-3 left-3 px-2.5 py-1 rounded-full
+                           text-xs tracking-[0.05em] uppercase font-semibold">
+            Sale{sale_percent ? ` · ${Math.round(sale_percent)}% off` : ''}
+          </span>
+        ) : badge_label && (
           <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-primary text-on-primary
                            text-xs tracking-[0.05em] uppercase font-semibold">
             {badge_label}
