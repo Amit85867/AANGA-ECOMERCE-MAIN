@@ -206,3 +206,70 @@ def test_set_admin_password_reports_an_unknown_admin(app, monkeypatch):
 
     assert result.exit_code != 0
     assert "No admin" in result.output
+
+
+# ── Sign-ins are on the audit trail ───────────────────────────
+
+def _sign_in_entries():
+    from app.models.ops import AuditLog
+    return AuditLog.query.filter_by(entity_type="sign_ins").order_by(AuditLog.id).all()
+
+
+def test_successful_admin_sign_in_is_audited(app, client):
+    from tests.helpers import ADMIN_PASSWORD, make_admin
+    admin = make_admin(email="audited@example.com")
+
+    resp = client.post(
+        "/api/admin/auth/login",
+        json={"email": admin.email, "password": ADMIN_PASSWORD},
+        headers={"User-Agent": "pytest-browser"},
+    )
+    assert resp.status_code == 200
+
+    [entry] = _sign_in_entries()
+    assert entry.action == "admin_sign_in"
+    assert entry.actor_type == "admin"
+    assert str(entry.admin_id) == str(admin.id)
+    assert entry.actor_label == "audited@example.com"
+    assert entry.ip
+    assert entry.changes == {"user_agent": "pytest-browser"}
+
+
+def test_failed_admin_sign_ins_are_audited_without_the_password(app, client):
+    from tests.helpers import make_admin
+    admin = make_admin(email="audited@example.com")
+    inactive = make_admin(email="gone@example.com")
+    inactive.is_active = False
+    db.session.commit()
+
+    attempts = [
+        ("audited@example.com", "WrongPass999!", 401, "wrong password"),
+        ("nobody@example.com", "WrongPass999!", 401, "no admin with this email"),
+        ("gone@example.com", "AdminPass123!", 403, "account is deactivated"),
+    ]
+    for email, password, status, _ in attempts:
+        resp = client.post("/api/admin/auth/login", json={"email": email, "password": password})
+        assert resp.status_code == status
+        # the browser is never told which of the two it was
+        if status == 401:
+            assert resp.get_json() == {"error": "Invalid email or password"}
+
+    entries = _sign_in_entries()
+    assert [e.action for e in entries] == ["admin_sign_in_failed"] * 3
+    assert [e.changes["reason"] for e in entries] == [a[3] for a in attempts]
+    assert [e.actor_label for e in entries] == [a[0] for a in attempts]
+    assert all(e.actor_type == "anonymous" and e.admin_id is None for e in entries)
+    assert entries[0].entity_id == str(admin.id)
+    assert entries[1].entity_id is None
+    assert "WrongPass999!" not in str([(e.summary, e.changes) for e in entries])
+
+
+def test_sign_ins_show_in_the_audit_log_endpoint(app, client):
+    from tests.helpers import admin_headers
+    client.post("/api/admin/auth/login", json={"email": "nobody@example.com", "password": "WrongPass999!"})
+    body = client.get(
+        "/api/admin/audit-log?actor_type=anonymous", headers=admin_headers()
+    ).get_json()
+    assert body["entries"][0]["action"] == "admin_sign_in_failed"
+    assert body["entries"][0]["actor"] == "nobody@example.com"
+    assert "sign_ins" in body["entity_types"]

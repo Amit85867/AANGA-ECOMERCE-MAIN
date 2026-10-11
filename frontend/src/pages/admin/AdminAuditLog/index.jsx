@@ -6,7 +6,7 @@ import useAdminList from '@/components/admin/useAdminList'
 import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
 import { formatDateTime, humanize, inputCls } from '@/components/admin/helpers'
 
-const ACTOR_TONE = { admin: 'blue', customer: 'purple', system: 'gray' }
+const ACTOR_TONE = { admin: 'blue', customer: 'purple', system: 'gray', anonymous: 'red' }
 
 const hasDetail = (changes) => changes && Object.keys(changes).length > 0
 
@@ -29,7 +29,7 @@ export default function AdminAuditLog() {
     <div>
       <PageHeading
         title="Audit log"
-        subtitle="Every change made in the admin panel, and every refund, with who made it."
+        subtitle="Every change made in the admin panel, every refund and every admin sign-in, with who made it."
       />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
@@ -43,6 +43,7 @@ export default function AdminAuditLog() {
           <option value="admin">Admins</option>
           <option value="customer">Customers</option>
           <option value="system">System</option>
+          <option value="anonymous">Not signed in</option>
         </select>
         <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label="From date" className={`${inputCls} w-auto`} />
         <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label="To date" className={`${inputCls} w-auto`} />

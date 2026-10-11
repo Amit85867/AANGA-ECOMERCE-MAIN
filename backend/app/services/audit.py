@@ -82,10 +82,14 @@ def _current_admin():
 
 
 def record(action, entity_type, entity_id=None, summary=None, changes=None,
-           actor_type=None, actor_label=None, commit=True):
+           actor_type=None, actor_label=None, commit=True, admin_id=None):
     """Append one entry. Returns the row, or None if it could not be written."""
     in_request = has_request_context()
-    admin_id, admin_label = _current_admin() if in_request else (None, None)
+    token_admin_id, admin_label = _current_admin() if in_request else (None, None)
+    # Sign-in has no token yet, so it names the admin itself.
+    admin_id = admin_id or token_admin_id
+    if actor_type == "anonymous":
+        admin_id = None
 
     entry = AuditLog(
         actor_type=actor_type or ("admin" if admin_id else "system"),

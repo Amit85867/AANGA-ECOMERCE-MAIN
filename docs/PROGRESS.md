@@ -360,6 +360,14 @@ passed; `oxlint` and `vite build` clean.
     ID" — the Track Order page needs sign-in. Also business facts I cannot
     check: the support phone number and hours, "10+ items" for wholesale,
     refund in 5-7 business days, delivery in 4-7 days.
+- [x] **5. Admin sign-ins are audited.** A successful sign-in is recorded
+  against the admin; a failed one (wrong password, unknown email, deactivated
+  account) is recorded as "anonymous" with the email tried and the reason.
+  Both carry the IP and browser; the password never does, and the browser
+  still gets the same "Invalid email or password" for both 401 cases. The
+  audit page has a "Not signed in" filter and a "Sign ins" area. 3 tests.
+  Attempts stopped by the rate limiter (429) are not recorded. Customer
+  sign-ins are not audited.
 
 ## Discovered along the way
 

@@ -41,7 +41,8 @@ class AuditLog(db.Model):
     __tablename__ = "audit_log"
 
     id = db.Column(db.BigInteger, primary_key=True)
-    # "admin", "customer" or "system" (scheduled jobs, webhooks).
+    # "admin", "customer", "system" (scheduled jobs, webhooks) or
+    # "anonymous" (a failed admin sign-in: nobody proved who they were).
     actor_type = db.Column(db.Text, nullable=False, default="admin")
     admin_id = db.Column(UUID(as_uuid=True))
     # Copied onto the row so the trail outlives the account it names.
