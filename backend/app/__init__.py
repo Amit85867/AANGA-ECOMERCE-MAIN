@@ -47,9 +47,16 @@ def _is_dev_or_test(app):
 def _apply_proxy_fix(app):
     """Trust the platform's proxy for the client IP and scheme.
 
-    On Render/Railway the app sits behind one reverse proxy, so ``remote_addr``
-    is the proxy unless we honour X-Forwarded-For. Without this, rate limiting
-    would key every request on the proxy's IP — one shared bucket for everyone.
+    Behind a reverse proxy ``remote_addr`` is the proxy unless we honour
+    X-Forwarded-For. Without this, rate limiting would key every request on
+    the proxy's IP — one shared bucket for everyone.
+
+    Each proxy appends the address it received the request from, so the
+    client is the entry TRUSTED_PROXY_COUNT places from the right. Entries to
+    the left of it were sent by the client and are ignored, which is what
+    makes a forged header harmless. The count is the number of proxies on the
+    path the storefront uses (static site rewrite, then the API's own load
+    balancer); System Health reports how many it actually saw.
     """
     if _is_dev_or_test(app):
         return

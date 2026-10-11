@@ -14,7 +14,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from marshmallow import ValidationError
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, user_or_ip
 from app.models.order import Order, OrderItem, Return
 from app.models.enums import OrderStatus, ReturnReason, ReturnStatus
 from app.schemas.order import ReturnRequestIn
@@ -81,7 +81,7 @@ def _serialize(ret):
 
 
 @returns_bp.route("", methods=["POST"])
-@limiter.limit("20 per hour")
+@limiter.limit("20 per hour", key_func=user_or_ip)
 @jwt_required()
 def request_return():
     try:

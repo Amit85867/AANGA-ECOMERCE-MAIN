@@ -308,6 +308,24 @@ passed; `oxlint` and `vite build` clean.
   walkthrough's product and category.
 - [x] Final summary given to the owner.
 
+## Round 2 — follow-ups after the walkthrough
+
+- [x] **2. Rate limits behind the proxy.** ProxyFix was already applied in
+  production; tests now prove the client address is taken from the right
+  position and that a forged `X-Forwarded-For` is ignored. Limits on signed-in
+  routes (coupon, place order, cancel, create payment, verify payment, return,
+  review) are keyed on the account, falling back to the address when the token
+  does not verify. Customer and admin sign-in are additionally limited per
+  email (20 and 10 an hour) so guessing from many addresses is caught. System
+  Health shows "Proxies in front of the server: N seen · M trusted" and warns
+  in production when they differ. 11 tests.
+  - **Not known until deployed:** the hop count itself. Render does not
+    document it, so `render.yaml` keeps `1` as a starting value and
+    DEPLOYMENT.md step 6 says how to read the real number off System Health.
+  - Known limit, documented in DEPLOYMENT.md: a request sent straight to the
+    backend URL passes fewer proxies than one through the rewrite, so the
+    address-keyed limits on anonymous forms can be evaded there.
+
 ## Discovered along the way
 
 - [ ] `.claude/settings.local.json` is tracked and shows as modified on every

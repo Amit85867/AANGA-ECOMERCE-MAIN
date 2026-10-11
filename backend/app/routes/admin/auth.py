@@ -11,7 +11,7 @@ from flask_jwt_extended import (
 from marshmallow import ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, login_email
 from app.models.admin import Admin
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required, master_required
@@ -93,6 +93,7 @@ def _admin_auth_response(admin, status=200):
 
 @admin_bp.route("/auth/login", methods=["POST"])
 @limiter.limit("5 per 15 minutes")
+@limiter.limit("10 per hour", key_func=login_email)
 def admin_login():
     try:
         data = _login_in.load(request.get_json())

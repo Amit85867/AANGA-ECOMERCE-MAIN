@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from marshmallow import ValidationError
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, user_or_ip
 from app.models.cart import Cart, CartItem
 from app.models.catalogue import Product, ProductVariant, ProductImage
 from app.models.engagement import Coupon
@@ -165,7 +165,7 @@ def remove_item(item_id):
 
 
 @cart_bp.route("/coupon", methods=["POST"])
-@limiter.limit("30 per hour")
+@limiter.limit("30 per hour", key_func=user_or_ip)
 @jwt_required()
 def apply_coupon():
     try:

@@ -26,6 +26,20 @@ _maintenance_in = MaintenanceIn()
 
 # ── System health ─────────────────────────────────────────────
 
+def _forwarded_hops():
+    """How many proxies this request came through.
+
+    Counted from the X-Forwarded-For header as it arrived (ProxyFix keeps the
+    original). A browser sends none of its own, so for the admin looking at
+    this page the number is the right value for TRUSTED_PROXY_COUNT.
+    """
+    original = request.environ.get("werkzeug.proxy_fix.orig") or {}
+    header = original.get("HTTP_X_FORWARDED_FOR")
+    if header is None:
+        header = request.environ.get("HTTP_X_FORWARDED_FOR", "")
+    return len([part for part in header.split(",") if part.strip()])
+
+
 @admin_bp.route("/system/health", methods=["GET"])
 @admin_required
 def system_health():
@@ -72,6 +86,8 @@ def system_health():
             # this is not their real IP, TRUSTED_PROXY_COUNT is wrong and rate
             # limits are being applied to the proxy instead of to visitors.
             "client_ip": request.remote_addr,
+            "proxy_hops_seen": _forwarded_hops(),
+            "proxy_hops_trusted": int(current_app.config.get("TRUSTED_PROXY_COUNT", 0)),
         },
         checks=checks,
         maintenance=maintenance.get_state(fresh=True),

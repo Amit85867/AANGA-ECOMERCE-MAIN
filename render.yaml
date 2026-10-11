@@ -44,10 +44,12 @@ envVarGroups:
       - key: JWT_COOKIE_SAMESITE
         value: Lax
 
-      # Requests arrive through Render's load balancer; rewritten ones also
-      # pass through the static site's edge. Confirm on the admin System
-      # Health page that "Your IP as seen by the server" is your real address;
-      # if it shows a Render address, raise this by one.
+      # Number of proxies between a storefront visitor and the app: the static
+      # site's /api rewrite plus the API's own load balancer. Render does not
+      # document the figure, so "1" is a starting value, not a known one.
+      # After the first deploy open admin → System Health through the
+      # storefront domain: "Proxies in front of the server" shows how many
+      # it saw. Set this to that number and redeploy.
       - key: TRUSTED_PROXY_COUNT
         value: "1"
 

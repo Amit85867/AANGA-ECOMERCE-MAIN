@@ -25,7 +25,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.exc import IntegrityError
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, user_or_ip
 from app.models.cart import Cart
 from app.models.order import Order
 from app.models.enums import PaymentStatus
@@ -349,7 +349,7 @@ def _mark_payment_status(payment_id, status):
 
 
 @payments_bp.route("/create-order", methods=["POST"])
-@limiter.limit("30 per hour")
+@limiter.limit("30 per hour", key_func=user_or_ip)
 @jwt_required()
 def create_payment_order():
     key_id, key_secret = _keys()
@@ -391,7 +391,7 @@ def create_payment_order():
 
 
 @payments_bp.route("/verify", methods=["POST"])
-@limiter.limit("60 per hour")
+@limiter.limit("60 per hour", key_func=user_or_ip)
 @jwt_required()
 def verify_payment():
     key_id, key_secret = _keys()

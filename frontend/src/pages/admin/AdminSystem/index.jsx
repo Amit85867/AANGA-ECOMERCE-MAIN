@@ -236,6 +236,7 @@ export default function AdminSystem() {
                 ['Environment', data.app.environment],
                 ['Uptime', uptime(data.app.uptime_seconds)],
                 ['Your IP as seen by the server', data.app.client_ip || '—'],
+                ['Proxies in front of the server', `${data.app.proxy_hops_seen ?? '—'} seen · ${data.app.proxy_hops_trusted ?? '—'} trusted`],
               ].map(([term, value]) => (
                 <div key={term} className="flex justify-between gap-4">
                   <dt className="text-gray-500">{term}</dt>
@@ -243,6 +244,12 @@ export default function AdminSystem() {
                 </div>
               ))}
             </dl>
+            {data.app.environment === 'production' && data.app.proxy_hops_seen !== data.app.proxy_hops_trusted && (
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Set TRUSTED_PROXY_COUNT to {data.app.proxy_hops_seen} and redeploy. Until the two numbers match,
+                rate limits are not applied to each visitor’s own address.
+              </p>
+            )}
             {data.app.debug && (
               <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 Debug mode is on. It must be off in production.

@@ -6,7 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.orm import selectinload
 from marshmallow import ValidationError
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, user_or_ip
 from app.models.order import Order, OrderItem, OrderTracking
 from app.models.cart import Cart, CartItem
 from app.models.catalogue import ProductVariant
@@ -24,7 +24,7 @@ _detail_out = OrderDetailOut()
 
 
 @orders_bp.route("", methods=["POST"])
-@limiter.limit("30 per hour")
+@limiter.limit("30 per hour", key_func=user_or_ip)
 @jwt_required()
 def place_order():
     try:
@@ -161,7 +161,7 @@ def order_detail(order_id):
 
 
 @orders_bp.route("/<int:order_id>/cancel", methods=["POST"])
-@limiter.limit("30 per hour")
+@limiter.limit("30 per hour", key_func=user_or_ip)
 @jwt_required()
 def cancel_order(order_id):
     order = Order.query.filter_by(id=order_id, user_id=get_jwt_identity()).first()

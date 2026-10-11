@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from marshmallow import ValidationError
 from sqlalchemy import func
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, user_or_ip
 from app.models.engagement import ProductReview
 from app.models.catalogue import Product, ProductVariant
 from app.models.order import Order, OrderItem
@@ -67,7 +67,7 @@ def product_reviews(product_id):
 
 
 @reviews_bp.route("", methods=["POST"])
-@limiter.limit("20 per hour")
+@limiter.limit("20 per hour", key_func=user_or_ip)
 @jwt_required()
 def submit_review():
     try:

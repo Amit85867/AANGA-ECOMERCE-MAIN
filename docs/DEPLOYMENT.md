@@ -303,9 +303,21 @@ near your customers (India), not from a CI runner in another region.
 
 - every service you configured shows **Configured**, none shows **Error**;
 - press **Test connections** — each still shows Configured;
-- **Your IP as seen by the server** is your own public IP. If it is a Render
-  address, raise `TRUSTED_PROXY_COUNT` by one and redeploy: until it is right,
-  every visitor shares one rate-limit bucket;
+- open this page **through the storefront domain** (not the `onrender.com`
+  backend URL). **Proxies in front of the server** must read the same number
+  twice, e.g. "2 seen · 2 trusted". If they differ, set `TRUSTED_PROXY_COUNT`
+  to the "seen" number and redeploy; the page shows a warning until they
+  match. Then **Your IP as seen by the server** must be your own public IP
+  (compare with any "what is my IP" site). Until this is right, either every
+  visitor shares one rate-limit bucket (count too low) or a visitor can pick
+  their own address (count too high);
+- known limit of this layout: a request sent straight to the backend URL
+  passes through fewer proxies than one sent through the rewrite, so there a
+  caller can forge the address. Limits on signed-in routes are keyed on the
+  account and sign-in is also limited per email, so neither depends on the
+  address alone; the anonymous forms (contact, newsletter, wholesale,
+  register, forgot-password) do. The single-service layout in section 1
+  removes the difference;
 - after 30 minutes, **Payment reconcile job** shows a recent successful run.
 
 **7. By hand, once:** register, add to cart, check out cash-on-delivery, see

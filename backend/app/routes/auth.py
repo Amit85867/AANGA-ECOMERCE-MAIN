@@ -19,7 +19,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, login_email
 from app.models.user import User, OTP, PasswordReset
 from app.models.cart import Cart
 from app.models.enums import AuthProviderType, AccountType
@@ -100,6 +100,7 @@ def register():
 
 @auth_bp.route("/login", methods=["POST"])
 @limiter.limit("10 per 15 minutes")
+@limiter.limit("20 per hour", key_func=login_email)
 def login():
     try:
         data = _login_schema.load(request.get_json())
