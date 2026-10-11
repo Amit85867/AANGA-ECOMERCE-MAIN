@@ -430,6 +430,129 @@ passed; `oxlint` and `vite build` clean.
   signed payloads (needs `RAZORPAY_WEBHOOK_SECRET` too), `reconcile-payments`,
   and the live pincode check.
 
+## Round 3 — handover-ready dashboard, demo content, Diwali campaign
+
+Backend suite: 546 passed. `oxlint` and `vite build` clean. `docs/ENDPOINTS.md`
+regenerated: 181 routes, none untested (its two "frontend calls with no backend
+route" are the campaign screen's `/admin/${kind}` calls to banners and promo
+banners, which the scanner cannot resolve).
+
+### Part A — dashboard
+
+- [x] Audit written first: `docs/ADMIN_CAPABILITIES.md` (before and after).
+- [x] **1. Staff and roles.** Owner / Manager / Staff. One `before_request`
+  hook on the admin blueprint decides by URL area, reading the role from the
+  database (a role change applies to the next request); an area nobody listed
+  is Owner-only. Add, edit role, deactivate, reset password, remove; the last
+  Owner is protected. All audited. A test walks every admin route and fails
+  if one belongs to no known area — it caught two (inquiries, messages).
+- [x] **2. Customers.** Detail now has lifetime spend, returns and reviews;
+  CSV export of the filtered list (no password, payment or address columns;
+  cells that would run as spreadsheet formulas are neutralised).
+- [x] **3. Store settings.** Typed fields in one screen; shipping fee,
+  free-shipping threshold, COD switch and return window now drive the cart,
+  checkout and returns instead of constants.
+- [x] **4. Homepage builder.** Order, visibility, headings, featured
+  collection; stored in `homepage_sections`.
+- [x] **5. Navigation and pages.** Header and footer menus; seven pages with a
+  rich-text editor; FAQ entries. Page HTML is rebuilt from an allow-list on the
+  server before it is stored.
+- [x] **6. Collections.** Hand-picked, ordered, each with its own page.
+- [x] **7. Campaigns.** Live is worked out from the clock on every request, so
+  start and revert need no job; cache keys include the campaign state. Sale
+  prices are applied at read time and the cart is repriced before every total,
+  so stored prices never change. Preview is a signed token that affects
+  display only. Overlaps answer 409 naming the other campaign.
+- [x] **8. Media library.** Every upload is catalogued; usage is looked up
+  before delete; a picture in use cannot be deleted.
+- [x] **9. SEO.** Meta title / description / share image on products, pages and
+  collections; store-wide defaults; sitemap has collections and written pages.
+- [x] **10. Owner help.** `docs/OWNER_GUIDE.md`, shown under Help in the admin.
+- [x] Tests: `tests/test_owner_dashboard.py` (133) and `tests/test_campaigns.py`
+  (25) — role checks, validation, schedule boundaries, overlap, sale prices in
+  listing / cart / order, campaign coupons, preview, End now, sanitiser attack
+  strings, demo tagging and removal, WCAG contrast of the accent presets.
+
+### Part B — demo content
+
+- [x] Entered through the admin API signed in as an Owner with demo mode on
+  (`backend/db/demo/seed_demo.py`), not SQL. 61 products (30 new, each with
+  three pictures, two colours and sizes, MRP / price, description, care),
+  17 category tiles, 3 everyday hero slides, promo banner picture, testimonial
+  avatars, 7 pages, 9 FAQ entries, 2 collections, a Manager and a Staff
+  account, 6 demo customers with 10 orders across every status, 3 reviews and
+  a return.
+- [x] Images: 122 original illustrations drawn by `backend/db/demo/make_art.py`
+  and 60 close-ups cut from the 30 product pictures that came with the
+  project. Nothing was downloaded. `docs/DEMO_ASSETS.md` lists every file.
+- [x] "Remove demo content" (Owner, typed confirmation) and
+  `flask remove-demo-content`. Covered by tests; **not pressed in the browser**,
+  because it would delete the content the demo is made of.
+- [ ] Not done as asked: the store **logo and favicon were left as the
+  built-in AANGA ones** rather than replaced with a placeholder; the generated
+  placeholder is used as the default share image only.
+- [ ] Contact details and social links are placeholders; GSTIN is empty.
+
+### Part C — Diwali campaign
+
+- [x] "Diwali Festive Sale": live now, ends 1 Nov 2026 23:59 IST; announcement,
+  3 hero slides linking to the Diwali Edit, promo banner, Diwali Edit (12
+  products) at 20% off, DIWALI10 (10% above ₹1,499, 500 uses) and FESTIVE500
+  (₹500 above ₹4,999, 200 uses), marigold decoration, countdown. Created by the
+  seeding script through the admin API, then ended and re-opened from the
+  Campaigns screen in Chrome.
+- [x] "Durga Puja Specials" (6–11 Oct 2027) created in the Campaigns screen in
+  Chrome. Its first attempt, on dates overlapping Diwali, was refused with the
+  overlap message.
+
+### Part D — Chrome
+
+- [x] Admin tour: sign in as Owner, dashboard, Store settings, Homepage
+  (Testimonials moved up and saved; the storefront layout changed), Campaigns
+  (Diwali live, overlap refused, second campaign scheduled and previewed),
+  Collections, Media library, Coupons, Staff, sign in as Staff (seven menu
+  items; Settings, Staff, Campaigns, Customers and Demo answer 403), Demo
+  content, Help.
+- [x] Storefront tour at desktop width: home with the Diwali hero, announcement
+  and countdown, Diwali Edit with sale prices, product page, add to bag, sign
+  in, DIWALI10 applied (−₹359.90 on ₹3,599), checkout to the payment step.
+  At 390 px (in a frame — the browser window could not be resized): no
+  sideways scroll, announcement bar a fixed 36 px.
+- [x] "End now": with the storefront open beside the admin, the same page
+  went back to the everyday announcement, slides, look and prices without a
+  reload.
+- [x] Console: no errors. API: only 200s, plus the expected 401 from
+  `/auth/refresh` for a signed-out visitor.
+- [x] GIFs in the browser's Downloads folder: `aanga_round3_admin_tour.gif`,
+  `aanga_round3_storefront_tour.gif`, `aanga_round3_end_now.gif`
+  (`…admin_tour_part2.gif` shows only a sign-in screen and can be deleted).
+  The Customers and Audit log screens are not in a GIF.
+- [x] Lighthouse mobile, home, campaign live: 93, 94, 93 on three runs
+  (accessibility 100, CLS 0.002). Two other runs scored 79 and 83 because a
+  new database connection through `localhost` takes 2 s on this machine; the
+  default and the docs now use `127.0.0.1`, but `backend/.env` still says
+  `localhost`. First measurement was 73–85: the announcement bar wrapped on
+  phones and moved the page, the slides rotated during load, and the hero
+  chip failed contrast — all three fixed.
+
+### Left for the owner / not done
+
+- No invitation email for staff: the Owner passes on a one-time password.
+- The demo Manager and Staff passwords exist only in this session's scratch
+  folder: reset them from the Staff screen before using those accounts.
+- Sorting or filtering the shop by price uses the stored price, not the
+  campaign sale price.
+- The Staff dashboard still shows the "New inquiries" and "Unread messages"
+  tiles, which lead to screens Staff cannot open.
+- Collection pages do not preload their first image (Lighthouse 85 there).
+- Privacy and Terms demo text says it is sample text: have it reviewed.
+- The 30 original product pictures came with the project (Stitch design
+  export): confirm the right to use them commercially, or replace them.
+- QA walkthrough data from Phase 7 is still in the local database, now tagged
+  as demo, so "Remove demo content" clears it too.
+- Still deferred from Round 2: Razorpay and Shiprocket keys are not in
+  `backend/.env`, so online payment and the pincode check remain unverified.
+
 ## Discovered along the way
 
 - [ ] `.claude/settings.local.json` is tracked and shows as modified on every

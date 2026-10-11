@@ -768,3 +768,18 @@ def test_existing_items_can_be_tagged_as_demo_by_the_owner(client):
     for bad in ({"kind": "orders", "ids": [1], "is_demo": True}, {"kind": "products", "is_demo": True},
                 {"kind": "products", "ids": [a.id], "is_demo": "yes"}, {"kind": "customers", "ids": ["not-a-uuid"], "is_demo": True}):
         assert client.post("/api/admin/demo/tag", headers=owner(), json=bad).status_code == 422, bad
+
+
+def test_single_collection_and_single_page_for_the_editor_screens(client):
+    product, _ = make_product()
+    created = client.post("/api/admin/collections", headers=manager(), json={
+        "name": "Editor Check", "product_ids": [product.id]}).get_json()
+    one = client.get(f"/api/admin/collections/{created['id']}", headers=manager())
+    assert one.status_code == 200
+    assert one.get_json()["products"][0]["id"] == product.id and one.get_json()["slug"] == "editor-check"
+    assert client.get("/api/admin/collections/99999", headers=manager()).status_code == 404
+
+    page = client.get("/api/admin/pages/shipping", headers=manager())
+    assert page.status_code == 200
+    assert page.get_json()["title"] == "Shipping Policy" and page.get_json()["path"] == "/shipping"
+    assert client.get("/api/admin/pages/nope", headers=manager()).status_code == 404

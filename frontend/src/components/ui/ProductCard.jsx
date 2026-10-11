@@ -58,7 +58,7 @@ export default function ProductCard({ product, priority = false }) {
         {on_sale ? (
           <span className="sale-badge absolute top-3 left-3 px-2.5 py-1 rounded-full
                            text-xs tracking-[0.05em] uppercase font-semibold">
-            Sale{sale_percent ? ` · ${Math.round(sale_percent)}% off` : ''}
+            {sale_percent ? `${Math.round(sale_percent)}% off` : 'Sale'}
           </span>
         ) : badge_label && (
           <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-primary text-on-primary
