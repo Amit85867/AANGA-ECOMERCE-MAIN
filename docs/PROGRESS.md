@@ -370,7 +370,11 @@ passed; `oxlint` and `vite build` clean.
     Features and Hero banners had visible labels that were not tied to their
     fields and now are (`htmlFor`/`id`); upload buttons, colour hex boxes and
     sale-item rows have accessible names.
-  - Lint and build clean. Not yet re-checked in the browser.
+  - Lint and build clean. Checked in Chrome on the production build: no
+    deactivated category in the product form; every field on the coupon, hero
+    banner and announcement forms has a label; the order status control only
+    lists allowed statuses; "Return an item" shows on the order with a
+    returnable item and not on the one without; no console errors.
 - [x] **7. Performance.** Lighthouse mobile, production build served
   compressed, devtools throttling, same setup as before.
 
