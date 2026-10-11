@@ -59,6 +59,9 @@ export default function AdminOrderDetail() {
     try {
       const { data } = await adminApi.post(`/admin/orders/${id}/ship`)
       toast.success(`Shipment booked with ${data.courier_name || 'courier'} — AWB ${data.tracking_number}`)
+      if (data.pickup_scheduled === false) {
+        toast.error('The pickup was not scheduled. Request it from the Shiprocket dashboard.', { duration: 10000 })
+      }
       await reload()
     } catch (err) {
       notifyError(err, 'Could not create shipment')

@@ -1,0 +1,9 @@
+{
+  "awb_assign_status": 0,
+  "response": {
+    "data": {
+      "awb_assign_error": "No courier is serviceable for this shipment."
+    }
+  },
+  "message": "No courier is serviceable for this shipment."
+}

@@ -180,6 +180,15 @@ def razorpay_webhook():
     elif kind == "refund.processed":
         refund = (entities.get("refund") or {}).get("entity") or {}
         _mark_payment_status(refund.get("payment_id"), PaymentStatus.refunded)
+    elif kind == "refund.failed":
+        # The order was marked refunded when the refund was accepted; the bank
+        # has now bounced it, so the customer still has not been paid back.
+        refund = (entities.get("refund") or {}).get("entity") or {}
+        _mark_payment_status(refund.get("payment_id"), PaymentStatus.paid)
+        current_app.logger.critical(
+            "RAZORPAY_REFUND_FAILED payment=%s refund=%s amount=%s - refund it from the Razorpay Dashboard",
+            refund.get("payment_id"), refund.get("id"), refund.get("amount"),
+        )
 
     db.session.commit()
 

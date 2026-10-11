@@ -1,0 +1,43 @@
+{
+  "tracking_data": {
+    "track_status": 1,
+    "shipment_status": 18,
+    "shipment_track": [
+      {
+        "id": 300001,
+        "awb_code": "1091234567890",
+        "courier_company_id": 10,
+        "shipment_id": 15151515,
+        "order_id": 16161616,
+        "pickup_date": "2026-10-12 11:00:00",
+        "delivered_date": null,
+        "weight": "0.5",
+        "packages": 1,
+        "current_status": "IN TRANSIT",
+        "destination": "Mumbai",
+        "origin": "Patna",
+        "edd": "2026-10-15 23:00:00"
+      }
+    ],
+    "shipment_track_activities": [
+      {
+        "date": "2026-10-13 08:30:00",
+        "status": "In Transit",
+        "activity": "In transit - Shipment picked up",
+        "location": "Patna Hub (Bihar)",
+        "sr-status": "18",
+        "sr-status-label": "IN TRANSIT"
+      },
+      {
+        "date": "2026-10-12 11:00:00",
+        "status": "Manifested",
+        "activity": "Manifested - Pickup scheduled",
+        "location": "Patna (Bihar)",
+        "sr-status": "42",
+        "sr-status-label": "PICKED UP"
+      }
+    ],
+    "track_url": "https://shiprocket.co/tracking/1091234567890",
+    "etd": "2026-10-15 23:00:00"
+  }
+}

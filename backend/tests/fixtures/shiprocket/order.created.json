@@ -1,0 +1,11 @@
+{
+  "order_id": 16161616,
+  "channel_order_id": "AANGA-TEST",
+  "shipment_id": 15151515,
+  "status": "NEW",
+  "status_code": 1,
+  "onboarding_completed_now": 0,
+  "awb_code": "",
+  "courier_company_id": "",
+  "courier_name": ""
+}

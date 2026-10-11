@@ -1,0 +1,34 @@
+{
+  "status": 200,
+  "currency": "INR",
+  "data": {
+    "available_courier_companies": [
+      {
+        "courier_company_id": 54,
+        "courier_name": "Xpressbees Air",
+        "rate": 88.0,
+        "cod": 0,
+        "estimated_delivery_days": "2",
+        "etd": "Oct 13, 2026",
+        "rating": 4.4,
+        "freight_charge": 88.0,
+        "cod_charges": 0,
+        "min_weight": 0.5
+      },
+      {
+        "courier_company_id": 10,
+        "courier_name": "Delhivery Surface",
+        "rate": 62.5,
+        "cod": 1,
+        "estimated_delivery_days": "4",
+        "etd": "Oct 15, 2026",
+        "rating": 4.1,
+        "freight_charge": 58.0,
+        "cod_charges": 4.5,
+        "min_weight": 0.5
+      }
+    ],
+    "recommended_courier_company_id": 10,
+    "shiprocket_recommended_courier_id": 10
+  }
+}

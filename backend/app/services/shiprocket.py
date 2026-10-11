@@ -67,11 +67,16 @@ def _headers():
 def _request(method, path, **kwargs):
     kwargs.setdefault("timeout", 30)
     url = f"{BASE}{path}"
-    resp = requests.request(method, url, headers=_headers(), **kwargs)
-    # Token may have expired early — retry once with a fresh token.
-    if resp.status_code in (401, 403):
-        _get_token(force=True)
+    try:
         resp = requests.request(method, url, headers=_headers(), **kwargs)
+        # Token may have expired early — retry once with a fresh token.
+        if resp.status_code in (401, 403):
+            _get_token(force=True)
+            resp = requests.request(method, url, headers=_headers(), **kwargs)
+    except requests.RequestException:
+        # A timeout or dropped connection is the courier's outage, not a bug
+        # here: callers report it to the admin like any other refusal.
+        raise ShiprocketError("Could not reach Shiprocket. Try again shortly.")
     return resp
 
 
@@ -85,7 +90,7 @@ def create_order(order):
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else "."
 
-    email = order.user.email if order.user else os.environ.get("ADMIN_EMAIL", "orders@aanga.in")
+    email = order.user.email if order.user else os.environ.get("ADMIN_EMAIL", "")
 
     items = []
     for oi in order.items:
@@ -153,6 +158,26 @@ def assign_awb(shipment_id, courier_id=None):
         raise ShiprocketError(_error_message(resp, "No courier serviceable / AWB not assigned."))
 
     return {"awb_code": awb, "courier_name": data.get("courier_name")}
+
+
+def schedule_pickup(shipment_id):
+    """Ask the assigned courier to collect the parcel.
+
+    Returns {"scheduled_date", "token"}. Without this the AWB exists but nobody
+    comes for the parcel until someone presses "Schedule pickup" in Shiprocket.
+    """
+    resp = _request("POST", "/courier/generate/pickup", json={"shipment_id": [shipment_id]})
+    if resp.status_code not in (200, 201):
+        raise ShiprocketError(_error_message(resp, "Could not schedule the pickup."))
+
+    data = resp.json()
+    if not data.get("pickup_status"):
+        raise ShiprocketError(_error_message(resp, "The courier did not accept the pickup request."))
+    details = data.get("response") or {}
+    return {
+        "scheduled_date": details.get("pickup_scheduled_date"),
+        "token": details.get("pickup_token_number"),
+    }
 
 
 def check_serviceability(delivery_pincode, cod=False, weight=0.5, declared_value=None):

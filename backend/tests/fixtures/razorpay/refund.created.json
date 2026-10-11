@@ -1,0 +1,17 @@
+{
+  "id": "rfnd_Q1w2E3r4T5y6U9",
+  "entity": "refund",
+  "amount": 52500,
+  "currency": "INR",
+  "payment_id": "pay_Q1w2E3r4T5y6U8",
+  "notes": [],
+  "receipt": null,
+  "acquirer_data": {
+    "arn": null
+  },
+  "created_at": 1760000200,
+  "batch_id": null,
+  "status": "processed",
+  "speed_processed": "normal",
+  "speed_requested": "normal"
+}

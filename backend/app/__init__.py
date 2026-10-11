@@ -4,7 +4,7 @@ import os
 import click
 from flask import Flask, jsonify, request
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
 
@@ -325,7 +325,7 @@ def _check_database(app):
         return
     # Flask's own commands (including the one that fixes this) say it themselves.
     import sys
-    if any(arg in ("apply-migrations", "check-schema", "check-integrations") for arg in sys.argv):
+    if any(arg in ("apply-migrations", "check-schema", "check-integrations", "verify-integrations") for arg in sys.argv):
         return
     from app.services import schema_check
 
@@ -361,7 +361,10 @@ def _auto_seed_admin(app):
                 )
                 db.session.add(admin)
                 db.session.commit()
-                app.logger.info(f"Auto-seeded master admin: {email}")
+                app.logger.info("Auto-seeded the master admin from ADMIN_EMAIL")
+        except IntegrityError:
+            # Another worker starting at the same moment created it first.
+            db.session.rollback()
         except SQLAlchemyError:
             # Seeding is a convenience, not a startup requirement. Letting this
             # raise means a database that is merely slow to accept connections
@@ -412,6 +415,19 @@ def _register_cli(app):
         from app.services import integrations_check
 
         lines, code = integrations_check.run(probe=not offline)
+        for line in lines:
+            click.echo(line)
+        raise SystemExit(code)
+
+    @app.cli.command("verify-integrations")
+    def verify_integrations():
+        """Run the six checks that need real TEST keys (see docs/GO_LIVE.md).
+
+        Refuses to run with live keys. Prints PASS or FAIL per step.
+        """
+        from app.services import integrations_verify
+
+        lines, code = integrations_verify.run(app)
         for line in lines:
             click.echo(line)
         raise SystemExit(code)

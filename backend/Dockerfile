@@ -19,4 +19,7 @@ EXPOSE 8000
 # upstream API, so a few threads per worker serve several of them at once
 # without the memory of extra processes. Concurrent requests per worker (threads)
 # must not exceed its connection pool (DB_POOL_SIZE + DB_MAX_OVERFLOW = 10).
-CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT:-8000} -k gthread -w ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout 60 --graceful-timeout 30 --access-logfile - run:app"]
+# keep-alive is longer than a load balancer's idle timeout (typically 60 s): with
+# gunicorn's default of 2 s the proxy reuses a connection the worker has just
+# closed, and that request comes back to the visitor as a 502.
+CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT:-8000} -k gthread -w ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout 60 --graceful-timeout 30 --keep-alive ${GUNICORN_KEEPALIVE:-75} --access-logfile - run:app"]

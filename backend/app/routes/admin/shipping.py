@@ -1,7 +1,7 @@
 """Admin Shiprocket actions: create shipment + sync tracking."""
 from datetime import datetime, timezone
 
-from flask import jsonify
+from flask import current_app, jsonify
 
 from app.extensions import db
 from app.models.order import Order, OrderTracking
@@ -42,6 +42,15 @@ def ship_order(order_id):
     order.tracking_number = awb.get("awb_code")
     order_status.transition(order, OrderStatus.shipped, order_status.SHIPMENT)
 
+    # The parcel is booked either way. A pickup the courier would not take is
+    # reported, not fatal: it can be requested again from Shiprocket.
+    pickup, pickup_problem = None, None
+    try:
+        pickup = shiprocket.schedule_pickup(shipment_id)
+    except ShiprocketError as err:
+        pickup_problem = str(err)
+        current_app.logger.warning("SHIPROCKET_PICKUP_NOT_SCHEDULED order=%s reason=%s", order.order_number, err)
+
     db.session.add(OrderTracking(
         order_id=order.id,
         status_label="Shipped",
@@ -55,6 +64,9 @@ def ship_order(order_id):
         courier_name=order.courier_name,
         tracking_number=order.tracking_number,
         status=order.status.value,
+        pickup_scheduled=pickup is not None,
+        pickup_date=(pickup or {}).get("scheduled_date"),
+        pickup_problem=pickup_problem,
     ), 201
 
 
