@@ -27,7 +27,7 @@ POSTGRES_USER=aanga
 POSTGRES_PASSWORD=<pick-one>
 POSTGRES_DB=aanga
 POSTGRES_PORT=55433
-DATABASE_URL=postgresql://aanga:<same-password>@localhost:55433/aanga
+DATABASE_URL=postgresql://aanga:<same-password>@127.0.0.1:55433/aanga
 ```
 
 Then, from `backend/`:
