@@ -25,6 +25,8 @@ def _serialize_coupon(c):
         "usage_limit": c.usage_limit,
         "used_count": c.used_count,
         "is_active": c.is_active,
+        "campaign_id": c.campaign_id,
+        "is_demo": c.is_demo,
         "expires_at": c.expires_at.isoformat() if c.expires_at else None,
         "created_at": c.created_at.isoformat(),
     }

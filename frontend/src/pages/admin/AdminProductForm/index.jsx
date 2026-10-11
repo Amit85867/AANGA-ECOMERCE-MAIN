@@ -6,6 +6,7 @@ import { notifyError } from '@/components/admin/helpers'
 import { toast } from '@/components/ui/toastStore'
 import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
 import { IconPlus, IconTrash, IconArrowLeft, IconUpload, IconLink } from '@tabler/icons-react'
+import { ImageField, MediaPicker } from '@/components/admin/kit'
 
 export default function AdminProductForm() {
   const { id } = useParams()
@@ -32,6 +33,10 @@ export default function AdminProductForm() {
     badge_class: '',
     is_active: true,
     is_featured: false,
+    care_details: '',
+    meta_title: '',
+    meta_description: '',
+    share_image_url: '',
   })
 
   const [variants, setVariants] = useState([])
@@ -47,6 +52,7 @@ export default function AdminProductForm() {
   const [newImageUrl, setNewImageUrl] = useState('')
   const [imageMode, setImageMode] = useState('upload')
   const [uploading, setUploading] = useState(false)
+  const [picking, setPicking] = useState(false)
 
   useEffect(() => {
     adminApi.get('/admin/categories').then((r) => {
@@ -72,6 +78,10 @@ export default function AdminProductForm() {
           badge_class: p.badge_class || '',
           is_active: p.is_active,
           is_featured: p.is_featured,
+          care_details: p.care_details || '',
+          meta_title: p.meta_title || '',
+          meta_description: p.meta_description || '',
+          share_image_url: p.share_image_url || '',
         })
         setVariants(p.variants)
         setImages(p.images)
@@ -110,6 +120,10 @@ export default function AdminProductForm() {
       category_id: Number(form.category_id),
       mrp: Number(form.mrp),
       selling_price: Number(form.selling_price),
+      care_details: form.care_details || null,
+      meta_title: form.meta_title || null,
+      meta_description: form.meta_description || null,
+      share_image_url: form.share_image_url || null,
     }
 
     try {
@@ -278,6 +292,28 @@ export default function AdminProductForm() {
             <span className="mb-1 block text-sm font-medium text-gray-700">Description</span>
             <textarea name="description" value={form.description} onChange={handleChange} rows={4} className={inputCls} />
           </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-gray-700">Fabric and care</span>
+            <textarea name="care_details" value={form.care_details} onChange={handleChange} rows={3} maxLength={2000} placeholder="100% cotton. Machine wash cold. Do not bleach." className={inputCls} />
+          </label>
+
+          <fieldset className="rounded-lg border border-gray-200 p-4">
+            <legend className="px-1 text-sm font-medium text-gray-700">Search and sharing (optional)</legend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Title in search results</span>
+                <input name="meta_title" value={form.meta_title} onChange={handleChange} maxLength={70} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Description in search results</span>
+                <input name="meta_description" value={form.meta_description} onChange={handleChange} maxLength={200} className={inputCls} />
+              </label>
+            </div>
+            <div className="mt-4">
+              <ImageField label="Image when the product is shared" help="Empty uses the main product photo." value={form.share_image_url} onChange={(url) => setForm((f) => ({ ...f, share_image_url: url }))} />
+            </div>
+          </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
@@ -448,6 +484,9 @@ export default function AdminProductForm() {
             )}
 
             <div className="flex gap-1 mb-3">
+              <button type="button" onClick={() => setPicking(true)} className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600 hover:bg-gray-200">
+                From library
+              </button>
               <button type="button" onClick={() => setImageMode('upload')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm ${imageMode === 'upload' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
                 <IconUpload size={16} /> Upload
               </button>
@@ -456,6 +495,17 @@ export default function AdminProductForm() {
               </button>
             </div>
 
+            <MediaPicker
+              open={picking} onClose={() => setPicking(false)}
+              onPick={async (asset) => {
+                try {
+                  const r = await adminApi.post(`/admin/products/${id}/images`, { image_url: asset.url, is_primary: images.length === 0 })
+                  setImages(r.data.images)
+                } catch (err) {
+                  notifyError(err, 'Could not add this image.')
+                }
+              }}
+            />
             {imageMode === 'upload' ? (
               <div className="flex gap-2">
                 <input

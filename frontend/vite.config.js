@@ -52,6 +52,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // pages/admin/AdminHelp shows docs/OWNER_GUIDE.md, one level above this folder.
+    fs: { allow: ['..'] },
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

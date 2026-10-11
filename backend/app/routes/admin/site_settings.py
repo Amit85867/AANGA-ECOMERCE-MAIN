@@ -39,9 +39,13 @@ def _editable_settings():
     write back whatever value their page had loaded — reopening (or closing) the
     store by accident.
     """
+    # ...and the store's own fields, which have their own screen with proper
+    # validation (Store settings).
+    from app.services import store_settings
+    hidden = list(_RESERVED_KEYS) + list(store_settings.BY_KEY)
     return (
         SiteSetting.query
-        .filter(SiteSetting.key.notin_(_RESERVED_KEYS))
+        .filter(SiteSetting.key.notin_(hidden))
         .order_by(SiteSetting.group_name, SiteSetting.key)
         .all()
     )
@@ -54,6 +58,10 @@ def update_settings_bulk():
         data = _bulk_in.load(request.get_json())
     except ValidationError as err:
         return jsonify(errors=err.messages), 422
+
+    from app.services import store_settings
+    if any(item["key"] in store_settings.BY_KEY for item in data["settings"]):
+        return jsonify(error="That setting is changed on the Store settings page."), 422
 
     reserved = [item["key"] for item in data["settings"] if item["key"] in _RESERVED_KEYS]
     if reserved:

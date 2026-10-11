@@ -16,6 +16,7 @@ export default function AdminUsers() {
   const [active, setActive] = useState('')
   const [sort, setSort] = useState('created_at:desc')
   const [busy, setBusy] = useState(null)
+  const [exporting, setExporting] = useState(false)
 
   const [sortBy, dir] = sort.split(':')
   const list = useAdminList('/admin/users', 'users', {
@@ -45,9 +46,37 @@ export default function AdminUsers() {
     setBusy(null)
   }
 
+  // The list as filtered right now, as a spreadsheet. Names, contact
+  // details and order totals only — never passwords or payment details.
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const { data } = await adminApi.get('/admin/users/export.csv', {
+        params: { q: q || undefined, account_type: accountType || undefined, active: active || undefined },
+        responseType: 'blob',
+      })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(data)
+      link.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (err) {
+      notifyError(err, 'Could not export the customer list.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div>
-      <PageHeading title="Customers" subtitle={`${countOf(list.total, 'customers')} found`} />
+      <PageHeading title="Customers" subtitle={`${countOf(list.total, 'customers')} found`}>
+        <button
+          type="button" disabled={exporting} onClick={exportCsv}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+        >
+          {exporting ? 'Preparing…' : 'Export CSV'}
+        </button>
+      </PageHeading>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
         <SearchInput value={q} onChange={setQ} placeholder="Name, email or phone" />

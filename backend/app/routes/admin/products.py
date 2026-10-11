@@ -32,6 +32,14 @@ def _serialize_product(p):
         "badge_class": p.badge_class,
         "is_active": p.is_active,
         "is_featured": p.is_featured,
+        "is_demo": p.is_demo,
+        "care_details": p.care_details,
+        "meta_title": p.meta_title,
+        "meta_description": p.meta_description,
+        "share_image_url": p.share_image_url,
+        "primary_image": next(
+            (i.image_url for i in sorted(p.images, key=lambda i: (not i.is_primary, i.sort_order))), None
+        ),
         "created_at": p.created_at.isoformat(),
         "total_stock": sum(v.stock_qty for v in p.variants),
         "variant_count": len(p.variants),

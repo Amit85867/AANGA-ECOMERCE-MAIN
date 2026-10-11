@@ -22,8 +22,26 @@ export const setAdminAccessToken = (token) => {
 }
 export const getAdminAccessToken = () => adminAccessToken
 
+/*
+ * Demo mode (Owner → Demo content). While it is on, every request from this
+ * browser tab asks the server to tag whatever it creates as demo content, so
+ * it can all be removed later in one step. Kept per tab, so it cannot be left
+ * on by accident in another window.
+ */
+const DEMO_KEY = 'aanga.demoMode'
+export const isDemoMode = () => {
+  try { return sessionStorage.getItem(DEMO_KEY) === '1' } catch { return false }
+}
+export const setDemoMode = (on) => {
+  try {
+    if (on) sessionStorage.setItem(DEMO_KEY, '1')
+    else sessionStorage.removeItem(DEMO_KEY)
+  } catch { /* storage unavailable: demo mode simply stays off */ }
+}
+
 adminApi.interceptors.request.use((config) => {
   if (adminAccessToken) config.headers.Authorization = `Bearer ${adminAccessToken}`
+  if (isDemoMode()) config.headers['X-Demo-Content'] = '1'
   return config
 })
 

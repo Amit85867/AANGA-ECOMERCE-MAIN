@@ -53,7 +53,17 @@ const AdminOffers = lazy(() => import('@/pages/admin/AdminOffers'))
 const AdminInquiries = lazy(() => import('@/pages/admin/AdminInquiries'))
 const AdminMessages = lazy(() => import('@/pages/admin/AdminMessages'))
 const AdminNewsletter = lazy(() => import('@/pages/admin/AdminNewsletter'))
-const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
+const AdminStaff = lazy(() => import('@/pages/admin/AdminStaff'))
+const AdminStoreSettings = lazy(() => import('@/pages/admin/AdminStoreSettings'))
+const AdminHomepage = lazy(() => import('@/pages/admin/AdminHomepage'))
+const AdminNavigation = lazy(() => import('@/pages/admin/AdminNavigation'))
+const AdminPages = lazy(() => import('@/pages/admin/AdminPages'))
+const AdminFaq = lazy(() => import('@/pages/admin/AdminFaq'))
+const AdminCollections = lazy(() => import('@/pages/admin/AdminCollections'))
+const AdminCampaigns = lazy(() => import('@/pages/admin/AdminCampaigns'))
+const AdminMedia = lazy(() => import('@/pages/admin/AdminMedia'))
+const AdminDemo = lazy(() => import('@/pages/admin/AdminDemo'))
+const AdminHelp = lazy(() => import('@/pages/admin/AdminHelp'))
 const AdminBanners = lazy(() => import('@/pages/admin/AdminBanners'))
 const AdminAnnouncements = lazy(() => import('@/pages/admin/AdminAnnouncements'))
 const AdminPromoBanners = lazy(() => import('@/pages/admin/AdminPromoBanners'))
@@ -157,7 +167,20 @@ const router = createBrowserRouter([
       { path: '/admin/testimonials', element: admin(AdminTestimonials) },
       { path: '/admin/features', element: admin(AdminFeatures) },
       { path: '/admin/site-settings', element: admin(AdminSiteSettings) },
-      { path: '/admin/settings', element: admin(AdminSettings) },
+      { path: '/admin/settings', element: admin(AdminStoreSettings) },
+      { path: '/admin/staff', element: admin(AdminStaff) },
+      { path: '/admin/homepage', element: admin(AdminHomepage) },
+      { path: '/admin/navigation', element: admin(AdminNavigation) },
+      { path: '/admin/pages', element: admin(AdminPages) },
+      { path: '/admin/pages/:slug', element: admin(AdminPages) },
+      { path: '/admin/faq', element: admin(AdminFaq) },
+      { path: '/admin/collections', element: admin(AdminCollections) },
+      { path: '/admin/collections/:id', element: admin(AdminCollections) },
+      { path: '/admin/campaigns', element: admin(AdminCampaigns) },
+      { path: '/admin/campaigns/:id', element: admin(AdminCampaigns) },
+      { path: '/admin/media', element: admin(AdminMedia) },
+      { path: '/admin/demo', element: admin(AdminDemo) },
+      { path: '/admin/help', element: admin(AdminHelp) },
       { path: '/admin/reviews', element: admin(AdminReviews) },
       { path: '/admin/system', element: admin(AdminSystem) },
       { path: '/admin/audit-log', element: admin(AdminAuditLog) },

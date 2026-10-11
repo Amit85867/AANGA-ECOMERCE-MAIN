@@ -25,67 +25,107 @@ import {
   IconStar,
   IconHeartRateMonitor,
   IconHistory,
+  IconStack2,
+  IconPhotoPlus,
+  IconCalendarEvent,
+  IconLayoutList,
+  IconMenuOrder,
+  IconFileText,
+  IconHelpCircle,
+  IconUsersGroup,
+  IconTestPipe,
+  IconLifebuoy,
 } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
 import logoImg from '@/assets/images/logo-main.webp'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
+import { isDemoMode, setDemoMode } from '@/services/adminApi'
 
+// `area` is the part of the admin API a screen uses; the server says which
+// areas this person's role may open (and enforces it), and the menu simply
+// leaves out the rest.
 const NAV = [
   {
-    items: [{ to: '/admin', icon: IconDashboard, label: 'Dashboard', end: true }],
+    items: [{ to: '/admin', icon: IconDashboard, label: 'Dashboard', end: true, area: 'dashboard' }],
   },
   {
     heading: 'Sales',
     items: [
-      { to: '/admin/orders', icon: IconShoppingCart, label: 'Orders' },
-      { to: '/admin/returns', icon: IconArrowBackUp, label: 'Returns' },
-      { to: '/admin/users', icon: IconUsers, label: 'Customers' },
-      { to: '/admin/settlements', icon: IconBuildingBank, label: 'Settlements' },
+      { to: '/admin/orders', icon: IconShoppingCart, label: 'Orders', area: 'orders' },
+      { to: '/admin/returns', icon: IconArrowBackUp, label: 'Returns', area: 'returns' },
+      { to: '/admin/users', icon: IconUsers, label: 'Customers', area: 'users' },
+      { to: '/admin/settlements', icon: IconBuildingBank, label: 'Settlements', area: 'settlements' },
     ],
   },
   {
     heading: 'Catalogue',
     items: [
-      { to: '/admin/products', icon: IconPackage, label: 'Products' },
-      { to: '/admin/categories', icon: IconCategory, label: 'Categories' },
-      { to: '/admin/reviews', icon: IconStar, label: 'Reviews' },
-      { to: '/admin/coupons', icon: IconTicket, label: 'Coupons' },
-      { to: '/admin/offers', icon: IconGift, label: 'Offers' },
+      { to: '/admin/products', icon: IconPackage, label: 'Products', area: 'products' },
+      { to: '/admin/categories', icon: IconCategory, label: 'Categories', area: 'categories' },
+      { to: '/admin/collections', icon: IconStack2, label: 'Collections', area: 'collections' },
+      { to: '/admin/media', icon: IconPhotoPlus, label: 'Media library', area: 'media' },
+      { to: '/admin/reviews', icon: IconStar, label: 'Reviews', area: 'reviews' },
+    ],
+  },
+  {
+    heading: 'Marketing',
+    items: [
+      { to: '/admin/campaigns', icon: IconCalendarEvent, label: 'Campaigns', area: 'campaigns' },
+      { to: '/admin/coupons', icon: IconTicket, label: 'Coupons', area: 'coupons' },
+      { to: '/admin/offers', icon: IconGift, label: 'Offers', area: 'offers' },
     ],
   },
   {
     heading: 'Storefront content',
     items: [
-      { to: '/admin/banners', icon: IconPhoto, label: 'Hero banners' },
-      { to: '/admin/announcements', icon: IconSpeakerphone, label: 'Announcements' },
-      { to: '/admin/promo-banners', icon: IconAd2, label: 'Promo banners' },
-      { to: '/admin/testimonials', icon: IconQuote, label: 'Testimonials' },
-      { to: '/admin/features', icon: IconSparkles, label: 'Why choose us' },
-      { to: '/admin/site-settings', icon: IconAdjustments, label: 'Site settings' },
+      { to: '/admin/homepage', icon: IconLayoutList, label: 'Homepage', area: 'homepage' },
+      { to: '/admin/banners', icon: IconPhoto, label: 'Hero slides', area: 'banners' },
+      { to: '/admin/announcements', icon: IconSpeakerphone, label: 'Announcements', area: 'announcements' },
+      { to: '/admin/promo-banners', icon: IconAd2, label: 'Promo banners', area: 'promo-banners' },
+      { to: '/admin/testimonials', icon: IconQuote, label: 'Testimonials', area: 'testimonials' },
+      { to: '/admin/features', icon: IconSparkles, label: 'Feature cards', area: 'features' },
+      { to: '/admin/navigation', icon: IconMenuOrder, label: 'Menus', area: 'navigation' },
+      { to: '/admin/pages', icon: IconFileText, label: 'Pages', area: 'pages' },
+      { to: '/admin/faq', icon: IconHelpCircle, label: 'FAQ', area: 'faq' },
     ],
   },
   {
     heading: 'Inbox',
     items: [
-      { to: '/admin/inquiries', icon: IconBuildingStore, label: 'Wholesale inquiries' },
-      { to: '/admin/messages', icon: IconMail, label: 'Messages' },
-      { to: '/admin/newsletter', icon: IconNews, label: 'Newsletter' },
+      { to: '/admin/inquiries', icon: IconBuildingStore, label: 'Wholesale inquiries', area: 'wholesale-inquiries' },
+      { to: '/admin/messages', icon: IconMail, label: 'Messages', area: 'contact-messages' },
+      { to: '/admin/newsletter', icon: IconNews, label: 'Newsletter', area: 'newsletter' },
     ],
   },
   {
-    heading: 'System',
+    heading: 'Store',
     items: [
-      { to: '/admin/system', icon: IconHeartRateMonitor, label: 'System health' },
-      { to: '/admin/audit-log', icon: IconHistory, label: 'Audit log' },
-      { to: '/admin/settings', icon: IconSettings, label: 'Admins', masterOnly: true },
+      { to: '/admin/settings', icon: IconSettings, label: 'Store settings', area: 'settings' },
+      { to: '/admin/staff', icon: IconUsersGroup, label: 'Staff', area: 'staff' },
+      { to: '/admin/site-settings', icon: IconAdjustments, label: 'Other text', area: 'site-settings' },
+      { to: '/admin/demo', icon: IconTestPipe, label: 'Demo content', area: 'demo' },
+      { to: '/admin/system', icon: IconHeartRateMonitor, label: 'System health', area: 'system' },
+      { to: '/admin/audit-log', icon: IconHistory, label: 'Audit log', area: 'audit-log' },
     ],
   },
+  {
+    items: [{ to: '/admin/help', icon: IconLifebuoy, label: 'Help' }],
+  },
 ]
+
+const ROLE_LABELS = { master: 'Owner', manager: 'Manager', staff: 'Staff' }
 
 export default function AdminLayout() {
   const { admin, isAuthenticated, initializing, restoreSession, logout } = useAdminStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Demo mode is switched on the Demo content screen; this keeps the banner in step.
+  const [demoMode, setDemo] = useState(isDemoMode())
+  useEffect(() => {
+    const sync = () => setDemo(isDemoMode())
+    window.addEventListener('aanga:demo-mode', sync)
+    return () => window.removeEventListener('aanga:demo-mode', sync)
+  }, [])
 
   // The admin token is no longer persisted, so on a reload we exchange the
   // httpOnly refresh cookie for a new access token before deciding to redirect.
@@ -109,7 +149,7 @@ export default function AdminLayout() {
   }
 
   const groups = NAV
-    .map((g) => ({ ...g, items: g.items.filter((n) => !n.masterOnly || admin?.role === 'master') }))
+    .map((g) => ({ ...g, items: g.items.filter((n) => !n.area || (admin?.areas || []).includes(n.area)) }))
     .filter((g) => g.items.length > 0)
 
   return (
@@ -134,7 +174,7 @@ export default function AdminLayout() {
 
         <nav aria-label="Admin" className="flex-1 overflow-y-auto px-3 py-4">
           {groups.map((group) => (
-            <div key={group.heading || 'top'} className="mb-4">
+            <div key={group.heading || group.items[0].to} className="mb-4">
               {group.heading && (
                 <p className="mb-1 px-3 text-[11px] font-medium uppercase tracking-wider text-white/40">
                   {group.heading}
@@ -163,7 +203,7 @@ export default function AdminLayout() {
             Signed in as{' '}
             <span className="text-white/70">{admin?.full_name}</span>
             <br />
-            <span className="capitalize text-gold">{admin?.role}</span>
+            <span className="text-gold">{ROLE_LABELS[admin?.role] || admin?.role}</span>
           </div>
           <button
             onClick={handleLogout}
@@ -187,6 +227,18 @@ export default function AdminLayout() {
           <div className="flex-1" />
           <span className="text-sm text-gray-500">{admin?.email}</span>
         </header>
+
+        {demoMode && (
+          <div className="flex flex-wrap items-center justify-center gap-3 border-b border-purple-200 bg-purple-50 px-4 py-2 text-sm text-purple-900" role="status">
+            <span><strong className="font-semibold">Demo mode is on.</strong> Everything you add in this tab is tagged as demo content.</span>
+            <button
+              type="button" className="rounded-full border border-purple-300 bg-white px-3 py-1 text-xs font-medium hover:bg-purple-100"
+              onClick={() => { setDemoMode(false); setDemo(false); window.dispatchEvent(new Event('aanga:demo-mode')) }}
+            >
+              Switch off
+            </button>
+          </div>
+        )}
 
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />

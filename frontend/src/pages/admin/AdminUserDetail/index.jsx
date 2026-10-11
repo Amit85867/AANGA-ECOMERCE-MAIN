@@ -3,7 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
 import { toast } from '@/components/ui/toastStore'
 import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
-import { inr, notifyError } from '@/components/admin/helpers'
+import { Link } from 'react-router-dom'
+import { Badge } from '@/components/admin/controls'
+import { RETURN_STATUS_TONE, formatDate, humanize, inr, notifyError } from '@/components/admin/helpers'
 import { IconArrowLeft } from '@tabler/icons-react'
 
 export default function AdminUserDetail() {
@@ -50,7 +52,23 @@ export default function AdminUserDetail() {
         <IconArrowLeft size={16} /> Back to users
       </button>
 
-      <h1 className="mb-6 text-2xl font-semibold text-gray-900">{user.full_name}</h1>
+      <h1 className="mb-6 text-2xl font-semibold text-gray-900">
+        {user.full_name}
+        {user.is_demo && <span className="ml-3 align-middle"><Badge tone="purple">Demo customer</Badge></span>}
+      </h1>
+
+      <dl className="mb-6 grid gap-4 sm:grid-cols-3">
+        {[
+          ['Lifetime spend', inr(user.lifetime_spend || 0)],
+          ['Orders', user.order_count ?? 0],
+          ['Returns', (user.returns || []).length],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-gray-200 bg-white px-6 py-4">
+            <dt className="text-xs text-gray-500">{label}</dt>
+            <dd className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">{value}</dd>
+          </div>
+        ))}
+      </dl>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -94,6 +112,37 @@ export default function AdminUserDetail() {
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <h3 className="mb-4 font-medium text-gray-900">Returns</h3>
+            {(user.returns || []).length === 0 ? <p className="text-sm text-gray-500">No returns</p> : (
+              <ul className="divide-y divide-gray-100 text-sm">
+                {user.returns.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-3 py-2">
+                    <Link to={`/admin/orders/${r.order_id}`} className="font-medium text-gray-900 hover:underline">{r.order_number}</Link>
+                    <span className="text-gray-600">{humanize(r.reason)}</span>
+                    <Badge tone={RETURN_STATUS_TONE[r.status]}>{humanize(r.status)}</Badge>
+                    <span className="ml-auto text-xs text-gray-500">{formatDate(r.requested_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <h3 className="mb-4 font-medium text-gray-900">Reviews</h3>
+            {(user.reviews || []).length === 0 ? <p className="text-sm text-gray-500">No reviews</p> : (
+              <ul className="divide-y divide-gray-100 text-sm">
+                {user.reviews.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-3 py-2">
+                    <span className="font-medium text-gray-900">{r.product_name}</span>
+                    <span className="text-gray-600">{r.rating} out of 5{r.title ? ` — ${r.title}` : ''}</span>
+                    <span className="ml-auto text-xs text-gray-500">{formatDate(r.created_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h3 className="mb-4 font-medium text-gray-900">Addresses</h3>
             {user.addresses.length === 0 ? (
               <p className="text-sm text-gray-400">No addresses</p>
@@ -126,6 +175,12 @@ export default function AdminUserDetail() {
                 className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium ${user.is_verified ? 'bg-gray-50 text-gray-600 hover:bg-gray-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
               >
                 {user.is_verified ? 'Unverify' : 'Mark Verified'}
+              </button>
+              <button
+                onClick={() => toggle('is_demo', !user.is_demo)}
+                className="w-full rounded-lg bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              >
+                {user.is_demo ? 'This is a real customer' : 'Mark as demo customer'}
               </button>
               <select
                 value={user.account_type}
