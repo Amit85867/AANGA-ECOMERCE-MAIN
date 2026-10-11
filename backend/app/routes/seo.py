@@ -46,6 +46,22 @@ def sitemap():
         lastmod = updated.date().isoformat() if updated else None
         rows.append(_url(f"/product/{slug}", lastmod))
 
+    from app.models.owner import CmsPage, Collection
+    from app.services import content
+
+    for slug, updated in (
+        Collection.query.filter_by(is_active=True)
+        .with_entities(Collection.slug, Collection.updated_at).all()
+    ):
+        rows.append(_url(f"/collections/{slug}", updated.date().isoformat() if updated else None))
+
+    # Owner-written pages, once they have something on them. (The paths that
+    # are also in the fixed list above are not repeated.)
+    for page in CmsPage.query.filter(CmsPage.body_html != "").all():
+        path = content.PAGE_PATHS.get(page.slug)
+        if path and path not in _STATIC_PATHS:
+            rows.append(_url(path, page.updated_at.date().isoformat() if page.updated_at else None))
+
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'

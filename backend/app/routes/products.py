@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.extensions import db
 from app.services.catalogue import card_extras
+from app.services import campaigns
 from app.services.cache import cached_view
 from app.models.catalogue import Product, ProductImage, ProductVariant, Category
 from app.models.engagement import ProductReview
@@ -108,6 +109,16 @@ def list_products():
     if category_slug:
         q = q.join(Category).filter(Category.slug == category_slug)
 
+    # A hand-picked collection, in the order the owner arranged it.
+    collection_slug = request.args.get("collection")
+    if collection_slug:
+        from app.models.owner import Collection, CollectionProduct
+        q = (
+            q.join(CollectionProduct, CollectionProduct.product_id == Product.id)
+            .join(Collection, Collection.id == CollectionProduct.collection_id)
+            .filter(Collection.slug == collection_slug, Collection.is_active.is_(True))
+        )
+
     if search:
         q = q.filter(Product.name.ilike(f"%{search}%"))
 
@@ -142,7 +153,10 @@ def list_products():
         "price_desc": Product.selling_price.desc(),
         "popular": Product.id.desc(),
     }
-    q = q.order_by(sort_map.get(sort, Product.created_at.desc()))
+    if collection_slug and "sort" not in request.args:
+        q = q.order_by(CollectionProduct.sort_order, Product.id)
+    else:
+        q = q.order_by(sort_map.get(sort, Product.created_at.desc()))
 
     paginated = q.options(joinedload(Product.category)).paginate(
         page=max(page, 1), per_page=max(per_page, 1), error_out=False
@@ -151,14 +165,15 @@ def list_products():
     # Images, colours and ratings for the whole page in three queries, rather
     # than three per product.
     extras = card_extras(paginated.items)
+    live = campaigns.live()
     items = [
-        _build_product_list_item(
+        campaigns.apply_to_product(_build_product_list_item(
             p,
             extras[p.id]["primary_image"],
             extras[p.id]["colors"],
             extras[p.id]["avg_rating"] or 0,
             extras[p.id]["review_count"],
-        )
+        ), p.id, live)
         for p in paginated.items
     ]
 
@@ -208,6 +223,10 @@ def product_detail(slug):
         "badge_label": p.badge_label,
         "badge_class": p.badge_class,
         "is_featured": p.is_featured,
+        "care_details": p.care_details,
+        "meta_title": p.meta_title,
+        "meta_description": p.meta_description,
+        "share_image_url": p.share_image_url,
         "variants": [
             {
                 "id": v.id,
@@ -234,4 +253,5 @@ def product_detail(slug):
         "rating_count": stats[1],
     }
 
+    campaigns.apply_to_product(data, p.id, campaigns.live())
     return jsonify(_detail_out.dump(data)), 200

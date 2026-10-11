@@ -23,6 +23,7 @@ from app.models.enums import (
 )
 
 GST_RATE = 0.05
+# Defaults only: the live figures are the Owner's store settings.
 FREE_SHIPPING_THRESHOLD = 999
 DELIVERY_CHARGE = 49
 
@@ -33,6 +34,11 @@ def compute_totals(cart):
         # Nothing to ship: an empty cart must not quote the delivery charge it
         # would otherwise pick up from being under the free-shipping threshold.
         return {"subtotal": 0, "discount": 0, "gst": 0, "delivery": 0, "total": 0}
+
+    # Lines are brought to today's price first: a campaign sale may have
+    # started or ended since the item went into the cart.
+    from app.services import campaigns, store_settings
+    campaigns.reprice_cart(cart)
 
     subtotal = sum(float(ci.unit_price) * ci.quantity for ci in cart.items)
     discount = 0
@@ -46,7 +52,9 @@ def compute_totals(cart):
 
     after_discount = subtotal - discount
     gst = round(after_discount * GST_RATE, 2)
-    delivery = 0 if subtotal >= FREE_SHIPPING_THRESHOLD else DELIVERY_CHARGE
+    fee = store_settings.number("delivery_charge")
+    free_from = store_settings.number("free_shipping_threshold")
+    delivery = 0 if subtotal >= free_from else (int(fee) if fee == int(fee) else fee)
     total = round(after_discount + gst + delivery, 2)
     return {
         "subtotal": round(subtotal, 2),

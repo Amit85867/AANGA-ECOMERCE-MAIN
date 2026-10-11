@@ -38,6 +38,10 @@ def _serialize_cart(cart):
     # One query for every line's image instead of one per line.
     images = primary_images(ci.variant.product_id for ci in cart.items)
 
+    # Reprices the lines (and drops an out-of-campaign coupon) before any
+    # line total is read below.
+    totals = compute_totals(cart)
+
     for ci in cart.items:
         variant = ci.variant
         product = variant.product
@@ -63,8 +67,7 @@ def _serialize_cart(cart):
 
     # Single source of truth, shared with checkout. Computing GST/shipping/
     # discount separately here once meant the cart could quote one price while
-    # the order charged another.
-    totals = compute_totals(cart)
+    # the order charged another. (Computed above.)
     savings = round(mrp_total - subtotal + totals["discount"], 2)
 
     return _cart_out.dump({
@@ -113,7 +116,8 @@ def add_item():
         existing.quantity += data["quantity"]
         existing.updated_at = datetime.now(timezone.utc)
     else:
-        price = float(variant.price_override or variant.product.selling_price)
+        from app.services import campaigns
+        price = campaigns.unit_price(variant.product, variant)
         ci = CartItem(
             cart_id=cart.id,
             variant_id=variant.id,
@@ -181,10 +185,15 @@ def apply_coupon():
     if coupon.expires_at and coupon.expires_at < now:
         return jsonify(error="Coupon has expired"), 410
 
+    from app.services import campaigns
+    if not campaigns.coupon_usable(coupon):
+        return jsonify(error="This coupon is not valid right now."), 410
+
     if coupon.usage_limit and coupon.used_count >= coupon.usage_limit:
         return jsonify(error="Coupon usage limit reached"), 410
 
     cart = _get_or_create_cart(get_jwt_identity())
+    campaigns.reprice_cart(cart)
 
     subtotal = sum(float(ci.unit_price) * ci.quantity for ci in cart.items)
     if subtotal < float(coupon.min_order_value):

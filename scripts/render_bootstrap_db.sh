@@ -42,6 +42,7 @@ MIGRATIONS=(
   migrations_address_archive.sql      # addresses.archived_at
   migrations_ops_tables.sql           # webhook_events, job_runs
   migrations_admin_ops.sql            # audit_log + dashboard indexes
+  migrations_owner_dashboard.sql      # collections, campaigns, homepage, pages, media, demo flag
 )
 
 MODE="fresh"
@@ -92,12 +93,12 @@ verify() {
   query "SELECT '  triggers: ' || count(*) FROM information_schema.triggers WHERE trigger_schema='public'"
   missing=0
   for object in \
-      "orders.idempotency_key" "addresses.archived_at" "hero_banners.pill_label"; do
+      "orders.idempotency_key" "addresses.archived_at" "hero_banners.pill_label" \n      "products.is_demo" "hero_banners.campaign_id" "coupons.campaign_id" "products.meta_title"; do
     table="${object%%.*}"; column="${object##*.}"
     found="$(query "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='$table' AND column_name='$column'")"
     [ "$found" = "1" ] && echo "  ok   column $object" || { echo "  MISSING column $object"; missing=1; }
   done
-  for table in webhook_events job_runs audit_log; do
+  for table in webhook_events job_runs audit_log collections campaigns homepage_sections nav_links cms_pages faq_items media_assets; do
     found="$(query "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$table'")"
     [ "$found" = "1" ] && echo "  ok   table $table" || { echo "  MISSING table $table"; missing=1; }
   done

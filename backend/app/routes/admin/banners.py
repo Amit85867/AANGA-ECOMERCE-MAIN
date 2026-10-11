@@ -15,6 +15,8 @@ _banner_in = AdminHeroBannerIn()
 def _serialize_banner(b):
     return {
         "id": b.id,
+        "campaign_id": b.campaign_id,
+        "is_demo": b.is_demo,
         "title": b.title,
         "subtitle": b.subtitle,
         "description": b.description,
@@ -40,7 +42,12 @@ def _serialize_banner(b):
 @admin_bp.route("/banners", methods=["GET"])
 @admin_required
 def admin_list_banners():
-    q = HeroBanner.query
+    # The everyday list leaves campaign slides out; the campaign screen asks
+    # for its own with ?campaign_id=.
+    campaign_id = request.args.get("campaign_id", type=int)
+    q = HeroBanner.query.filter(
+        HeroBanner.campaign_id == campaign_id if campaign_id else HeroBanner.campaign_id.is_(None)
+    )
     search = (request.args.get("q") or "").strip()
     if search:
         q = q.filter(HeroBanner.title.ilike(f"%{search}%"))
@@ -79,6 +86,7 @@ def create_banner():
         is_active=data.get("is_active", True),
         starts_at=data.get("starts_at"),
         ends_at=data.get("ends_at"),
+        campaign_id=data.get("campaign_id"),
     )
     db.session.add(banner)
     db.session.commit()
@@ -114,6 +122,7 @@ def update_banner(banner_id):
     banner.is_active = data.get("is_active", True)
     banner.starts_at = data.get("starts_at")
     banner.ends_at = data.get("ends_at")
+    banner.campaign_id = data.get("campaign_id")
 
     db.session.commit()
     return jsonify(_serialize_banner(banner)), 200

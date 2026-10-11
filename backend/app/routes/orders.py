@@ -43,6 +43,10 @@ def place_order():
     # checkout resolve to the same order instead of placing two.
     idempotency_key = request.headers.get("Idempotency-Key") or None
 
+    from app.services import store_settings
+    if data["payment_method"] == "cod" and not store_settings.flag("cod_enabled"):
+        return jsonify(error="Cash on delivery is not available. Please pay online."), 422
+
     order, err = create_order_from_cart(
         get_jwt_identity(),
         data["address_id"],

@@ -26,6 +26,7 @@ class Offer(db.Model):
     discount_percent = db.Column(db.Numeric(5, 2))
     image_url = db.Column(db.Text)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     starts_at = db.Column(db.DateTime(timezone=True))
     ends_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())

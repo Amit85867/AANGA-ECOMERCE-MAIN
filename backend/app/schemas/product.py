@@ -32,6 +32,11 @@ class ProductListOut(Schema):
     colors = fields.List(fields.Str())
     avg_rating = fields.Float(allow_none=True)
     review_count = fields.Int()
+    # Set while a campaign has this product on sale.
+    on_sale = fields.Bool()
+    original_price = fields.Float()
+    sale_percent = fields.Float()
+    sale_name = fields.Str()
 
 
 class ProductDetailOut(Schema):
@@ -52,6 +57,14 @@ class ProductDetailOut(Schema):
     avg_rating = fields.Float(allow_none=True)
     review_count = fields.Int()
     rating_count = fields.Int()
+    care_details = fields.Str(allow_none=True)
+    meta_title = fields.Str(allow_none=True)
+    meta_description = fields.Str(allow_none=True)
+    share_image_url = fields.Str(allow_none=True)
+    on_sale = fields.Bool()
+    original_price = fields.Float()
+    sale_percent = fields.Float()
+    sale_name = fields.Str()
 
 
 class ReviewOut(Schema):

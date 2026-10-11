@@ -132,8 +132,9 @@ What it applies, in order:
 | 5 | `backend/migrations_address_archive.sql` | `addresses.archived_at` |
 | 6 | `backend/migrations_ops_tables.sql` | `webhook_events`, `job_runs` |
 | 7 | `backend/migrations_admin_ops.sql` | `audit_log`, dashboard indexes |
+| 8 | `backend/migrations_owner_dashboard.sql` | collections, campaigns, homepage sections, menus, pages, FAQ, media library, product SEO fields, demo flag |
 
-Steps 3–7 are already contained in `schema.sql`; they run again because they
+Steps 3–8 are already contained in `schema.sql`; they run again because they
 are idempotent and because the same list is the upgrade path.
 
 `migrations_orders_idempotency.sql` (step 3) used to be listed as "still to

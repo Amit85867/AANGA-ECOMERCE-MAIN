@@ -30,6 +30,7 @@ class User(db.Model):
     )
     is_verified = db.Column(db.Boolean, nullable=False, default=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     avatar_url = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())

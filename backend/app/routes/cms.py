@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify
 from sqlalchemy import or_, and_
 
 from app.models.cms import HeroBanner, Announcement, PromoBanner, SiteSetting, Testimonial, Feature
+from app.services import campaigns, store_settings
 from app.services.cache import cached_view
 
 cms_bp = Blueprint("cms", __name__, url_prefix="/api/cms")
@@ -22,7 +23,14 @@ def _is_scheduled_active():
 @cached_view(60)
 def public_banners():
     now = datetime.now(timezone.utc)
+    # While a campaign is live its own slides replace the usual ones (if it
+    # has any); the rest of the time campaign slides are never shown.
+    live = campaigns.live()
+    owner = None
+    if live and HeroBanner.query.filter_by(campaign_id=live["id"], is_active=True).first():
+        owner = live["id"]
     banners = HeroBanner.query.filter(
+        HeroBanner.campaign_id == owner if owner else HeroBanner.campaign_id.is_(None),
         HeroBanner.is_active.is_(True),
         or_(HeroBanner.starts_at.is_(None), HeroBanner.starts_at <= now),
         or_(HeroBanner.ends_at.is_(None), HeroBanner.ends_at >= now),
@@ -52,6 +60,19 @@ def public_banners():
 @cms_bp.route("/announcements", methods=["GET"])
 @cached_view(60)
 def public_announcements():
+    live = campaigns.live()
+    if live and live["announcement"]:
+        # One festive line for the length of the campaign, in the campaign's
+        # accent, instead of the everyday announcements.
+        accent = live["decoration"]
+        return jsonify(announcements=[{
+            "id": f"campaign-{live['id']}",
+            **live["announcement"],
+            "bg_color": "#0A0A0A",
+            "text_color": "#ffffff",
+            "highlight_color": accent["accent"],
+        }]), 200
+
     now = datetime.now(timezone.utc)
     items = Announcement.query.filter(
         Announcement.is_active.is_(True),
@@ -78,7 +99,12 @@ def public_announcements():
 @cached_view(60)
 def public_promos():
     now = datetime.now(timezone.utc)
+    live = campaigns.live()
+    owner = None
+    if live and PromoBanner.query.filter_by(campaign_id=live["id"], is_active=True).first():
+        owner = live["id"]
     promos = PromoBanner.query.filter(
+        PromoBanner.campaign_id == owner if owner else PromoBanner.campaign_id.is_(None),
         PromoBanner.is_active.is_(True),
         or_(PromoBanner.starts_at.is_(None), PromoBanner.starts_at <= now),
         or_(PromoBanner.ends_at.is_(None), PromoBanner.ends_at >= now),
@@ -142,10 +168,10 @@ def public_features():
 @cms_bp.route("/settings", methods=["GET"])
 @cached_view(60)
 def public_settings():
-    settings = SiteSetting.query.all()
-    return jsonify(
-        settings={s.key: s.value for s in settings}
-    ), 200
+    settings = {s.key: s.value for s in SiteSetting.query.all()}
+    # The store's own fields always have a value, even before anyone saves them.
+    settings.update(store_settings.all_values())
+    return jsonify(settings=settings), 200
 
 
 @cms_bp.route("/features-available", methods=["GET"])
@@ -174,6 +200,7 @@ def available_features():
             and has("SHIPROCKET_PICKUP_PINCODE")
         ),
         google_login=has("GOOGLE_CLIENT_ID"),
+        cash_on_delivery=store_settings.flag("cod_enabled"),
         # Only true when a real provider is configured: in development the
         # endpoint works for testing, but the storefront should look the way
         # production will.

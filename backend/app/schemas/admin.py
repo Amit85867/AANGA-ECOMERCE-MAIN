@@ -17,7 +17,7 @@ class AdminCreateIn(Schema):
     email = fields.Email(required=True)
     password = fields.Str(required=True, validate=validate.Length(min=8, max=128))
     full_name = fields.Str(required=True, validate=validate.Length(min=2, max=120))
-    role = fields.Str(load_default="staff", validate=validate.OneOf(["master", "staff"]))
+    role = fields.Str(load_default="staff", validate=validate.OneOf(["master", "manager", "staff"]))
 
 
 class AdminOut(Schema):
@@ -42,6 +42,12 @@ class AdminProductIn(Schema):
     badge_class = fields.Str(allow_none=True)
     is_active = fields.Bool(load_default=True)
     is_featured = fields.Bool(load_default=False)
+    care_details = fields.Str(allow_none=True, validate=validate.Length(max=2000))
+    # Search-result title / description and the picture shown when the
+    # product link is shared. All optional: sensible ones are derived.
+    meta_title = fields.Str(allow_none=True, validate=validate.Length(max=70))
+    meta_description = fields.Str(allow_none=True, validate=validate.Length(max=200))
+    share_image_url = fields.Str(allow_none=True, validate=validate.Length(max=500))
 
     @validates_schema
     def _selling_price_within_mrp(self, data, **kwargs):
@@ -192,6 +198,8 @@ class AdminHeroBannerIn(Schema):
     pill_value = fields.Str(allow_none=True)
     chip_value = fields.Str(allow_none=True)
     chip_label = fields.Str(allow_none=True)
+    # Set when the slide belongs to a campaign: it then shows only while that campaign is live.
+    campaign_id = fields.Int(allow_none=True, load_default=None)
     sort_order = fields.Int(load_default=0)
     is_active = fields.Bool(load_default=True)
     starts_at = fields.DateTime(allow_none=True)
@@ -223,6 +231,8 @@ class AdminPromoBannerIn(Schema):
     link_url = fields.Str(allow_none=True)
     link_text = fields.Str(allow_none=True)
     items = fields.List(fields.Dict(), allow_none=True)
+    # Set when the slide belongs to a campaign: it then shows only while that campaign is live.
+    campaign_id = fields.Int(allow_none=True, load_default=None)
     sort_order = fields.Int(load_default=0)
     is_active = fields.Bool(load_default=True)
     starts_at = fields.DateTime(allow_none=True)

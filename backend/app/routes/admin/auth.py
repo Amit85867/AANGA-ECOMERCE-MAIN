@@ -16,7 +16,7 @@ from app.models.admin import Admin
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required, master_required
 from app.schemas.admin import AdminLoginIn, AdminCreateIn, AdminOut
-from app.services import audit
+from app.services import audit, permissions
 
 _login_in = AdminLoginIn()
 _create_in = AdminCreateIn()
@@ -85,7 +85,7 @@ def _admin_auth_response(admin, status=200):
         "access_token": create_access_token(
             identity=str(admin.id), additional_claims=_admin_claims(admin)
         ),
-        "admin": _admin_out.dump(admin),
+        "admin": {**_admin_out.dump(admin), "areas": permissions.allowed_areas(admin.role)},
     }
     resp = jsonify(body)
     _set_admin_refresh_cookie(resp, admin)
@@ -200,7 +200,7 @@ def admin_logout():
 def admin_me():
     claims = get_jwt()
     admin = db.session.get(Admin, claims["sub"])
-    return jsonify(_admin_out.dump(admin)), 200
+    return jsonify({**_admin_out.dump(admin), "areas": permissions.allowed_areas(admin.role)}), 200
 
 
 @admin_bp.route("/auth/admins", methods=["POST"])

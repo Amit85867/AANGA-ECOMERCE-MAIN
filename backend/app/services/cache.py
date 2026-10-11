@@ -78,12 +78,21 @@ def invalidate():
             current_app.logger.warning("CACHE_INVALIDATE_FAILED")
 
 
-def get_or_set(name, ttl, compute):
-    """Return ``compute()``'s JSON-serialisable result, cached for ``ttl`` seconds."""
+def get_or_set(name, ttl, compute, scoped=True):
+    """Return ``compute()``'s JSON-serialisable result, cached for ``ttl`` seconds.
+
+    ``scoped`` entries are kept separately for each campaign state (none
+    live, campaign 3 live, a preview of campaign 5), so a response cached
+    a minute before a sale starts is not the one served after it has.
+    """
     if not current_app.config.get("CACHE_ENABLED", True):
         return compute()
 
-    key = f"aanga:cache:v{_version()}:{name}"
+    scope = "-"
+    if scoped:
+        from app.services import campaigns
+        scope = campaigns.cache_scope()
+    key = f"aanga:cache:v{_version()}:{scope}:{name}"
     client = _client()
 
     if client is not None:

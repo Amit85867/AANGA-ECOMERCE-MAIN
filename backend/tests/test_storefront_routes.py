@@ -450,7 +450,7 @@ def test_features_available_reflects_configuration_without_values(app, client, m
     assert off.status_code == 200
     assert off.get_json() == {
         "online_payments": False, "delivery_check": False,
-        "google_login": False, "phone_login": False,
+        "google_login": False, "phone_login": False, "cash_on_delivery": True,
     }
 
     monkeypatch.setenv("RAZORPAY_KEY_ID", "rzp_test_PUBLIC")

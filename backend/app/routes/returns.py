@@ -26,7 +26,12 @@ returns_bp = Blueprint("returns", __name__, url_prefix="/api/returns")
 _return_in = ReturnRequestIn()
 
 # Must match the promise on the Returns policy page.
-RETURN_WINDOW_DAYS = 7
+RETURN_WINDOW_DAYS = 7      # default; the live figure is the Owner's store setting
+
+
+def return_window_days():
+    from app.services import store_settings
+    return int(store_settings.number("return_window_days"))
 
 # Once a return has been resolved or rejected the item is settled; anything
 # earlier still counts as an open request and blocks a duplicate.
@@ -112,10 +117,13 @@ def request_return():
         )
         return jsonify(order_status.conflict_body(err)), 409
 
-    deadline = _delivered_at(order) + timedelta(days=RETURN_WINDOW_DAYS)
+    if return_window_days() <= 0:
+        return jsonify(error="Returns are not offered on this store."), 422
+
+    deadline = _delivered_at(order) + timedelta(days=return_window_days())
     if datetime.now(timezone.utc) > deadline:
         return jsonify(
-            error=f"The {RETURN_WINDOW_DAYS}-day return window for this item has closed."
+            error=f"The {return_window_days()}-day return window for this item has closed."
         ), 422
 
     open_return = (
@@ -178,9 +186,9 @@ def order_return_eligibility(order_id):
     if not order:
         return jsonify(error="Order not found"), 404
 
-    window_open = (
+    window_open = return_window_days() > 0 and (
         order.status in _RETURNABLE_ORDER_STATUSES
-        and datetime.now(timezone.utc) <= _delivered_at(order) + timedelta(days=RETURN_WINDOW_DAYS)
+        and datetime.now(timezone.utc) <= _delivered_at(order) + timedelta(days=return_window_days())
     )
 
     open_ids = {
@@ -211,7 +219,7 @@ def order_return_eligibility(order_id):
     return jsonify(
         order_id=order.id,
         order_number=order.order_number,
-        window_days=RETURN_WINDOW_DAYS,
+        window_days=return_window_days(),
         window_open=window_open,
         items=items,
     ), 200

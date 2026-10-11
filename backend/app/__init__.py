@@ -33,6 +33,8 @@ def create_app(config_object=None):
     maintenance.init_app(app)
     audit.init_app(app)
     cache.init_app(app)
+    from app.services import demo
+    demo.init_app(app)
     _warn_runtime_config(app)
     _register_cli(app)
     _auto_seed_admin(app)
@@ -262,12 +264,14 @@ def _register_blueprints(app):
     from app.routes.payments import payments_bp
     from app.routes.shipping import shipping_bp
     from app.routes.seo import seo_bp
+    from app.routes.content import content_bp
 
     for bp in (
         auth_bp, products_bp, categories_bp, cart_bp,
         wishlist_bp, orders_bp, returns_bp, addresses_bp, reviews_bp,
         profile_bp, offers_bp, contact_bp, wholesale_bp,
         newsletter_bp, admin_bp, cms_bp, payments_bp, shipping_bp, seo_bp,
+        content_bp,
     ):
         app.register_blueprint(bp)
 
@@ -337,6 +341,37 @@ def _auto_seed_admin(app):
 
 
 def _register_cli(app):
+    @app.cli.command("remove-demo-content")
+    @click.option("--yes", is_flag=True, help="Do it without asking.")
+    def remove_demo_content(yes):
+        """Delete everything tagged as demo content (same as the admin button).
+
+            flask remove-demo-content          # shows what would go, then asks
+            flask remove-demo-content --yes
+        """
+        from app.extensions import db
+        from app.services import audit, cache, demo
+
+        counts = demo.summary()
+        if not sum(counts.values()):
+            click.echo("There is no demo content.")
+            return
+        for kind, number in counts.items():
+            if number:
+                click.echo(f"  {number:>4}  {kind.replace('_', ' ')}")
+        if not yes and not click.confirm("Remove all of it? This cannot be undone"):
+            click.echo("Nothing removed.")
+            return
+        removed = demo.remove_all()
+        kept = removed.pop("kept")
+        audit.record("remove_demo_content", "demo", summary="Removed demo content (command line)",
+                     changes={"removed": removed, "kept": kept}, actor_type="system", commit=False)
+        db.session.commit()
+        cache.invalidate()
+        for line in kept:
+            click.echo(f"  kept: {line}")
+        click.echo("Demo content removed.")
+
     @app.cli.command("reconcile-payments")
     @click.option("--hours", default=24, help="How far back to scan.")
     @click.option("--dry-run", is_flag=True, help="Report orphans without refunding.")
