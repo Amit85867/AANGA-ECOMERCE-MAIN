@@ -8,7 +8,7 @@ from app.models.order import Order, OrderTracking
 from app.models.enums import OrderStatus, TrackingStatusType
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
-from app.services import shiprocket
+from app.services import order_status, shiprocket
 from app.services.shiprocket import ShiprocketError
 
 
@@ -22,6 +22,12 @@ def ship_order(order_id):
     if order.tracking_number:
         return jsonify(error="This order already has an AWB assigned"), 409
 
+    # Before the courier is contacted: a cancelled or delivered order must
+    # not get a shipment booked against it.
+    if not order_status.can_transition(order.status, OrderStatus.shipped, order_status.SHIPMENT):
+        err = order_status.InvalidTransition(order.status, OrderStatus.shipped, order_status.SHIPMENT)
+        return jsonify(order_status.conflict_body(err)), 409
+
     try:
         created = shiprocket.create_order(order)
         shipment_id = created.get("shipment_id")
@@ -34,7 +40,7 @@ def ship_order(order_id):
 
     order.courier_name = awb.get("courier_name")
     order.tracking_number = awb.get("awb_code")
-    order.status = OrderStatus.shipped
+    order_status.transition(order, OrderStatus.shipped, order_status.SHIPMENT)
 
     db.session.add(OrderTracking(
         order_id=order.id,

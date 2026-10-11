@@ -18,6 +18,7 @@ from app.extensions import db, limiter, user_or_ip
 from app.models.order import Order, OrderItem, Return
 from app.models.enums import OrderStatus, ReturnReason, ReturnStatus
 from app.schemas.order import ReturnRequestIn
+from app.services import order_status
 from app.utils.pagination import page_meta, paginate
 
 returns_bp = Blueprint("returns", __name__, url_prefix="/api/returns")
@@ -32,8 +33,9 @@ RETURN_WINDOW_DAYS = 7
 _CLOSED_STATUSES = {ReturnStatus.resolved, ReturnStatus.rejected}
 
 # An order carrying an in-flight return still accepts returns for its *other*
-# items, so return_requested has to qualify alongside delivered — otherwise the
-# first return on a multi-item order would lock out the rest.
+# items — it is already in return_requested, so there is no status change to
+# check. Otherwise the first return on a multi-item order would lock out the
+# rest.
 _RETURNABLE_ORDER_STATUSES = {OrderStatus.delivered, OrderStatus.return_requested}
 
 
@@ -103,10 +105,12 @@ def request_return():
         return jsonify(error="Order item not found"), 404
 
     order = item.order
+    already_returning = order.status == OrderStatus.return_requested
     if order.status not in _RETURNABLE_ORDER_STATUSES:
-        return jsonify(
-            error="Only delivered items can be returned."
-        ), 422
+        err = order_status.InvalidTransition(
+            order.status, OrderStatus.return_requested, order_status.CUSTOMER
+        )
+        return jsonify(order_status.conflict_body(err)), 409
 
     deadline = _delivered_at(order) + timedelta(days=RETURN_WINDOW_DAYS)
     if datetime.now(timezone.utc) > deadline:
@@ -136,7 +140,8 @@ def request_return():
     db.session.add(ret)
 
     # Surface it on the order timeline so the customer sees it in tracking.
-    order.status = OrderStatus.return_requested
+    if not already_returning:
+        order_status.transition(order, OrderStatus.return_requested, order_status.CUSTOMER)
 
     db.session.commit()
 

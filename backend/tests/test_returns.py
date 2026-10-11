@@ -76,7 +76,7 @@ def test_cannot_return_undelivered_order(app, client):
         "order_item_id": order.items[0].id, "reason": "changed_mind",
     }, headers=_headers(user))
 
-    assert resp.status_code == 422
+    assert resp.status_code == 409
     assert "delivered" in resp.get_json()["error"].lower()
 
 

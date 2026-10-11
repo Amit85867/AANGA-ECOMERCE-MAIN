@@ -184,7 +184,9 @@ export default function AdminOrderDetail() {
             <h3 className="mb-4 font-medium text-gray-900">Update Status</h3>
             <div className="flex gap-2">
               <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} className={inputCls}>
-                {ORDER_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                {ORDER_STATUSES
+                  .filter((s) => s === order.status || (order.allowed_statuses || ORDER_STATUSES).includes(s))
+                  .map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
               <button onClick={updateStatus} disabled={savingStatus || newStatus === order.status} className="disabled:cursor-not-allowed disabled:opacity-50 rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800">Update</button>
             </div>

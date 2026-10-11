@@ -125,7 +125,7 @@ Run `pytest`, then the script, to refresh it.
 | GET | `/api/orders` | customer | ✅ | 200 401 403 | Dashboard, OrderTracking, orderService |
 | POST | `/api/orders` | customer | ✅ | 201 400 401 403 404 415 422 | orderService |
 | GET | `/api/orders/<int:order_id>` | customer | ✅ | 200 401 403 404 | OrderTracking, orderService |
-| POST | `/api/orders/<int:order_id>/cancel` | customer | ✅ | 200 401 403 404 | **none** |
+| POST | `/api/orders/<int:order_id>/cancel` | customer | ✅ | 200 401 403 404 409 | **none** |
 | POST | `/api/payments/create-order` | customer | ✅ | 200 401 403 422 503 | Checkout |
 | POST | `/api/payments/verify` | customer | ✅ | 200 201 400 401 403 409 415 422 | Checkout |
 | POST | `/api/payments/webhook` | public (signed) | ✅ | 200 400 503 | n/a (called by Razorpay) |

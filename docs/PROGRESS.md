@@ -143,8 +143,7 @@ Browser verification is Phase 7.
   ₹10,495.80); Returns and System Health rendered as designed. Destructive
   actions and the maintenance switch were not exercised here — that is Phase 7.
 - [ ] Admin sign-ins are not written to the audit log (only changes are).
-- [ ] Order status has no transition rules: an admin can move a delivered order
-  back to pending. Decide the allowed transitions before enforcing them.
+- [x] Order status transition rules — done in Round 2, item 3.
 - [x] Admin status changes now add the matching tracking event, and a
   delivered cash-on-delivery order is marked paid. Found in Phase 7: without
   the "delivered" event the 7-day return window was counted from the
@@ -325,6 +324,28 @@ passed; `oxlint` and `vite build` clean.
   - Known limit, documented in DEPLOYMENT.md: a request sent straight to the
     backend URL passes fewer proxies than one through the rewrite, so the
     address-keyed limits on anonymous forms can be evaded there.
+
+- [x] **3. Order status transition rules.** One table in
+  `backend/app/services/order_status.py`; every write to `Order.status` goes
+  through it (admin status control, customer cancel, customer return request,
+  courier booking, returns desk). An invalid change answers 409 with a plain
+  message, the current status and the allowed next ones, before any refund or
+  restock runs. The admin order page only offers allowed statuses. 35 tests.
+  - Admin: fulfilment moves forward only (steps may be skipped); cancel is
+    allowed until delivery, including a parcel already with the courier;
+    "return requested" / "returned" cannot be set by hand.
+  - Customer: cancel while pending or confirmed; return once delivered.
+  - Courier booking: only from pending, confirmed or packed (it used to book
+    a shipment for a cancelled order).
+  - Returns desk: a return can only be resolved while its order is in
+    "return requested", so it cannot refund or restock an order settled
+    another way.
+  - Cancelled and returned are final.
+  - Changed status codes: customer cancel and return request on an order in
+    the wrong state now answer 409 (were 422).
+  - Not done: the rules live in the application only. The restock trigger in
+    the database still fires on any update to "cancelled", so a manual SQL
+    update bypasses them.
 
 ## Discovered along the way
 

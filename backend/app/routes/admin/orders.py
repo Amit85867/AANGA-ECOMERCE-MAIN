@@ -21,7 +21,7 @@ from app.models.enums import (
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.schemas.admin import AdminOrderStatusIn, AdminTrackingIn, AdminReturnUpdateIn
-from app.services import audit
+from app.services import audit, order_status
 from app.services.catalogue import primary_images
 from app.services.order_service import refund_order_if_prepaid
 from app.utils.pagination import apply_sort, page_meta, paginate, parse_day
@@ -159,6 +159,8 @@ def admin_order_detail(order_id):
         id=order.id,
         order_number=order.order_number,
         status=order.status.value,
+        # What the status control may offer next (app/services/order_status.py).
+        allowed_statuses=[s.value for s in order_status.allowed_next(order.status, order_status.ADMIN)],
         subtotal=float(order.subtotal),
         discount_amount=float(order.discount_amount),
         gst_amount=float(order.gst_amount),
@@ -209,13 +211,13 @@ def update_order_status(order_id):
     if new_status == previous_status:
         return jsonify(message="Status unchanged", status=new_status.value), 200
 
-    # Cancelling a cancelled order must not run the side effects twice. The
-    # status guard above already covers the common repeat-PATCH case; this is
-    # the explicit invariant for anything that reaches here.
-    if previous_status == OrderStatus.cancelled:
-        return jsonify(error="A cancelled order cannot change status"), 409
+    # Checked before anything else happens: the refund and the restock below
+    # only ever follow a change the rules allow.
+    try:
+        order_status.transition(order, new_status, order_status.ADMIN)
+    except order_status.InvalidTransition as err:
+        return jsonify(order_status.conflict_body(err)), 409
 
-    order.status = new_status
     audit.annotate(
         by_admin=True,
         summary=f"Order {order.order_number}: {previous_status.value} → {new_status.value}",
@@ -382,6 +384,16 @@ def update_return(return_id):
 
     item = ret.order_item
     order = item.order
+
+    # An open return always sits on an order in "return requested". Anything
+    # else means the order was settled another way (e.g. cancelled and
+    # refunded), and refunding or restocking here would do it twice.
+    if order.status != OrderStatus.return_requested:
+        return jsonify(
+            error=f"Order {order.order_number} is {order.status.value.replace('_', ' ')}, "
+                  "so this return can no longer be processed.",
+            status=order.status.value,
+        ), 409
     paid_for_item = float(item.total_price or float(item.unit_price) * item.quantity)
 
     # A refund can be for less than the item cost (partial), never more.
@@ -492,6 +504,6 @@ def _sync_order_after_return(order):
     if open_returns:
         return
     if resolved_items and resolved_items == {i.id for i in order.items}:
-        order.status = OrderStatus.returned
-    elif order.status == OrderStatus.return_requested:
-        order.status = OrderStatus.delivered
+        order_status.transition(order, OrderStatus.returned, order_status.RETURNS)
+    else:
+        order_status.transition(order, OrderStatus.delivered, order_status.RETURNS)

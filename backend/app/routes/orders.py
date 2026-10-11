@@ -13,6 +13,7 @@ from app.models.catalogue import ProductVariant
 from app.models.enums import OrderStatus, TrackingStatusType
 from app.schemas.order import PlaceOrderIn, OrderListOut, OrderDetailOut
 from app.services.catalogue import primary_images
+from app.services import order_status
 from app.services.order_service import create_order_from_cart, refund_order_if_prepaid
 from app.utils.pagination import page_meta, paginate
 
@@ -168,13 +169,12 @@ def cancel_order(order_id):
     if not order:
         return jsonify(error="Order not found"), 404
 
-    cancellable = {OrderStatus.pending, OrderStatus.confirmed}
-    if order.status not in cancellable:
-        return jsonify(error="Order cannot be cancelled at this stage"), 422
-
     # Stock is restored by the trg_restore_inventory trigger when the status
     # flips to 'cancelled' — do not add it back here as well.
-    order.status = OrderStatus.cancelled
+    try:
+        order_status.transition(order, OrderStatus.cancelled, order_status.CUSTOMER)
+    except order_status.InvalidTransition as err:
+        return jsonify(order_status.conflict_body(err)), 409
 
     # A prepaid order cancelled by the customer must return their money.
     refunded = refund_order_if_prepaid(order)
