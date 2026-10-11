@@ -680,3 +680,58 @@ def test_the_settings_form_cannot_flip_maintenance_mode(app, client):
     })
     assert resp.status_code == 422
     assert client.get("/api/admin/system/maintenance", headers=headers).get_json()["enabled"] is True
+
+
+# ── Database schema check ─────────────────────────────────────
+
+def test_schema_check_passes_on_a_migrated_database(app, client):
+    from app.services import schema_check
+
+    result = schema_check.status()
+    assert result == {"reachable": True, "empty": False, "pending": [], "missing": [], "error": None}
+    checks = {c["key"]: c for c in client.get("/api/admin/system/health", headers=admin_headers()).get_json()["checks"]}
+    assert checks["schema"]["status"] == "ok" and "migrations applied" in checks["schema"]["detail"]
+
+    runner = app.test_cli_runner()
+    assert runner.invoke(args=["check-schema"]).exit_code == 0
+    done = runner.invoke(args=["apply-migrations"])
+    assert done.exit_code == 0 and "Nothing to apply" in done.output
+
+
+def test_schema_check_names_a_pending_migration_and_the_command_applies_it(app, client):
+    """Drop what one migration creates, see it reported everywhere, apply, see it clear."""
+    from sqlalchemy import text
+    from app.services import schema_check
+
+    db.session.execute(text("DROP TABLE public.faq_items"))
+    db.session.commit()
+    try:
+        result = schema_check.status()
+        assert result["pending"] == ["migrations_owner_dashboard.sql"] and result["missing"] == ["faq_items"]
+        assert "flask apply-migrations" in schema_check.describe(result)
+
+        body = client.get("/api/admin/system/health", headers=admin_headers()).get_json()
+        checks = {c["key"]: c for c in body["checks"]}
+        assert body["status"] == "error" and checks["schema"]["status"] == "error"
+        assert "migrations_owner_dashboard.sql" in checks["schema"]["detail"]
+        assert app.test_cli_runner().invoke(args=["check-schema"]).exit_code == 1
+    finally:
+        # (the test's own open transaction would otherwise block the ALTER TABLEs)
+        db.session.rollback()
+        applied = app.test_cli_runner().invoke(args=["apply-migrations"])
+    assert applied.exit_code == 0 and "applied migrations_owner_dashboard.sql" in applied.output
+    assert schema_check.status()["pending"] == []
+    assert client.get("/api/content/faq").status_code == 200
+
+
+def test_unreachable_database_is_reported_not_raised(app, monkeypatch):
+    from app.services import schema_check
+
+    class Broken:
+        def connect(self):
+            raise RuntimeError("connection refused\nmore detail")
+
+    monkeypatch.setattr(type(db), "engine", property(lambda self: Broken()))
+    result = schema_check.status()
+    assert result["reachable"] is False and result["error"] == "connection refused"
+    assert "cannot be reached" in schema_check.describe(result)

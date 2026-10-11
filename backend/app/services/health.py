@@ -48,6 +48,18 @@ def check_database():
     return _result(OK, "Connected.", latency_ms=latency)
 
 
+def check_schema():
+    """Pending migrations: the cause of 'one page gives an error, the rest work'."""
+    from app.services import schema_check
+
+    result = schema_check.status()
+    if not result["reachable"]:
+        return _result(ERROR, schema_check.describe(result))
+    if result["empty"] or result["pending"]:
+        return _result(ERROR, schema_check.describe(result), pending=result["pending"], missing=result["missing"])
+    return _result(OK, f"All {len(schema_check.MIGRATIONS)} migrations applied.")
+
+
 def check_rate_limit_store():
     uri = str(current_app.config.get("RATELIMIT_STORAGE_URI") or "")
     if uri.startswith("memory://") or not uri:
@@ -175,6 +187,7 @@ def run_all(probe=False):
     """Ordered so the panel lists what the store cannot run without first."""
     return [
         {"key": "database", "label": "Database", **check_database()},
+        {"key": "schema", "label": "Database migrations", **check_schema()},
         {"key": "rate_limit_store", "label": "Redis (rate limits)", **check_rate_limit_store()},
         {"key": "storage", "label": "Supabase Storage (images)", **check_storage(probe)},
         {"key": "razorpay", "label": "Razorpay (payments)", **check_razorpay(probe)},

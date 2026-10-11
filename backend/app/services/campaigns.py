@@ -18,6 +18,7 @@ changes what is *displayed* only: the cart and checkout always use the real
 clock, so a preview link can never buy at sale prices early.
 """
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 
 from flask import current_app, has_request_context, request
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -213,7 +214,31 @@ def read_preview_token(token):
 
 def sale_price(base, percent):
     """``percent`` off ``base``, to the nearest whole rupee (never below ₹1)."""
-    return float(max(1, round(float(base) * (100 - float(percent)) / 100)))
+    # Half rounds up, the same as Postgres' round() — see effective_price_sql,
+    # which must sort and filter by exactly the price shown.
+    price = (Decimal(str(base)) * (100 - Decimal(str(percent))) / 100).quantize(Decimal("1"), ROUND_HALF_UP)
+    return float(max(Decimal("1"), price))
+
+
+def effective_price_sql(campaign):
+    """The price a customer is shown, as a SQL expression on ``products``.
+
+    Sorting by price and filtering by a price range have to use this rather
+    than the stored ``selling_price``: during a sale the two differ for the
+    products in the campaign's collection.
+    """
+    from sqlalchemy import case, func
+
+    from app.models.catalogue import Product
+
+    if not campaign or not campaign.get("sale_percent") or not campaign["sale_product_ids"]:
+        return Product.selling_price
+    factor = (100 - Decimal(str(campaign["sale_percent"]))) / 100
+    return case(
+        (Product.id.in_(campaign["sale_product_ids"]),
+         func.greatest(1, func.round(Product.selling_price * factor))),
+        else_=Product.selling_price,
+    )
 
 
 def unit_price(product, variant=None, campaign="live"):

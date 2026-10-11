@@ -39,3 +39,6 @@ backend/static/uploads/
 
 # Written by the test suite, read by backend/scripts/gen_endpoints.py
 backend/tests/.route_coverage.json
+
+# logs and pid files of scripts/dev.sh
+.dev/

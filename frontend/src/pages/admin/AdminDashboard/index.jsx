@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAdminStore } from '@/store/useAdminStore'
 import {
   IconAlertTriangle, IconArrowBackUp, IconBuildingStore, IconCurrencyRupee,
   IconMail, IconPackageOff, IconRefresh, IconShoppingCart, IconTruckDelivery, IconUsers,
@@ -101,6 +102,9 @@ function RevenueChart({ series }) {
 }
 
 export default function AdminDashboard() {
+  // A tile is a shortcut to a screen: no tile for a screen this role cannot open.
+  const areas = useAdminStore((s) => s.admin?.areas) || []
+  const can = (area) => areas.includes(area)
   const [preset, setPreset] = useState('30d')
   const [range, setRange] = useState(() => rangeFor(30))
   const [data, setData] = useState(null)
@@ -207,16 +211,18 @@ export default function AdminDashboard() {
               sub={`${inr(data.revenue.last_7d)} in the last 7 days`} />
             <Kpi icon={IconCurrencyRupee} label="Revenue · last 30 days" value={inr(data.revenue.last_30d)}
               sub="Excludes cancelled and returned orders" />
-            <Kpi icon={IconUsers} label="Customers" value={data.users.total.toLocaleString('en-IN')}
-              sub={`${data.users.new_range} new in ${rangeLabel}`} />
+            {can('users') && (
+              <Kpi icon={IconUsers} label="Customers" value={data.users.total.toLocaleString('en-IN')}
+                sub={`${data.users.new_range} new in ${rangeLabel}`} />
+            )}
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <Todo icon={IconTruckDelivery} label="Orders to fulfil" count={data.pending.orders} to="/admin/orders" />
             <Todo icon={IconArrowBackUp} label="Returns to review" count={data.pending.returns} to="/admin/returns" />
             <Todo icon={IconPackageOff} label="Out of stock" count={data.products.out_of_stock} to="/admin/products" />
-            <Todo icon={IconBuildingStore} label="New inquiries" count={data.pending.inquiries} to="/admin/inquiries" />
-            <Todo icon={IconMail} label="Unread messages" count={data.pending.messages} to="/admin/messages" />
+            {can('wholesale-inquiries') && <Todo icon={IconBuildingStore} label="New inquiries" count={data.pending.inquiries} to="/admin/inquiries" />}
+            {can('contact-messages') && <Todo icon={IconMail} label="Unread messages" count={data.pending.messages} to="/admin/messages" />}
           </div>
 
           <div className="mt-6 grid gap-6 xl:grid-cols-3">

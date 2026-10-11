@@ -437,3 +437,80 @@ def test_accent_presets_pass_wcag_aa_on_the_frozen_theme(name):
     assert contrast(preset["on_accent"], preset["accent"]) >= 4.5       # badge / button text on the accent
     assert contrast(preset["accent_text"], "#FFFFFF") >= 4.5            # accent-coloured text on the white page
     assert contrast(preset["on_dark"], "#0A0A0A") >= 4.5               # the offer line on the black announcement bar
+
+
+# ── Listing during a sale: sort, filter and facets use the price on show ──
+
+def _sale_catalogue(client):
+    """Stored prices 1000 / 1200 / 1500 / 2000; the 1500 and 2000 ones are in a
+    collection on sale at 40% off, so they are SHOWN at 900 and 1200."""
+    a, _ = make_product(price=1000, stock=5)
+    b, _ = make_product(price=1200, stock=5)
+    c, _ = make_product(price=1500, stock=5)
+    d, _ = make_product(price=2000, stock=0)          # sold out
+    collection = _collection([c, d])
+    resp = _create(client, now() - timedelta(minutes=5), now() + timedelta(days=5),
+                   collection_id=collection.id, sale_percent=40)
+    assert resp.status_code == 201, resp.get_json()
+    return a, b, c, d
+
+
+def _listing(client, query=""):
+    resp = client.get(f"/api/products?per_page=12&page=1{query}")
+    assert resp.status_code == 200, resp.get_json()
+    return resp.get_json()
+
+
+def test_listing_works_with_a_live_campaign_sale_collection_and_filters(client):
+    a, b, c, d = _sale_catalogue(client)
+    shown = {a.id: 1000, b.id: 1200, c.id: 900, d.id: 1200}
+
+    everything = _listing(client, "&sort=newest")
+    assert everything["total"] == 4
+    assert {p["id"]: p["selling_price"] for p in everything["products"]} == shown
+    assert {p["id"] for p in everything["products"] if p["on_sale"]} == {c.id, d.id}
+
+    # sorted by the price on show, not the stored one
+    asc = [p["selling_price"] for p in _listing(client, "&sort=price_asc")["products"]]
+    assert asc == sorted(asc) == [900, 1000, 1200, 1200]
+    desc = [p["selling_price"] for p in _listing(client, "&sort=price_desc")["products"]]
+    assert desc == sorted(desc, reverse=True)
+    assert _listing(client, "&sort=price_asc")["products"][0]["id"] == c.id
+
+    # price range: c (stored 1500, shown 900) is inside "up to 950"; a (1000) is not
+    assert [p["id"] for p in _listing(client, "&max_price=950")["products"]] == [c.id]
+    assert {p["id"] for p in _listing(client, "&min_price=1100&max_price=1300")["products"]} == {b.id, d.id}
+    assert _listing(client, "&min_price=1400")["total"] == 0          # nothing is shown at 1500 or 2000
+
+    # combined with the collection, stock and size filters, and paging
+    in_collection = _listing(client, "&collection=diwali-edit")
+    assert [p["id"] for p in in_collection["products"]] == [c.id, d.id]
+    assert [p["id"] for p in _listing(client, "&collection=diwali-edit&in_stock=true")["products"]] == [c.id]
+    assert [p["id"] for p in _listing(client, "&collection=diwali-edit&sort=price_desc&max_price=1000")["products"]] == [c.id]
+    size = c.variants[0].size
+    assert c.id in [p["id"] for p in _listing(client, f"&size={size}&max_price=950")["products"]]
+    paged = client.get("/api/products?per_page=1&page=2&sort=price_asc").get_json()
+    assert paged["pages"] == 4 and paged["products"][0]["selling_price"] == 1000
+
+    facets = client.get("/api/products/facets").get_json()
+    assert facets["price"] == {"min": 900, "max": 1200}
+
+
+def test_listing_goes_back_to_stored_prices_when_the_sale_ends(client):
+    a, b, c, d = _sale_catalogue(client)
+    campaign = Campaign.query.one()
+    assert client.post(f"/api/admin/campaigns/{campaign.id}/end", headers=manager()).status_code == 200
+    asc = [(p["id"], p["selling_price"]) for p in _listing(client, "&sort=price_asc")["products"]]
+    assert asc == [(a.id, 1000), (b.id, 1200), (c.id, 1500), (d.id, 2000)]
+    assert _listing(client, "&max_price=950")["total"] == 0
+    assert client.get("/api/products/facets").get_json()["price"] == {"min": 1000, "max": 2000}
+
+
+@pytest.mark.parametrize("base,percent", [(999, 15), (1299, 25), (2499, 12.5), (4999, 20), (1, 90), (3333, 17.5), (1050, 10)])
+def test_python_and_sql_round_the_sale_price_the_same_way(client, base, percent):
+    """Sorting happens in SQL, the price on the card is computed in Python:
+    a rupee of disagreement would put a product in the wrong place."""
+    product, _ = make_product(price=base, mrp=base + 1000, stock=1)
+    snapshot = {"sale_percent": percent, "sale_product_ids": [product.id]}
+    in_sql = db.session.query(campaigns.effective_price_sql(snapshot)).filter_by(id=product.id).scalar()
+    assert float(in_sql) == campaigns.sale_price(base, percent)

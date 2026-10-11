@@ -37,6 +37,7 @@ def create_app(config_object=None):
     demo.init_app(app)
     _warn_runtime_config(app)
     _register_cli(app)
+    _check_database(app)
     _auto_seed_admin(app)
 
     return app
@@ -308,6 +309,36 @@ def _register_jwt_handlers(app):
         return {"error": "Admin access required"}, 403
 
 
+def _check_database(app):
+    """Say so, loudly and once, when the database is unreachable or behind.
+
+    The app still starts: the health endpoint and the admin System Health
+    page are how someone finds out what is wrong, and they need it running.
+    Without this the first sign of a missing migration is a 500 on whichever
+    page happens to touch the missing table.
+    """
+    if app.config.get("TESTING"):
+        return
+    # Flask's own commands (including the one that fixes this) say it themselves.
+    import sys
+    if any(arg in ("apply-migrations", "check-schema") for arg in sys.argv):
+        return
+    from app.services import schema_check
+
+    with app.app_context():
+        result = schema_check.status()
+    app.config["SCHEMA_STATUS_AT_START"] = result
+    if not result["reachable"]:
+        app.logger.error("DATABASE_UNREACHABLE %s", schema_check.describe(result))
+    elif result["empty"] or result["pending"]:
+        app.logger.error(
+            "DATABASE_MIGRATIONS_PENDING %s (missing: %s)",
+            schema_check.describe(result), ", ".join(result["missing"]),
+        )
+    else:
+        app.logger.info("DATABASE_OK schema is up to date")
+
+
 def _auto_seed_admin(app):
     email = os.environ.get("ADMIN_EMAIL")
     password = os.environ.get("ADMIN_PASSWORD")
@@ -341,6 +372,39 @@ def _auto_seed_admin(app):
 
 
 def _register_cli(app):
+    @app.cli.command("apply-migrations")
+    @click.option("--all", "all_files", is_flag=True, help="Re-run every migration file, not only pending ones.")
+    def apply_migrations(all_files):
+        """Bring the database in DATABASE_URL up to date.
+
+        Runs the migration files that have not been applied yet. They are
+        idempotent, so running this twice is harmless.
+
+            flask apply-migrations
+        """
+        from app.services import schema_check
+
+        try:
+            applied = schema_check.apply_pending(all_files=all_files)
+        except RuntimeError as exc:
+            raise click.ClickException(str(exc))
+        for name in applied:
+            click.echo(f"  applied {name}")
+        after = schema_check.status()
+        if after["pending"]:
+            raise click.ClickException(schema_check.describe(after))
+        click.echo("Database is up to date." if applied else "Nothing to apply: the database is up to date.")
+
+    @app.cli.command("check-schema")
+    def check_schema():
+        """Report whether the database is reachable and fully migrated (exit 1 if not)."""
+        from app.services import schema_check
+
+        result = schema_check.status()
+        click.echo(schema_check.describe(result))
+        if not result["reachable"] or result["empty"] or result["pending"]:
+            raise SystemExit(1)
+
     @app.cli.command("remove-demo-content")
     @click.option("--yes", is_flag=True, help="Do it without asking.")
     def remove_demo_content(yes):

@@ -540,10 +540,8 @@ banners, which the scanner cannot resolve).
 - No invitation email for staff: the Owner passes on a one-time password.
 - The demo Manager and Staff passwords exist only in this session's scratch
   folder: reset them from the Staff screen before using those accounts.
-- Sorting or filtering the shop by price uses the stored price, not the
-  campaign sale price.
-- The Staff dashboard still shows the "New inquiries" and "Unread messages"
-  tiles, which lead to screens Staff cannot open.
+- (Fixed in Round 4: price sort / filter by sale price; dashboard tiles a role
+  cannot open.)
 - Collection pages do not preload their first image (Lighthouse 85 there).
 - Privacy and Terms demo text says it is sample text: have it reviewed.
 - The 30 original product pictures came with the project (Stitch design
@@ -552,6 +550,46 @@ banners, which the scanner cannot resolve).
   as demo, so "Remove demo content" clears it too.
 - Still deferred from Round 2: Razorpay and Shiprocket keys are not in
   `backend/.env`, so online payment and the pincode check remain unverified.
+
+## Round 4 - "/shop could not load the products"
+
+- [ ] **Root cause not found.** The report came without the status code,
+  response or traceback, and the failure could not be reproduced: on the
+  owner's own running API every variant of `/api/products` answered 200
+  (default listing, each sort, price / size / colour / category / collection
+  filters, paging), 240 parallel requests through the dev proxy all
+  succeeded, a second cold API started with the same settings served the shop
+  page's requests without error, and `/shop` rendered 60 products in Chrome.
+  The local database was fully migrated. What the checks rule out: a
+  server-side fault in the listing code as it stands, and a missing migration.
+  What they do not rule out: the page being loaded while the API was starting
+  or restarting, or more than one API process on port 5000.
+- [x] There was no documented way to start the stack locally (no README; the
+  docs covered the database and Render only). Added `README.md` and
+  `scripts/dev.ps1` / `scripts/dev.sh`: database, migrations, API, storefront,
+  each checked before the next; a running server is reused, never doubled;
+  `-Stop` ends whole process trees. Run from scratch here in 17 s.
+- [x] Migrations in one command: `flask apply-migrations` (idempotent; applies
+  only what is pending; 20 s lock timeout). `flask check-schema` reports.
+- [x] Startup check: the API logs `DATABASE_OK`, `DATABASE_MIGRATIONS_PENDING`
+  (naming the files and what is missing) or `DATABASE_UNREACHABLE`, and starts
+  anyway so System Health can show it. System Health has a "Database
+  migrations" row.
+- [x] The product listing retries once after a network error or 5xx before
+  showing an error, and logs the status to the console when it gives up.
+- [x] Price sort, price filter and the price range in the filter panel use the
+  price on show (the campaign sale price where one applies). Python and SQL
+  round the sale price the same way; a test compares them.
+- [x] Dashboard tiles for screens a role cannot open are hidden (inquiries,
+  messages, and the customers figure for Staff).
+- [x] The dev proxy targets `127.0.0.1` instead of `localhost`.
+- Tests: 558 passed (12 new: listing with a live campaign, sale collection and
+  filters; revert when the sale ends; Python/SQL rounding; schema check ok,
+  pending and unreachable; the two commands). Lint and build clean.
+- Checked in Chrome after the changes: `/shop` (60 products), Ethnic Wear
+  (4), Diwali Edit sorted low to high (prices in order, 12), and "up to
+  Rs 1,500" sorted low to high (7, including a sale item at Rs 1,439 whose
+  stored price is Rs 1,799). No console errors.
 
 ## Discovered along the way
 

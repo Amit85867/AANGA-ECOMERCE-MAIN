@@ -55,12 +55,14 @@ export default defineConfig({
     // pages/admin/AdminHelp shows docs/OWNER_GUIDE.md, one level above this folder.
     fs: { allow: ['..'] },
     proxy: {
+      // 127.0.0.1, not localhost: Flask listens on IPv4 only, and "localhost"
+      // is looked up as IPv6 first on Windows.
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
       '/static/uploads': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
     },

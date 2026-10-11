@@ -66,6 +66,15 @@ def product_facets():
         colours.setdefault(colour_name, colour_hex)
 
     low, high = prices.one()
+    # During a campaign sale the range has to be of the prices on show, or
+    # the slider's ends would not match any card.
+    live = campaigns.live()
+    if live and live.get("sale_percent") and live["sale_product_ids"]:
+        price = campaigns.effective_price_sql(live)
+        ranged = db.session.query(func.min(price), func.max(price)).select_from(Product).filter(Product.is_active.is_(True))
+        if category_slug:
+            ranged = ranged.join(Category, Product.category_id == Category.id).filter(Category.slug == category_slug)
+        low, high = ranged.one()
     return jsonify(
         sizes=sorted(sizes, key=_size_key),
         colors=[{"name": name, "hex": colours[name]} for name in sorted(colours)],
@@ -122,10 +131,13 @@ def list_products():
     if search:
         q = q.filter(Product.name.ilike(f"%{search}%"))
 
+    # The price a customer sees: the campaign sale price where one applies.
+    live = campaigns.live()
+    price = campaigns.effective_price_sql(live)
     if min_price is not None:
-        q = q.filter(Product.selling_price >= min_price)
+        q = q.filter(price >= min_price)
     if max_price is not None:
-        q = q.filter(Product.selling_price <= max_price)
+        q = q.filter(price <= max_price)
 
     if badge:
         q = q.filter(Product.badge_label.ilike(badge))
@@ -149,8 +161,8 @@ def list_products():
 
     sort_map = {
         "newest": Product.created_at.desc(),
-        "price_asc": Product.selling_price.asc(),
-        "price_desc": Product.selling_price.desc(),
+        "price_asc": price.asc(),
+        "price_desc": price.desc(),
         "popular": Product.id.desc(),
     }
     if collection_slug and "sort" not in request.args:
@@ -165,7 +177,6 @@ def list_products():
     # Images, colours and ratings for the whole page in three queries, rather
     # than three per product.
     extras = card_extras(paginated.items)
-    live = campaigns.live()
     items = [
         campaigns.apply_to_product(_build_product_list_item(
             p,

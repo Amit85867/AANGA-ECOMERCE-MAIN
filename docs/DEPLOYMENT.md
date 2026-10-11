@@ -146,10 +146,12 @@ migration needs to run, and it checks for both indexes when it finishes. If
 you ever point `DATABASE_URL` back at the old Supabase database, run
 `scripts/render_bootstrap_db.sh --migrate` against it first.
 
-To upgrade a database that already has data:
+To upgrade a database that already has data (either command; the second needs
+only the app's own environment, so it also works from a Render shell):
 
 ```bash
 scripts/render_bootstrap_db.sh --migrate   # bring an existing database up to date
+flask --app run apply-migrations           # the same, from backend/ with DATABASE_URL set
 ```
 
 The script refuses to load into a database that already has tables, and never
