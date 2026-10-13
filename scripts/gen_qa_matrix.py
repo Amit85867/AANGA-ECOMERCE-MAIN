@@ -406,11 +406,11 @@ LISTS = {
           "py:test_cli_exits_non_zero_when_a_refund_fails", "py:test_reconcile_reads_the_payment_list_and_refunds_the_stale_orphan"], None),
         ("Campaign start and end", "No job: computed from the clock at exact IST boundaries on every request",
          ["py:test_exact_boundaries", "e2e:SF-CAMP-01"], None),
-        ("render_bootstrap_db.sh", "Builds a new, empty database with no manual step (scripts/prod_local.sh runs it on every rebuild)",
+        ("render_bootstrap_db.sh", "Builds a new, empty Neon branch with no manual step",
          ["py:test_schema_check_names_a_pending_migration_and_the_command_applies_it"], "0bcb945"),
         ("apply-migrations / check-schema", "Idempotent; startup says when migrations are pending", ["py:test_schema_check_names_a_pending_migration_and_the_command_applies_it", "py:test_schema_check_passes_on_a_migrated_database"], None),
         ("check-integrations", "Says OK / NOT CONFIGURED / PROBLEM per service; never prints a value", ["py:test_check_integrations_never_prints_a_value"], None),
-        ("remove-demo-content", "Removes only demo rows (also proved on a throwaway copy: scripts/prod_local.sh throwaway-check)",
+        ("remove-demo-content", "Removes only demo rows (provable on a throwaway Neon branch)",
          ["py:test_remove_demo_content_needs_the_phrase_and_spares_real_data"], None),
     ],
     "F. Data integrity": [

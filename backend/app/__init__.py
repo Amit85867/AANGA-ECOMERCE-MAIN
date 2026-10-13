@@ -195,15 +195,15 @@ def _validate_config(app):
         # Seeing the fallback verbatim means DATABASE_URL was never set. Without
         # this the app would boot happily and only fail on the first query.
         problems.append(
-            "DATABASE_URL is unset (falling back to the local docker-compose "
-            "database)"
+            "DATABASE_URL is unset — set it to the Neon production branch's "
+            "POOLED connection string (docs/DATABASE.md)"
         )
 
     # Uploads would land on an ephemeral filesystem and be lost on redeploy,
     # silently breaking every product image.
     # ALLOW_LOCAL_UPLOADS=true is the explicit statement that static/uploads is
-    # a persistent volume (scripts/prod_local.sh, or a self-hosted server with
-    # a mounted disk). Never set it on Render, whose disk is wiped on deploy.
+    # a persistent volume (a self-hosted server with a mounted disk).
+    # Never set it on Render, whose disk is wiped on every deploy.
     local_uploads_ok = str(os.environ.get("ALLOW_LOCAL_UPLOADS", "")).lower() == "true"
     from app.services.storage import is_object_storage_configured
     if not is_object_storage_configured(app.config) and not local_uploads_ok:

@@ -13,6 +13,10 @@ code file, a commit, a chat or a screenshot.
 
 ---
 
+> Test keys go in `backend/.env`, which talks to the Neon **dev** branch, so
+> nothing here can touch production data. Live keys are only ever set in the
+> Render Dashboard.
+
 ## 1. Add the TEST keys (your machine)
 
 **Razorpay** — Dashboard, with the *Test mode* switch on:
@@ -144,5 +148,8 @@ Log lines that need a person the same day (Render → `aanga-api` → Logs; sear
 | `SHIPROCKET_PICKUP_NOT_SCHEDULED` | The shipment was booked but the courier did not accept the pickup. | Press "Schedule pickup" in Shiprocket. |
 | `PAYMENT_AMOUNT_MISMATCH` | Someone changed their bag between paying and confirming. No order was made. | Nothing, unless it repeats for one customer. |
 
-Before every later deploy, run the regression suite against the
-production-like copy: `scripts/e2e.sh --fresh`.
+Before every later deploy, run the regression suite: `scripts/e2e.sh --fresh`.
+It resets the Neon dev branch to match production, reseeds it, and drives every
+customer and admin flow at four screen widths.
+
+When something is wrong in production, start from [RUNBOOK.md](RUNBOOK.md).

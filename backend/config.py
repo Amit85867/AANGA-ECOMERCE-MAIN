@@ -6,20 +6,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# The dockerized Postgres from backend/docker-compose.yml. Used as the
-# development fallback, and recognised by _validate_config so a production app
-# that forgot to set DATABASE_URL fails on boot rather than on first query.
-DEV_DATABASE_URL = "postgresql://aanga:aanga@127.0.0.1:55433/aanga"
+# There is no local database any more: every environment uses a Neon branch,
+# so an unset DATABASE_URL is always a mistake. This sentinel is what the app
+# falls back to, and _validate_config recognises it, so the failure is a clear
+# message at boot rather than a confusing one on the first query. It points
+# nowhere on purpose.
+UNSET_DATABASE_URL = "postgresql://unset:unset@database.invalid:5432/unset"
+
+# Old name, kept so nothing importing it breaks.
+DEV_DATABASE_URL = UNSET_DATABASE_URL
 
 
 class BaseConfig:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
-    # SQLAlchemy. The fallback points at the dockerized Postgres from
-    # backend/docker-compose.yml — the schema is Postgres-native (UUID PKs, PG
-    # enums, generated columns, triggers), so a SQLite fallback would only fail
-    # in confusing ways. Production must set DATABASE_URL explicitly.
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", DEV_DATABASE_URL)
+    # SQLAlchemy. There is no fallback database to connect to: set DATABASE_URL
+    # to a Neon branch (docs/DATABASE.md). The schema is Postgres-native (UUID
+    # PKs, PG enums, generated columns, triggers), so a SQLite fallback would
+    # only fail in confusing ways.
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", UNSET_DATABASE_URL)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Connection pool, per gunicorn worker. The hard ceiling is Postgres's
     # max_connections, and every worker holds its own pool, so:
@@ -156,12 +161,15 @@ class ProductionConfig(BaseConfig):
 
 class TestingConfig(BaseConfig):
     TESTING = True
-    # Tests run against a real Postgres (Docker) so enum types, computed
-    # columns and triggers behave exactly as in production. Spin it up with
-    # `docker compose -f docker-compose.test.yml up -d`.
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "TEST_DATABASE_URL", "postgresql://postgres:test@localhost:55432/aanga_test"
-    )
+    # Tests run against a real Postgres so enum types, computed columns and
+    # triggers behave exactly as in production: the Neon "test" branch locally,
+    # a service container in CI.
+    #
+    # No default on purpose. The suite TRUNCATEs every table in whatever it is
+    # given, so a default is one typo away from emptying the wrong database;
+    # backend/tests/conftest.py refuses to start without this set, and refuses
+    # it outright if it names the dev or production branch.
+    SQLALCHEMY_DATABASE_URI = os.environ.get("TEST_DATABASE_URL", UNSET_DATABASE_URL)
     JWT_SECRET_KEY = "test-jwt-secret-that-is-long-enough-for-hs256"
     SECRET_KEY = "test-secret"
     JWT_COOKIE_SECURE = False

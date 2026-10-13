@@ -2,7 +2,7 @@
 import pytest
 
 from app import _validate_config
-from config import DEV_DATABASE_URL
+from config import UNSET_DATABASE_URL
 
 
 class _FakeApp:
@@ -53,15 +53,15 @@ def test_production_accepts_strong_config():
     _validate_config(app)  # must not raise
 
 
-def test_production_rejects_the_local_docker_database():
-    """An unset DATABASE_URL falls back to docker-compose, which is a real
-    Postgres URI — so it must be caught by name, not by scheme."""
+def test_production_rejects_an_unset_database_url():
+    """The fallback is a syntactically valid Postgres URI pointing nowhere, so
+    it has to be caught by name rather than by scheme."""
     app = _FakeApp(
         DEBUG=False,
         TESTING=False,
         SECRET_KEY="x" * 40,
         JWT_SECRET_KEY="y" * 40,
-        SQLALCHEMY_DATABASE_URI=DEV_DATABASE_URL,
+        SQLALCHEMY_DATABASE_URI=UNSET_DATABASE_URL,
         SUPABASE_URL="https://proj.supabase.co",
         SUPABASE_SERVICE_KEY="service-key",
     )
