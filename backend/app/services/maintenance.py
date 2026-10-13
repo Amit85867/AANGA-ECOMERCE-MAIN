@@ -27,7 +27,13 @@ DEFAULT_MESSAGE = (
     "Thank you for your patience."
 )
 
-_OPEN_PREFIXES = ("/api/admin/", "/api/cms/", "/api/health", "/api/payments/webhook")
+# /api/ping must stay in this list: it is the platform's health check and the
+# one route that is guaranteed not to touch the database, so that a probe every
+# few seconds cannot hold the Neon compute awake. Reading the maintenance flag
+# is a query, which would quietly undo that.
+_OPEN_PREFIXES = (
+    "/api/admin/", "/api/cms/", "/api/ping", "/api/health", "/api/payments/webhook",
+)
 
 # Reading the flag costs a query, and it is checked on every storefront request.
 # Each process remembers it briefly; turning the mode on or off therefore takes
