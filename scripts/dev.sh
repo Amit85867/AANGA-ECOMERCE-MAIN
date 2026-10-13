@@ -34,7 +34,7 @@ stop_pid() {
 if [ "${1:-}" = "--stop" ]; then
   say "Stopping the API and the storefront"
   stop_pid "$RUN/api.pid"; stop_pid "$RUN/storefront.pid"
-  echo "Stopped. The database container is still running."
+  echo "Stopped. The Neon database is unaffected."
   exit 0
 fi
 
@@ -47,14 +47,22 @@ if [ ! -x "$PY" ]; then
 fi
 [ -d "$FRONTEND/node_modules" ] || { say "Installing the storefront packages (first run only)"; (cd "$FRONTEND" && npm ci); }
 
-say "Starting Postgres (Docker)"
-(cd "$BACKEND" && docker compose up -d db) || fail "Docker could not start the database. Is Docker running?"
-for _ in $(seq 1 60); do
-  [ "$(docker inspect --format '{{.State.Health.Status}}' aanga-db 2>/dev/null)" = "healthy" ] && break
-  sleep 1
-done
-[ "$(docker inspect --format '{{.State.Health.Status}}' aanga-db 2>/dev/null)" = "healthy" ] \
-  || fail "The database did not become healthy within a minute. See: docker compose logs db (in backend/)."
+# The database is Neon and is always there; nothing to start. The first query
+# after five quiet minutes wakes the compute and takes about a second.
+say "Checking the Neon dev branch is reachable"
+(cd "$BACKEND" && "$PY" -c "
+import os, sys
+from dotenv import load_dotenv
+import psycopg2
+load_dotenv('.env')
+url = os.environ.get('DATABASE_URL')
+if not url:
+    sys.exit('DATABASE_URL is not set in backend/.env (see docs/DATABASE.md).')
+try:
+    psycopg2.connect(url, connect_timeout=30).close()
+except Exception as exc:
+    sys.exit(f'Cannot reach the database: [{type(exc).__name__}] see docs/DATABASE.md')
+") || fail "The Neon dev branch is not reachable (message above)."
 
 say "Applying database migrations"
 (cd "$BACKEND" && "$PY" -m flask --app run apply-migrations) || fail "Migrations failed (message above). Nothing else was started."

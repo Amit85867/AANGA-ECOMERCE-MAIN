@@ -78,18 +78,24 @@ export async function apiAs(baseURL, role) {
 }
 
 /**
- * Clear the rate-limit counters. The suite reloads the dashboard several
+ * Clear the rate-limit counters, if this environment has any. The suite
+ * reloads the dashboard several
  * hundred times in a few minutes as one person, which is more than any admin
  * is allowed (300 session renewals an hour); the groups that do the most
  * reloading start from zero.
  */
 export function resetLimits() {
-  const root = path.resolve(here, '..', '..')
-  const env = fs.readFileSync(path.join(root, '.prodlocal', 'env'), 'utf8')
-  const password = env.split('\n').find((l) => l.startsWith('POSTGRES_PASSWORD='))?.slice('POSTGRES_PASSWORD='.length).trim()
-  execSync('docker compose -f scripts/prod_local/docker-compose.yml exec -T redis redis-cli FLUSHALL', {
-    cwd: root, stdio: 'ignore', env: { ...process.env, POSTGRES_PASSWORD: password },
-  })
+  // There is no Redis container any more. scripts/e2e.sh starts the API with
+  // RATELIMIT_ENABLED=false, so there are no counters to clear and this is a
+  // no-op. Kept as a call site so the intent stays visible, and so a run
+  // against an environment that *does* limit (a Redis URL) can flush instead.
+  const url = process.env.RATELIMIT_STORAGE_URI || ''
+  if (!url.startsWith('redis')) return
+  try {
+    execSync(`redis-cli -u ${JSON.stringify(url)} FLUSHALL`, { stdio: 'ignore' })
+  } catch {
+    // redis-cli is optional; a failed flush only risks a 429, not a wrong result.
+  }
 }
 
 /** Is this the phone / tablet layout (menus behind a button)? */

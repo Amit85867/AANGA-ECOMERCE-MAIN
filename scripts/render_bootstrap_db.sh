@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 #
-# Load the AANGA schema into a Postgres database (Render, or any other).
+# Load the AANGA schema into a Neon branch (or any other Postgres 17).
 #
 #   DATABASE_URL=postgresql://...  scripts/render_bootstrap_db.sh            # new, empty database
 #   DATABASE_URL=postgresql://...  scripts/render_bootstrap_db.sh --migrate  # existing database
 #   DATABASE_URL=postgresql://...  scripts/render_bootstrap_db.sh --check    # report only
 #
-# Connect as the SAME user the application uses (Render's "External Database
-# URL" for the aanga user). The tables carry row-level-security policies
+# Use the branch's DIRECT connection string (no "-pooler" in the host): this
+# issues DDL and wants a real session, not a PgBouncer one. Fetch it into the
+# environment for this one command so it never reaches a file or your history:
+#
+#   DATABASE_URL="$(neonctl connection-string production \
+#     --project-id dry-base-24522506 --org-id org-long-mud-04364433 \
+#     --role-name aanga_owner --database-name aanga)" \
+#     scripts/render_bootstrap_db.sh
+#
+# Connect as the SAME user the application uses (aanga_owner). The tables carry
+# row-level-security policies
 # inherited from Supabase; the table owner bypasses them, anyone else is
 # filtered by them. Loading the schema as a different user would leave the app
 # reading empty tables.
@@ -59,25 +68,27 @@ if [ -z "${DATABASE_URL:-}" ]; then
   exit 2
 fi
 
-# psql from this machine if there is one, otherwise from the postgres:17 image
-# (the same major version as the server, which the dump format requires).
+# psql if this machine has it, otherwise scripts/db_exec.py (psycopg2). The
+# Python path is the normal one: Neon is a managed Postgres 17, so no local
+# server or container is needed to load a dump into it, and the backend's
+# virtualenv already has psycopg2.
 if command -v psql >/dev/null 2>&1; then
-  run_psql() { PGOPTIONS="--client-min-messages=warning" psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X -q "$@"; }
-  run_file() { run_psql -f "$1"; }
-elif command -v docker >/dev/null 2>&1; then
-  # psql runs inside a container here. For a database on this machine
-  # (localhost / 127.0.0.1) "localhost" would be the container itself, so
-  # the address is pointed at the host instead. Remote databases (Render)
-  # are untouched.
-  PSQL_URL="$(printf '%s' "$DATABASE_URL" | sed -E 's#@(localhost|127\.0\.0\.1)([:/])#@host.docker.internal\2#')"
-  run_psql() { docker run --rm -i --add-host=host.docker.internal:host-gateway -e PGOPTIONS="--client-min-messages=warning" postgres:17 psql "$PSQL_URL" -v ON_ERROR_STOP=1 -X -q "$@"; }
-  run_file() { run_psql -f - < "$1"; }
+  run_file() { PGOPTIONS="--client-min-messages=warning" psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X -q -f "$1"; }
+  run_sql()  { PGOPTIONS="--client-min-messages=warning" psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X -q -c "$1"; }
+  query()    { psql "$DATABASE_URL" -X -At -c "$1"; }
 else
-  echo "Need either psql or docker on this machine." >&2
-  exit 2
+  if [ -x "$BACKEND/venv/Scripts/python.exe" ]; then PY="$BACKEND/venv/Scripts/python.exe"
+  elif [ -x "$BACKEND/venv/bin/python" ]; then PY="$BACKEND/venv/bin/python"
+  else PY="$(command -v python3 || command -v python || true)"; fi
+  [ -n "$PY" ] || { echo "Need either psql or Python with psycopg2." >&2; exit 2; }
+  "$PY" -c "import psycopg2" 2>/dev/null || {
+    echo "Python found but psycopg2 is missing. Install backend/requirements.txt." >&2
+    exit 2
+  }
+  run_file() { "$PY" "$ROOT/scripts/db_exec.py" --file "$1"; }
+  run_sql()  { "$PY" "$ROOT/scripts/db_exec.py" --query "$1" >/dev/null; }
+  query()    { "$PY" "$ROOT/scripts/db_exec.py" --query "$1"; }
 fi
-
-query() { run_psql -At -c "$1"; }
 
 host="$(printf '%s' "$DATABASE_URL" | sed -E 's#^[a-z]+://([^@]*@)?([^:/?]+).*#\2#')"
 echo "Database host: $host"
@@ -165,7 +176,7 @@ case "$MODE" in
     # schema.sql begins with its own CREATE SCHEMA public. Safe to drop: the
     # check above just confirmed it holds no tables.
     echo "  resetting the empty public schema"
-    run_psql -c "DROP SCHEMA IF EXISTS public CASCADE"
+    run_sql "DROP SCHEMA IF EXISTS public CASCADE"
     echo "  applying tests/sql/00_prereqs.sql"
     run_file "$BACKEND/tests/sql/00_prereqs.sql"
     echo "  applying schema.sql"

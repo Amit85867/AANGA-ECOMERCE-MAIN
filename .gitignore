@@ -43,8 +43,8 @@ backend/tests/.route_coverage.json
 # logs and pid files of scripts/dev.sh
 .dev/
 
-# scripts/prod_local.sh: generated secrets, logs and demo logins for the local production-like copy
-.prodlocal/
+# scripts/e2e.sh: demo logins generated for the end-to-end run (never commit)
+.e2e/
 
 # Playwright
 e2e/node_modules/

@@ -1,13 +1,18 @@
 """Pytest fixtures.
 
-The suite runs against a real Postgres (Docker) so enum types, computed
-columns and triggers behave exactly as in production. Start it first:
+The suite runs against a real Postgres so enum types, computed columns and
+triggers behave exactly as in production. That is the Neon **test** branch
+locally, or the Postgres service container in GitHub Actions.
 
-    docker compose -f docker-compose.test.yml up -d
+    TEST_DATABASE_URL   required, no default (see docs/DATABASE.md)
 
-The canonical schema (`backend/schema.sql`, dumped from Supabase) is loaded
-once per session on top of the Supabase prerequisites in tests/sql. Each test
-starts from an empty set of tables (TRUNCATE) for isolation.
+The canonical schema (`backend/schema.sql`) is loaded once per session on top
+of the prerequisites in tests/sql. Each test starts from an empty set of
+tables (TRUNCATE) for isolation.
+
+Every test TRUNCATEs every table, so pointing this at the wrong branch would
+destroy it. `_refuse_wrong_branch` below makes that impossible to do by
+accident.
 """
 import json
 import os
@@ -21,9 +26,6 @@ from sqlalchemy import text
 
 # Force the testing config before the app package (and its config) import.
 os.environ["FLASK_ENV"] = "testing"
-os.environ.setdefault(
-    "TEST_DATABASE_URL", "postgresql://postgres:test@localhost:55432/aanga_test"
-)
 # Keep auto-seeding out of tests so fixtures fully control the data.
 os.environ.pop("ADMIN_EMAIL", None)
 os.environ.pop("ADMIN_PASSWORD", None)
@@ -35,6 +37,70 @@ from app.services import cache as _cache, maintenance as _maintenance  # noqa: E
 BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA_SQL = BACKEND_DIR / "schema.sql"
 PREREQS_SQL = pathlib.Path(__file__).resolve().parent / "sql" / "00_prereqs.sql"
+
+
+def _endpoint(url):
+    """The Neon endpoint a URL points at, e.g. 'ep-nameless-truth-b372e4ty'.
+
+    Pooled and direct strings for one branch differ only by a '-pooler' suffix
+    on the host, so stripping it makes the two comparable. Returns '' for a
+    non-Neon host (a CI service container), which never matches.
+    """
+    if not url:
+        return ""
+    m = re.search(r"@([^/?\s]+)", url)
+    if not m:
+        return ""
+    host = m.group(1).split(":")[0]
+    if not host.endswith(".neon.tech"):
+        return ""
+    return host.split(".")[0].replace("-pooler", "")
+
+
+def _refuse_wrong_branch():
+    """Refuse to run if TEST_DATABASE_URL is not the test branch.
+
+    The suite TRUNCATEs every table in the database it is given. Run against
+    `dev` that costs you your local data; against `production` it costs you the
+    shop. Both are one copy-paste away, so this is a hard stop, not a warning.
+    """
+    test_url = os.environ.get("TEST_DATABASE_URL")
+    if not test_url:
+        raise SystemExit(
+            "TEST_DATABASE_URL is not set.\n"
+            "It must point at the Neon *test* branch. See docs/DATABASE.md:\n"
+            "  neonctl connection-string test --project-id dry-base-24522506 \\\n"
+            "    --org-id org-long-mud-04364433 --role-name aanga_owner \\\n"
+            "    --database-name aanga --pooled"
+        )
+
+    target = _endpoint(test_url)
+    if not target:
+        return  # not a Neon host: a CI service container, nothing to protect
+
+    forbidden = {
+        _endpoint(os.environ.get("DATABASE_URL")): "dev (DATABASE_URL)",
+        _endpoint(os.environ.get("DIRECT_DATABASE_URL")): "dev (DIRECT_DATABASE_URL)",
+        _endpoint(os.environ.get("PRODUCTION_DATABASE_URL")): "production",
+        _endpoint(os.environ.get("NEON_PRODUCTION_ENDPOINT")): "production",
+    }
+    # The production endpoint can also be pinned by name alone, so that a
+    # machine which never holds a production URL can still be protected.
+    pinned = (os.environ.get("NEON_PRODUCTION_ENDPOINT") or "").strip()
+    if pinned and pinned.replace("-pooler", "") == target:
+        forbidden[target] = "production"
+    forbidden.pop("", None)
+
+    if target in forbidden:
+        raise SystemExit(
+            f"Refusing to run the tests: TEST_DATABASE_URL points at the "
+            f"{forbidden[target]} branch.\n"
+            "Every test TRUNCATEs every table. Point TEST_DATABASE_URL at the "
+            "Neon 'test' branch and run again (docs/DATABASE.md)."
+        )
+
+
+_refuse_wrong_branch()
 TEST_DB_URL = os.environ["TEST_DATABASE_URL"]
 
 
@@ -47,16 +113,29 @@ def _strip_psql_meta(sql: str) -> str:
     return _PSQL_META.sub("", sql)
 
 
+# Schema loads go over the DIRECT endpoint, never the pooled one.
+#
+# schema.sql is a pg_dump and so contains
+#   SELECT pg_catalog.set_config('search_path', '', false);
+# Run through PgBouncer that setting outlives the client: the pooler keeps the
+# server connection and hands it to the next client with an empty search_path,
+# after which every unqualified table name fails with "relation ... does not
+# exist" even though the table is there. Falls back to the pooled URL when
+# there is no separate direct one (the CI service container).
+DDL_DB_URL = os.environ.get("TEST_DIRECT_DATABASE_URL") or os.environ["TEST_DATABASE_URL"]
+
+
 def _rebuild_schema():
     """Drop and recreate the whole schema from the canonical dump."""
     try:
-        conn = psycopg2.connect(TEST_DB_URL)
+        conn = psycopg2.connect(DDL_DB_URL)
     except psycopg2.OperationalError as exc:  # pragma: no cover - setup guard
+        # Never echo the URL: it carries the password.
         pytest.exit(
-            "Cannot reach the test database at "
-            f"{TEST_DB_URL}.\nStart it with: "
-            "docker compose -f docker-compose.test.yml up -d\n"
-            f"({exc})",
+            "Cannot reach the test database.\n"
+            "Check TEST_DATABASE_URL points at the Neon 'test' branch and that "
+            "you are online (docs/DATABASE.md).\n"
+            f"({type(exc).__name__})",
             returncode=1,
         )
     conn.autocommit = True
@@ -114,7 +193,10 @@ def _clean_db(app):
     ).all()
     tables = [r[0] for r in rows]
     if tables:
-        quoted = ", ".join(f'"{t}"' for t in tables)
+        # Schema-qualified on purpose: a pooled connection can come back with an
+        # empty search_path (see DDL_DB_URL above), and an unqualified name
+        # would then fail for a table that plainly exists.
+        quoted = ", ".join(f'public."{t}"' for t in tables)
         _db.session.execute(text(f"TRUNCATE {quoted} RESTART IDENTITY CASCADE"))
     _db.session.commit()
     # Rate-limit counters are per-IP and would otherwise bleed between tests.

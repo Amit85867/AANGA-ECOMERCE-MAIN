@@ -1,5 +1,11 @@
 # Pre-launch report (Round 4)
 
+> **Superseded in part.** This report describes the state before the move to
+> Neon and the removal of Docker. The commands under "Not finished" that call
+> `scripts/prod_local.sh` no longer exist: the equivalent checks are now
+> `scripts/e2e.sh --fresh` and `scripts/reset_test_branch.sh` (see README).
+> The findings and defect history below stand as written.
+
 Branch `hardening/phase-1-payment-integrity`. Nothing was pushed, merged or
 deployed. No Razorpay or Shiprocket key was used or written anywhere.
 

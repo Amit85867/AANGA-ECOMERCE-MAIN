@@ -4,6 +4,12 @@
 # backend, so the browser only ever talks to one origin. That keeps the login
 # refresh cookie first-party, which the storefront's CSRF handling relies on.
 #
+# The database is NOT defined here: it is Neon (see docs/DATABASE.md). Set
+# DATABASE_URL and DIRECT_DATABASE_URL in the Dashboard from the Neon
+# *production* branch. Nothing in this repository holds a production string.
+#
+# There is no Docker anywhere: the API runs on Render's native Python runtime.
+#
 # Nothing here deploys by itself: create it from the Render Dashboard with
 # New -> Blueprint, pointed at this repository. Before the first sync:
 #
@@ -14,8 +20,8 @@
 #   2. Replace "www.example.com" with the storefront's custom domain.
 #   3. Fill in every `sync: false` value in the Dashboard. They are secrets and
 #      are deliberately not in this file.
-#   4. After the database exists, load the schema once:
-#        scripts/render_bootstrap_db.sh        (see docs/DEPLOYMENT.md)
+#   4. Load the schema into the Neon production branch once:
+#        scripts/render_bootstrap_db.sh        (see docs/DATABASE.md)
 #
 # Plans are the smallest that suit a live store. Free web services sleep when
 # idle, which would make Razorpay's webhook time out — do not use them here.
@@ -28,10 +34,28 @@ envVarGroups:
     envVars:
       - key: FLASK_ENV
         value: production
+
+      # Pin the interpreter. Render also honours backend/.python-version;
+      # both are set so neither can drift silently.
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+
       - key: SECRET_KEY
         generateValue: true
       - key: JWT_SECRET_KEY
         generateValue: true
+
+      # ── Neon ────────────────────────────────────────────────
+      # From the Neon *production* branch (docs/DATABASE.md):
+      #   DATABASE_URL        -> pooled  ("-pooler" in the host). The app.
+      #   DIRECT_DATABASE_URL -> direct. Migrations, dumps, DDL.
+      # Never load a schema over the pooled string: schema.sql is a pg_dump and
+      # sets search_path to '', which PgBouncer then leaves on the server
+      # connection for whoever gets it next.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false
 
       # Public origin of the storefront (the custom domain on the static site).
       - key: FRONTEND_ORIGIN
@@ -53,7 +77,15 @@ envVarGroups:
       - key: TRUSTED_PROXY_COUNT
         value: "1"
 
-      # Product images. Required: the service refuses to start without them.
+      # Rate-limit counters. Blank = per-worker in-memory counters, which with
+      # two workers means roughly double the advertised allowance and nothing
+      # shared between instances. Upstash's free tier is plenty; paste its
+      # redis:// (or rediss://) URL here. See docs/DEPLOYMENT.md.
+      - key: RATELIMIT_STORAGE_URI
+        sync: false
+
+      # Product images. Required: the service refuses to start without them
+      # (Render's disk is ephemeral, so local uploads would vanish on deploy).
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
@@ -100,7 +132,9 @@ envVarGroups:
       - key: SENTRY_ENVIRONMENT
         value: production
 
-      # 2 workers x (5 + 5) = 20 connections. See docs/DEPLOYMENT.md "Sizing".
+      # Sizing. Neon's pooled endpoint allows 10,000 connections, so the pool
+      # is no longer the binding constraint; these are sized for the instance's
+      # memory instead. See docs/DEPLOYMENT.md "Sizing".
       - key: WEB_CONCURRENCY
         value: "2"
       - key: GUNICORN_THREADS
@@ -110,70 +144,48 @@ envVarGroups:
       - key: DB_MAX_OVERFLOW
         value: "5"
 
-databases:
-  - name: aanga-db
-    databaseName: aanga
-    user: aanga
-    plan: basic-256mb
-    region: singapore
-    # The schema is a pg_dump from Postgres 17 and the test suite runs on 17.
-    postgresMajorVersion: "17"
-    # Reachable only from Render services. To run the bootstrap script from
-    # your own machine, add your IP here for the duration and remove it after.
-    ipAllowList: []
-
 services:
-  # ── Rate-limit counters and the catalogue cache ─────────────
-  - type: keyvalue
-    name: aanga-cache
-    plan: starter
-    region: singapore
-    # Evict the least recently used keys when full: everything stored here can
-    # be recomputed, and a full cache must not start refusing writes.
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []
-
   # ── API ─────────────────────────────────────────────────────
   - type: web
     name: aanga-api
-    runtime: docker
+    runtime: python
     plan: starter
     region: singapore
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    healthCheckPath: /api/health
+    rootDir: backend
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    # gthread workers: a request spends most of its time waiting on Postgres or
+    # an upstream API, so a few threads per worker serve several at once
+    # without the memory of extra processes.
+    # keep-alive is longer than the load balancer's idle timeout (typically
+    # 60 s): with gunicorn's default of 2 s the proxy reuses a connection the
+    # worker has just closed, and that reaches the visitor as a 502.
+    startCommand: >-
+      gunicorn -b 0.0.0.0:$PORT -k gthread
+      -w ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4}
+      --timeout 60 --graceful-timeout 30
+      --keep-alive ${GUNICORN_KEEPALIVE:-75} --access-logfile - run:app
+    # /api/ping answers without touching the database, so the health check does
+    # not keep the Neon compute awake (and does not bill CU-hours for nothing).
+    healthCheckPath: /api/ping
     autoDeploy: false
     envVars:
       - fromGroup: aanga-backend
-      - key: DATABASE_URL
-        fromDatabase:
-          name: aanga-db
-          property: connectionString
-      - key: RATELIMIT_STORAGE_URI
-        fromService:
-          type: keyvalue
-          name: aanga-cache
-          property: connectionString
 
   # ── Refund abandoned checkouts ──────────────────────────────
   # The webhook ignores captures younger than 15 minutes, so refunds for
   # abandoned checkouts depend on this job running.
   - type: cron
     name: aanga-reconcile-payments
-    runtime: docker
+    runtime: python
     plan: starter
     region: singapore
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    rootDir: backend
+    buildCommand: pip install --no-cache-dir -r requirements.txt
     schedule: "*/30 * * * *"
-    dockerCommand: flask --app run reconcile-payments --hours 24
+    startCommand: flask --app run reconcile-payments --hours 24
     autoDeploy: false
     envVars:
       - fromGroup: aanga-backend
-      - key: DATABASE_URL
-        fromDatabase:
-          name: aanga-db
-          property: connectionString
       # One short-lived process: a single connection is all it needs.
       - key: DB_POOL_SIZE
         value: "1"

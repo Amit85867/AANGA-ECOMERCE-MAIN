@@ -1,5 +1,6 @@
 // End-to-end tests for the storefront and the admin, run against the
-// production-like copy started by scripts/prod_local.sh.
+// local development stack started by scripts/dev.sh (storefront on 5173,
+// API on 5000, database = the Neon dev branch).
 //
 //   scripts/e2e.sh                 everything, at all four widths
 //   scripts/e2e.sh --project=w390  one width
@@ -9,7 +10,7 @@
 // is filled in from the results by those ids — see scripts/gen_qa_matrix.py.
 import { defineConfig } from '@playwright/test'
 
-const baseURL = process.env.E2E_BASE_URL || 'http://localhost:8080'
+const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173'
 
 // The four widths the audit asks for: phone, tablet, laptop, large desktop.
 const widths = [

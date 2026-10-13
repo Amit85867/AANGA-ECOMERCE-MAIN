@@ -3,7 +3,7 @@
     Start the whole AANGA stack for local development, in the right order.
 
 .DESCRIPTION
-    1. Postgres in Docker (backend/docker-compose.yml), waits until it is healthy
+    1. checks the Neon dev branch is reachable (no local database to start)
     2. applies any pending database migrations      (flask apply-migrations)
     3. the API on http://127.0.0.1:5000              (its own window)
     4. the storefront on http://localhost:5173       (its own window)
@@ -63,7 +63,7 @@ if ($Stop) {
     Say 'Stopping the API (5000) and the storefront (5173)'
     Stop-Port 5000
     Stop-Port 5173
-    Write-Host 'Stopped. The database container is still running (docker compose stop db to stop it).'
+    Write-Host 'Stopped. The Neon database is unaffected.'
     exit 0
 }
 
@@ -82,20 +82,26 @@ if (-not (Test-Path (Join-Path $frontend 'node_modules'))) {
 }
 
 # -- 1. Database ----------------------------------------------
-Say 'Starting Postgres (Docker)'
+# Neon is always there; nothing to start. The first query after five quiet
+# minutes wakes the compute and takes about a second.
+Say 'Checking the Neon dev branch is reachable'
 Push-Location $backend
-& docker compose up -d db
+& $py -c @'
+import os, sys
+from dotenv import load_dotenv
+import psycopg2
+load_dotenv(".env")
+url = os.environ.get("DATABASE_URL")
+if not url:
+    sys.exit("DATABASE_URL is not set in backend/.env (see docs/DATABASE.md).")
+try:
+    psycopg2.connect(url, connect_timeout=30).close()
+except Exception as exc:
+    sys.exit(f"Cannot reach the database: [{type(exc).__name__}] see docs/DATABASE.md")
+'@
 $code = $LASTEXITCODE
 Pop-Location
-if ($code -ne 0) { Fail 'Docker could not start the database. Is Docker Desktop running?' }
-
-$healthy = $false
-foreach ($attempt in 1..60) {
-    $state = (& docker inspect --format '{{.State.Health.Status}}' aanga-db 2>$null)
-    if ($state -eq 'healthy') { $healthy = $true; break }
-    Start-Sleep -Seconds 1
-}
-if (-not $healthy) { Fail 'The database did not become healthy within a minute. See: docker compose logs db (in backend\).' }
+if ($code -ne 0) { Fail 'The Neon dev branch is not reachable (message above).' }
 
 # -- 2. Migrations --------------------------------------------
 Say 'Applying database migrations'

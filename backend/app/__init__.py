@@ -115,9 +115,26 @@ def _register_security_headers(app):
 
 
 def _register_health(app):
+    @app.route("/api/ping")
+    def ping():
+        """Liveness only. Deliberately touches nothing.
+
+        This is the platform's health check. Neon suspends a branch after five
+        idle minutes, so a probe that ran `SELECT 1` every thirty seconds would
+        hold the compute awake around the clock and bill CU-hours for an empty
+        shop. Use /api/health when you actually want to know about the
+        database.
+        """
+        return jsonify(status="ok"), 200
+
     @app.route("/api/health")
     def health():
-        """Liveness + DB readiness probe for the platform."""
+        """Liveness + DB readiness. Wakes a suspended Neon compute — by design.
+
+        Not the platform health check (see /api/ping): call this when you want
+        to know whether the database is reachable, e.g. from admin System
+        Health or after a deploy.
+        """
         try:
             db.session.execute(text("SELECT 1"))
         except Exception:
@@ -131,10 +148,14 @@ def _warn_runtime_config(app):
     if _is_dev_or_test(app):
         return
     if str(app.config.get("RATELIMIT_STORAGE_URI", "")).startswith("memory://"):
+        workers = os.environ.get("WEB_CONCURRENCY", "?")
         app.logger.warning(
-            "RATELIMIT_STORAGE_URI is memory:// — rate-limit counters are "
-            "per-process. Point it at Redis before running more than one worker "
-            "or instance, or limits will not be enforced globally."
+            "RATELIMIT_STORAGE_URI is memory:// — rate-limit counters live in "
+            "each worker, so with WEB_CONCURRENCY=%s a caller gets about %s "
+            "times the advertised allowance and nothing is shared between "
+            "instances. Set it to an Upstash (or other) Redis URL to enforce "
+            "limits globally. See docs/DEPLOYMENT.md 'Rate limiting'.",
+            workers, workers,
         )
 
 
@@ -157,6 +178,12 @@ def _validate_config(app):
             problems.append(f"{key} is unset or still the development default")
         elif len(str(value)) < 32:
             problems.append(f"{key} is too short (use at least 32 random characters)")
+
+    if not app.config.get("RATELIMIT_ENABLED", True):
+        problems.append(
+            "RATELIMIT_ENABLED is false — that switch exists for the "
+            "end-to-end run only and must never be set in production"
+        )
 
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI") or ""
     if db_uri.startswith("sqlite"):

@@ -67,10 +67,24 @@ class BaseConfig:
     SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.0"))
     APP_RELEASE = os.environ.get("APP_RELEASE", "")
 
-    # Rate limiting (Flask-Limiter). In-memory is fine for a single instance;
-    # point this at Redis once the API runs on more than one process.
+    # Rate limiting (Flask-Limiter).
+    #
+    # Blank (the default) = "memory://": counters live in each gunicorn worker.
+    # With WEB_CONCURRENCY=2 that means a caller gets roughly twice the
+    # advertised allowance, and nothing is shared between instances. Acceptable
+    # for development and for a single-worker deployment; not for production.
+    #
+    # In production point this at a managed Redis. Upstash has a free tier that
+    # is ample for rate-limit counters (they are small and short-lived):
+    #   Upstash -> Redis -> Create database (region: ap-south-1 / ap-southeast-1)
+    #   -> copy the "redis://" (TLS: "rediss://") URL into RATELIMIT_STORAGE_URI.
+    # There is no Redis container any more; nothing to run locally.
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
     RATELIMIT_HEADERS_ENABLED = True
+    # Off only for the end-to-end run, which registers dozens of accounts in a
+    # few minutes and would otherwise spend its time testing the limiter.
+    # _validate_config refuses to start a production app with this set.
+    RATELIMIT_ENABLED = os.environ.get("RATELIMIT_ENABLED", "true").lower() != "false"
 
     # How many reverse proxies sit in front of the app and append to
     # X-Forwarded-For. Trusting too few makes every visitor share the proxy's

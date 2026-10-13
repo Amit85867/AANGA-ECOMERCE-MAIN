@@ -3,8 +3,9 @@
 // store limits sign-ins, and five admin sign-ins in fifteen minutes is the
 // cap).
 //
-// Credentials are read from files scripts/prod_local.sh wrote; none are in
-// this repository and none are printed.
+// Credentials come from backend/.env (the owner) and .e2e/demo_logins.json
+// (the demo manager / staff / shopper, written by scripts/e2e.sh). Neither
+// file is in this repository and nothing here is printed.
 import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
@@ -16,7 +17,7 @@ const root = path.resolve(here, '..')
 const authDir = path.join(here, '.auth')
 
 function envFile() {
-  const text = fs.readFileSync(path.join(root, '.prodlocal', 'env'), 'utf8')
+  const text = fs.readFileSync(path.join(root, 'backend', '.env'), 'utf8')
   return Object.fromEntries(text.split('\n').filter((l) => l && !l.startsWith('#') && l.includes('=')).map((l) => {
     const i = l.indexOf('=')
     return [l.slice(0, i), l.slice(i + 1).trim()]
@@ -35,17 +36,24 @@ async function signIn(baseURL, url, credentials, file) {
 
 export default async function globalSetup(config) {
   const baseURL = config.projects[0].use.baseURL
-  if (!fs.existsSync(path.join(root, '.prodlocal', 'env'))) {
-    throw new Error('Start the production-like copy first: scripts/prod_local.sh')
+  if (!fs.existsSync(path.join(root, 'backend', '.env'))) {
+    throw new Error('backend/.env is missing. See docs/DATABASE.md, then run scripts/e2e.sh')
+  }
+  if (!fs.existsSync(path.join(root, '.e2e', 'demo_logins.json'))) {
+    throw new Error('Demo logins are missing. Run scripts/e2e.sh, which seeds them.')
   }
   fs.mkdirSync(authDir, { recursive: true })
   const env = envFile()
-  const demo = JSON.parse(fs.readFileSync(path.join(root, '.prodlocal', 'demo_logins.json'), 'utf8'))
+  const demo = JSON.parse(fs.readFileSync(path.join(root, '.e2e', 'demo_logins.json'), 'utf8'))
 
-  // Start from clean counters (rate limits, cached pages).
-  const flush = () => execSync('docker compose -f scripts/prod_local/docker-compose.yml exec -T redis redis-cli FLUSHALL', {
-    cwd: root, stdio: 'ignore', env: { ...process.env, POSTGRES_PASSWORD: env.POSTGRES_PASSWORD },
-  })
+  // scripts/e2e.sh runs the API with RATELIMIT_ENABLED=false, so there are no
+  // counters to clear. Kept as a call site for a run against an environment
+  // that does limit (see resetLimits in tests/helpers.js).
+  const flush = () => {
+    const url = process.env.RATELIMIT_STORAGE_URI || ''
+    if (!url.startsWith('redis')) return
+    try { execSync(`redis-cli -u ${JSON.stringify(url)} FLUSHALL`, { stdio: 'ignore' }) } catch {}
+  }
   flush()
 
   const owner = await signIn(baseURL, '/api/admin/auth/login', { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD }, 'owner.json')

@@ -35,8 +35,8 @@ thing it writes is the test account's cart, which it empties at the end.
    Do not point this at the live site: the stress and spike profiles are meant
    to push it until it degrades.
 2. **Same plans as production.** Numbers from a smaller instance or database
-   tell you about that instance. Note the plan of the API, the database and
-   Key Value in the results.
+   tell you about that instance. Note the plan of the API, the Neon branch and
+   the Redis (Upstash) tier in the results.
 3. **A seeded catalogue** (`backend/db/seed_catalogue.py`, see DEPLOYMENT.md).
    The script stops if there are no products.
 4. **`TRUSTED_PROXY_COUNT` verified** on staging (DEPLOYMENT.md, post-deploy
@@ -119,7 +119,7 @@ actually does plus a margin, so the test catches regressions.
 - **One instance, 8 requests at a time.** Past that, requests queue and
   latency climbs in a straight line. More threads help while the CPU is idle;
   more instances help once it is not.
-- **The cache.** If Key Value is not attached, each worker caches on its own
+- **The cache.** If no Redis URL is set, each worker caches on its own
   and the limiter counts per worker. System Health shows whether it is.
 
 ## What this test does not tell you

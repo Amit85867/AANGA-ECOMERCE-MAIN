@@ -1,43 +1,67 @@
 # AANGA
 
 An online clothing store: a Flask API (`backend/`), a React storefront and
-admin dashboard (`frontend/`), and Postgres in Docker.
+admin dashboard (`frontend/`), and **Neon** serverless Postgres.
 
-## Start it (one command)
+There is no Docker anywhere — nothing to install, start or keep running. The
+database lives in the cloud and every environment talks to a branch of it.
 
-You need Docker Desktop running, Python 3.11+, Node 20+, and `backend/.env`
-(copy `backend/.env.example` and fill it in — see `docs/DATABASE.md` for the
-database values).
+## Set up (first time, about five minutes)
 
-**Windows (PowerShell), from this folder:**
+You need Python 3.12, Node 20+ and a Neon account.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
-```
+1. **Get the connection strings.** Never paste one into a terminal or a commit;
+   redirect them straight into the file:
 
-**macOS / Linux / Git Bash:**
+   ```bash
+   npm install -g neonctl
+   neonctl auth                       # browser sign-in, once
 
-```bash
-scripts/dev.sh
-```
+   cd backend && cp .env.example .env
+   ```
 
-It starts the database, applies any pending migrations, starts the API and
-then the storefront — checking each before the next — and prints:
+   Then append the four database lines, from `docs/DATABASE.md` §"Getting the
+   connection strings". `backend/.env` is gitignored.
+
+2. **Fill in the rest of `backend/.env`.** Only `SECRET_KEY`, `JWT_SECRET_KEY`,
+   `ADMIN_EMAIL` and `ADMIN_PASSWORD` are needed to start; every integration
+   (payments, courier, email) is optional and the store runs without it.
+
+3. **Start everything:**
+
+   **Windows (PowerShell), from this folder:**
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
+   ```
+
+   **macOS / Linux / Git Bash:**
+
+   ```bash
+   scripts/dev.sh
+   ```
+
+It checks the database is reachable, applies any pending migrations, starts the
+API and then the storefront — checking each before the next — and prints:
 
 | | |
 |---|---|
 | Storefront | http://localhost:5173 |
 | Admin dashboard | http://localhost:5173/admin |
-| API health | http://127.0.0.1:5000/api/health |
+| API liveness | http://127.0.0.1:5000/api/ping |
+| API + database | http://127.0.0.1:5000/api/health |
 
-To stop the API and storefront: `scripts\dev.ps1 -Stop` (or `scripts/dev.sh --stop`).
-The database container keeps running; `docker compose stop db` in `backend/`
-stops it.
+To stop: `scripts\dev.ps1 -Stop` (or `scripts/dev.sh --stop`). There is nothing
+else to shut down; Neon suspends itself after five idle minutes.
+
+> **The first request after a quiet spell takes about a second.** Neon scales
+> the branch to zero after five minutes and wakes it on the next connection.
+> That is the design, not a fault.
 
 ## If something does not load
 
-1. Sign in to the admin and open **Store → System health**. It shows whether
-   the database is reachable, whether migrations are pending, and the state of
+1. Sign in to the admin and open **Store → System health**: whether the
+   database is reachable, whether migrations are pending, and the state of
    every integration.
 2. The same check from a terminal, in `backend/`:
 
@@ -54,41 +78,61 @@ stops it.
 
 ```bash
 cd backend
-docker compose up -d db                                   # 1. database
-venv/Scripts/python -m flask --app run apply-migrations   # 2. migrations (safe to repeat)
-venv/Scripts/python run.py                                # 3. API on :5000
+venv/Scripts/python -m flask --app run apply-migrations   # 1. migrations (safe to repeat)
+venv/Scripts/python run.py                                # 2. API on :5000
 
 cd ../frontend
-npm run dev                                               # 4. storefront on :5173
+npm run dev                                               # 3. storefront on :5173
 ```
 
 Start the API before the storefront, and only one of each: a second API on the
 same port answers some requests and not others.
 
-## Database migrations
+## Database
 
-One command, safe to run any number of times:
+Three branches of one Neon project: `production` (Render), `dev` (your laptop)
+and `test` (pytest). Full detail — pooled vs direct strings, resetting a branch,
+backups, what the schema load needed — is in **`docs/DATABASE.md`**.
+
+Migrations, safe to run any number of times:
 
 ```bash
 cd backend
 venv/Scripts/python -m flask --app run apply-migrations
 ```
 
-It applies whichever of the `backend/migrations_*.sql` files have not been
-applied yet to the database in `DATABASE_URL`. A brand-new, empty database is
-loaded with `scripts/render_bootstrap_db.sh` instead (see `docs/DEPLOYMENT.md`).
-To add a migration, see the top of `backend/app/services/schema_check.py`.
+A brand-new, empty branch is loaded with `scripts/render_bootstrap_db.sh`
+instead. To add a migration, see the top of
+`backend/app/services/schema_check.py`.
 
 ## Tests
 
-```bash
-cd backend
-docker compose -f docker-compose.test.yml up -d    # throwaway Postgres on :55432
-venv/Scripts/python -m pytest
+The suite runs against the Neon **test** branch. It TRUNCATEs every table, so
+`conftest.py` refuses to start if `TEST_DATABASE_URL` points at `dev` or
+`production`.
 
-cd ../frontend
-npm run lint && npm run build
+```bash
+scripts/reset_test_branch.sh        # reset the test branch, then the full suite
+
+cd backend && venv/Scripts/python -m pytest     # or just the suite
+cd ../frontend && npm run lint && npm run build
 ```
+
+CI runs the backend suite against a Postgres service container rather than the
+shared test branch — see the comment at the top of `.github/workflows/ci.yml`
+for why, and how to point it at Neon instead.
+
+## Before a deploy
+
+```bash
+scripts/e2e.sh            # every customer and admin flow, at four screen widths
+scripts/e2e.sh --fresh    # reset the dev branch and reseed first
+```
+
+The suite drives the local stack on :5173 against the Neon dev branch, with
+rate limiting off for the run (it registers dozens of accounts; no test asserts
+limiting). The audit these came from is in `docs/PRELAUNCH_REPORT.md`; the
+steps for adding payment and courier keys are in `docs/GO_LIVE.md`.
 
 ## Where things are written down
 
@@ -96,24 +140,12 @@ npm run lint && npm run build
 |---|---|
 | `docs/OWNER_GUIDE.md` | Running the store from the admin dashboard (also under **Help** in the admin) |
 | `docs/ADMIN_CAPABILITIES.md` | What each role can do |
-| `docs/DEPLOYMENT.md` | Deploying to Render |
-| `docs/DATABASE.md` | The local database, backups and restores |
+| `docs/DATABASE.md` | Neon: branches, connection strings, loading, resetting, backups |
+| `docs/DEPLOYMENT.md` | Deploying to Render (native Python runtime) |
+| `docs/RUNBOOK.md` | When something is wrong in production |
+| `docs/GO_LIVE.md` | Turning on payments and the courier |
 | `docs/ENDPOINTS.md` | Every API route (generated) |
 | `docs/DEMO_ASSETS.md` | Where the demo images came from |
 | `docs/LOAD_TEST.md` | The k6 load test for staging |
 | `docs/SECURITY_TODO.md` | Security follow-ups |
 | `docs/PROGRESS.md` | What has been done, round by round |
-
-## Before a deploy
-
-```
-scripts/prod_local.sh        # a production-like copy on http://localhost:8080 (Docker)
-scripts/e2e.sh               # every customer and admin flow, at four screen widths
-scripts/prod_local.sh down   # remove the copy
-```
-
-`scripts/prod_local.sh` builds the store the way Render will (new database from
-`scripts/render_bootstrap_db.sh`, the backend image under gunicorn, Redis, the
-built storefront) and loads the demo content. `scripts/e2e.sh --fresh` rebuilds
-it first. The audit that these came from is in `docs/PRELAUNCH_REPORT.md`; the
-steps for adding payment and courier keys are in `docs/GO_LIVE.md`.
