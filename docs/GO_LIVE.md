@@ -126,6 +126,25 @@ Do not run `scripts/verify_integrations.sh` against live keys; it will refuse.
 If something is wrong, remove `RAZORPAY_KEY_ID` from Render and save. Within a
 minute "Pay online" disappears and the store carries on with cash on delivery.
 
+## 4b. Product images are already live
+
+Images do not need keys and are not part of the payment/courier switch-on: they
+are served from the Neon `product-images` bucket as soon as the `S3_*` values
+are set on Render (see [DEPLOYMENT.md](DEPLOYMENT.md) §10b).
+
+Check once, before the first order:
+
+* Admin → **Store → System health** → *Object storage* must say **Connected**.
+  The probe writes an object, fetches it back **with no credentials**, and
+  deletes it, so it catches a bucket that is private — the failure where the
+  admin can upload happily and every customer sees a broken image.
+* Open a product page as a visitor and confirm the pictures load.
+
+If uploads start failing with `AccessDenied` after someone resets a branch,
+that is expected: a reset destroys that branch's storage credentials. Re-issue
+them (`python scripts/refresh_storage_credential.py --branch dev`) or, for
+production, issue a new credential and update the values on Render.
+
 ## 5. What to watch in the first week
 
 Daily, two minutes:

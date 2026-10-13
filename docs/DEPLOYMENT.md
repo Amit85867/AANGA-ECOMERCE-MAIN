@@ -1,7 +1,7 @@
 # AANGA — deployment runbook (Render)
 
 Nothing in this repository deploys by itself. This is the procedure; every
-step that touches Render, Razorpay, Supabase or DNS is done by a person.
+step that touches Render, Neon, Razorpay or DNS is done by a person.
 
 ## 1. Layout
 
@@ -22,7 +22,7 @@ step that touches Render, Razorpay, Supabase or DNS is done by a person.
                                         ▲
                         aanga-reconcile-payments   Render Cron Job, every 30 min
 
-   Product images: Supabase Storage (public bucket), not Render.
+   Product images: Neon Object Storage (public_read bucket), not Render.
 ```
 
 The storefront and the API share one origin from the browser's point of view.
@@ -58,8 +58,21 @@ Cookies, CORS, the webhook URL and the database are unaffected.
 1. **Neon** — the database. Project `AANGA`, Postgres 17, Singapore, three
    branches (`production`, `dev`, `test`). See [DATABASE.md](DATABASE.md).
    Nothing to create at deploy time if it already exists.
-2. **Supabase Storage** — create a **public** bucket named `product-images`
-   (Storage → New bucket). Only Storage is used; the database is Neon.
+2. **Neon Object Storage** — product images. A `public_read` bucket named
+   `product-images` on the **production** branch:
+
+   ```bash
+   neonctl buckets create product-images --project-id dry-base-24522506      --org-id org-long-mud-04364433 --branch production --access-level public_read
+   ```
+
+   Then issue a credential for it (production only — never written to a file):
+
+   ```bash
+   neonctl credentials create --project-id dry-base-24522506      --org-id org-long-mud-04364433 --branch production      --name aanga-production-storage --scope storage:read --scope storage:write
+   neonctl credentials reveal <tokenId> --project-id dry-base-24522506      --org-id org-long-mud-04364433 --branch production
+   ```
+
+   Supabase is no longer used for anything.
 3. **Upstash Redis** — optional but strongly recommended: free tier, one
    database in `ap-south-1`/`ap-southeast-1`, paste its URL into
    `RATELIMIT_STORAGE_URI`. Without it rate-limit counters live in each
@@ -84,7 +97,7 @@ Cookies, CORS, the webhook URL and the database are unaffected.
    (three places) and check the region.
 2. Render Dashboard → **New → Blueprint** → select this repository.
 3. Fill in the values marked `sync: false`. They are secrets and are not in
-   the file. Required to start: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
+   the file. Required to start: the four `S3_*` settings,
    `ADMIN_EMAIL`, `ADMIN_PASSWORD`. The rest may stay blank.
 4. Once `aanga-api` exists, note its URL. If it is not
    `https://aanga-api.onrender.com`, update the three rewrite destinations in
@@ -103,7 +116,12 @@ production** unless these are real:
 | `PYTHON_VERSION` | `3.12.7`, matching `backend/.python-version` |
 | `DATABASE_URL` | Neon **production**, **pooled** (`-pooler` in the host) |
 | `DIRECT_DATABASE_URL` | Neon **production**, **direct**. Migrations and dumps |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Storage only; required because Render's disk is wiped on every deploy |
+| `S3_ENDPOINT_URL` | the **production** branch's object-storage endpoint (it embeds the branch id) |
+| `S3_BUCKET` | `product-images` |
+| `S3_ACCESS_KEY_ID` | the credential's **token id** (`nak_live_…`) |
+| `S3_SECRET_ACCESS_KEY` | from `neonctl credentials reveal` |
+| `S3_REGION` | `ap-southeast-1` |
+| `S3_PUBLIC_BASE_URL` | `<endpoint>/product-images` (or a CDN in front of it) |
 
 Optional integrations are all-or-nothing — setting one half makes the app
 refuse to start:
@@ -156,8 +174,8 @@ Steps 3–8 are already contained in `schema.sql`; they run again because they
 are idempotent and because the same list is the upgrade path.
 
 `migrations_orders_idempotency.sql` (step 3) used to be listed as "still to
-apply to the live Supabase database". That no longer applies: the database is
-Neon in every environment, and Supabase is used for image storage only. The
+apply to the live Supabase database". That no longer applies: Supabase is gone
+entirely -- the database and the image bucket are both Neon. The
 script above is the only place the migration needs to run, and it checks for
 both indexes when it finishes.
 
@@ -207,7 +225,7 @@ the configured key is in.
 
 ## 7. Sizing: workers, threads and database connections
 
-The API is stateless — no local files (uploads go to Supabase Storage), no
+The API is stateless — no local files (uploads go to object storage), no
 in-process sessions (auth is JWT; rate limits and the catalogue cache live in
 Redis) — so it scales by adding instances. The one shared limit is Postgres
 connections.
@@ -354,6 +372,32 @@ the order in the admin panel, cancel it. Reload a page while signed in — you
 must stay signed in (this is what the same-origin rewrite is for). With
 Razorpay test keys: one test payment, then cancel the order and confirm the
 refund appears in the Razorpay Dashboard.
+
+## 10b. Images and object storage
+
+Images go to an S3-compatible bucket; the code is plain boto3 with
+`endpoint_url` and path-style addressing (`app/services/objectstore.py`), so
+any S3 store works by changing environment variables.
+
+Three facts about Neon's buckets that are easy to trip over:
+
+| | |
+|---|---|
+| The endpoint embeds the **branch id** | dev, test and production each have their own `S3_ENDPOINT_URL`. There is no single "project" endpoint. |
+| Buckets are **per branch** | A branch created *before* the bucket existed does not have one. `scripts/refresh_storage_credential.py` creates it if missing. |
+| A branch **reset destroys that branch's credentials** | The bucket and its objects survive, and public reads keep working — so the storefront looks healthy and only uploads fail, with `AccessDenied`. Re-run `python scripts/refresh_storage_credential.py --branch dev` after any reset. |
+
+Moving existing images into a bucket (idempotent, `--dry-run` first):
+
+```bash
+DATABASE_URL=<branch, DIRECT> S3_ENDPOINT_URL=... S3_BUCKET=... S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=...   python scripts/migrate_images_to_objectstore.py --dry-run
+```
+
+It uploads each original plus the srcset widths (regenerating any that are
+missing) and rewrites every stored URL. Admin → **System health** → storage
+probes it for real: it writes an object, fetches it back with **no
+credentials**, and deletes it, so a private bucket is caught before customers
+see broken images.
 
 ## 11. Backups
 

@@ -11,7 +11,7 @@ browser ──► aanga-web (Render static site)
                /api/* ──rewrite──► aanga-api (Render, native Python, gunicorn)
                                       ├──► Neon production branch (Postgres 17, Singapore)
                                       ├──► Upstash Redis   (rate limits + catalogue cache, optional)
-                                      ├──► Supabase Storage (product images)
+                                      ├──► Neon Object Storage (product images)
                                       ├──► Razorpay, Shiprocket, Resend
                                       └──◄ aanga-reconcile-payments (cron, every 30 min)
 ```
@@ -169,16 +169,60 @@ a suffixed name, update all three and sync.
 
 Product pages render with broken images.
 
-1. `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` set? The app refuses to start
-   without them in production, so if it is running they are set — the bucket
-   may still be wrong or private. It must be **public** and named
-   `product-images`.
-2. **The likely cause for demo data:** images follow whoever ran the seed. The
-   `production` branch was seeded from a laptop with no Supabase keys, so those
-   `product_images` rows point at `/static/uploads/…` files that exist only on
-   that laptop. See the warning in [DATABASE.md](DATABASE.md#seeding-the-catalogue).
-   Fix by replacing the demo catalogue with real products through the admin, or
-   re-seeding against the deployed API.
+### First: is it everyone, or just new uploads?
+
+| Symptom | Cause |
+|---|---|
+| **New uploads fail**, existing images fine | the branch's storage credential is gone — see below |
+| **Everything is broken**, including old images | the bucket is private, or `S3_PUBLIC_BASE_URL` is wrong |
+| **Some images broken**, all from the demo seed | those rows point at files that were never uploaded |
+
+### Uploads fail with AccessDenied
+
+**A branch reset destroys the credentials issued on that branch.** The bucket
+and its objects survive, and a `public_read` bucket needs no credential to
+read — so the storefront keeps looking healthy and only the admin's upload
+breaks. This is the most likely cause of a sudden `AccessDenied`.
+
+```bash
+# dev / test: re-issue and rewrite backend/.env in one step
+python scripts/refresh_storage_credential.py --branch dev
+
+# production: issue by hand, then update the values on Render
+neonctl credentials create --project-id dry-base-24522506   --org-id org-long-mud-04364433 --branch production   --name aanga-production-storage --scope storage:read --scope storage:write
+neonctl credentials reveal <tokenId> --project-id dry-base-24522506   --org-id org-long-mud-04364433 --branch production
+```
+
+Also check the credential has **storage:write**, not just read:
+`neonctl credentials list --branch production` shows the scopes.
+
+### Everything is broken
+
+1. Admin → **Store → System health** → *Object storage*. The probe writes an
+   object, fetches it back with no credentials and deletes it, so "Connected"
+   means public reads genuinely work.
+2. A private bucket is the classic one — uploads succeed, every customer sees
+   nothing. Buckets cannot be flipped to public after the fact; recreate:
+   `neonctl buckets create product-images --branch <branch> --access-level public_read`
+3. Check `S3_PUBLIC_BASE_URL` matches `<S3_ENDPOINT_URL>/<S3_BUCKET>`, and that
+   the endpoint is **this** branch's — it embeds the branch id, so a production
+   service pointed at the dev endpoint reads an empty bucket.
+
+### Only the demo images are broken
+
+Images follow whoever ran the seed. If demo rows point at `/static/uploads/…`
+they were never uploaded anywhere; run the migration against that branch:
+
+```bash
+python scripts/migrate_images_to_objectstore.py --dry-run   # then without it
+```
+
+### A dev environment must not delete production's images
+
+After a branch reset, dev holds production's rows — including production's
+image URLs. `media.delete_files` only deletes objects whose URL matches **its
+own** bucket's public base, so deleting a product in dev cannot remove a
+production object. If you ever change that check, this is what it protects.
 
 ## Nobody is getting email
 

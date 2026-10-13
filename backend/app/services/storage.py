@@ -1,30 +1,28 @@
-"""Image storage backends + optimisation.
+"""Image optimisation, and where the result is stored.
 
-Local disk is fine for development, but on Render/Railway the filesystem is
-**ephemeral** — anything written to `static/uploads` is destroyed on the next
+Local disk is fine for development, but on Render the filesystem is
+**ephemeral** -- anything written to `static/uploads` is destroyed on the next
 deploy, which would silently break every product image. So production uploads
-go to Supabase Storage (an S3-compatible object store on the project you
-already have).
+go to S3-compatible object storage (Neon Object Storage; see
+`app/services/objectstore.py`, which is not Neon-specific).
 
 Every upload is also optimised before it is stored: resized to a sane maximum
 dimension and re-encoded as WebP. The raw Stitch product shots were ~930 KB
 each; after this they are typically 40-80 KB with no visible quality loss,
 which is the difference between a fast storefront and a painful one on mobile.
 
-The storage backend is chosen from configuration:
-  * SUPABASE_URL + SUPABASE_SERVICE_KEY set -> Supabase Storage
-  * otherwise                               -> local disk
-
-Uses the Storage REST API directly (like the Razorpay integration) so no extra
-SDK dependency is needed.
+The backend is chosen from configuration:
+  * the S3_* settings are all present -> object storage
+  * otherwise                         -> local disk (development only)
 """
 import io
 import os
 import uuid
 
-import requests
 from flask import current_app
 from PIL import Image, ImageOps
+
+from app.services import objectstore
 
 # Longest edge in pixels. Large enough for a detail-page zoom, small enough to
 # keep files light.
@@ -58,8 +56,10 @@ CONTENT_TYPES = {
 }
 
 
-class StorageError(Exception):
-    """Raised when a file could not be persisted."""
+# One exception type across both modules: callers do
+# `except StorageError` around save_image(), and an S3 failure raised inside
+# objectstore has to be caught by that same handler.
+StorageError = objectstore.StorageError
 
 
 class InvalidImage(StorageError):
@@ -93,8 +93,8 @@ def inspect_image(raw):
 
 
 def is_object_storage_configured(config=None):
-    cfg = config if config is not None else current_app.config
-    return bool(cfg.get("SUPABASE_URL") and cfg.get("SUPABASE_SERVICE_KEY"))
+    """True when uploads go to object storage rather than local disk."""
+    return objectstore.is_configured(config)
 
 
 def optimize_image(file_storage):
@@ -159,11 +159,11 @@ def save_image(file_storage):
     """
     data, ext, content_type = optimize_image(file_storage)
     filename = f"{uuid.uuid4().hex}.{ext}"
-    to_supabase = is_object_storage_configured()
+    remote = is_object_storage_configured()
 
     def put(name, payload):
-        if to_supabase:
-            return _save_bytes_to_supabase(payload, name, content_type)
+        if remote:
+            return objectstore.put_bytes(name, payload, content_type)
         return _save_bytes_to_disk(payload, name)
 
     url = put(filename, data)
@@ -185,32 +185,3 @@ def _save_bytes_to_disk(data, filename):
     with open(os.path.join(upload_dir, filename), "wb") as fh:
         fh.write(data)
     return f"/static/uploads/{filename}"
-
-
-def _save_bytes_to_supabase(data, filename, content_type):
-    base = current_app.config["SUPABASE_URL"].rstrip("/")
-    key = current_app.config["SUPABASE_SERVICE_KEY"]
-    bucket = current_app.config.get("SUPABASE_STORAGE_BUCKET", "product-images")
-
-    try:
-        resp = requests.post(
-            f"{base}/storage/v1/object/{bucket}/{filename}",
-            data=data,
-            headers={
-                "Authorization": f"Bearer {key}",
-                "apikey": key,
-                "Content-Type": content_type,
-                "x-upsert": "true",
-            },
-            timeout=60,
-        )
-    except requests.RequestException as exc:
-        raise StorageError(f"Could not reach object storage: {exc}") from exc
-
-    if resp.status_code not in (200, 201):
-        raise StorageError(
-            f"Object storage rejected the upload ({resp.status_code}): {resp.text[:200]}"
-        )
-
-    # Bucket must be public for these URLs to resolve.
-    return f"{base}/storage/v1/object/public/{bucket}/{filename}"

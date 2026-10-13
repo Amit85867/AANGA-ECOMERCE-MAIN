@@ -4,8 +4,8 @@ The database is **Neon** serverless Postgres. There is no local Postgres, no
 Docker, and no Supabase database any more. Every environment — your laptop, CI
 and Render — talks to a branch of one Neon project.
 
-Object storage for product images is still Supabase (or local disk in
-development); only the *database* moved.
+Product images live in Neon Object Storage too (see **Object storage** below).
+Supabase is no longer used for anything.
 
 ## The project
 
@@ -146,21 +146,45 @@ It is idempotent (an existing slug is skipped) and creates 30 products, 90
 variants, 30 images and 17 categories from the Stitch zip at the repo root,
 resizing and re-encoding each image to WebP on the way in.
 
-> ### ⚠️ The images follow whoever runs the API
+> ### The images follow whoever runs the API
 >
-> The seed uploads through the API, so the files land wherever **that**
-> process's storage is configured to put them. The current `production` branch
-> was seeded from a laptop with no Supabase keys, so its 30 `product_images`
-> rows point at `/static/uploads/…` files that exist **only on that laptop**.
+> The seed uploads through the API, so files land wherever **that** process's
+> storage is configured to put them. The demo catalogue was first seeded from a
+> laptop with no object storage, which left its rows pointing at
+> `/static/uploads/…`. Those were migrated into the production bucket with
+> `scripts/migrate_images_to_objectstore.py`, and all three branches now hold
+> Neon URLs.
 >
-> Before go-live, do one of these:
->
-> * replace the demo catalogue with real products through the admin UI (which
->   the pre-launch report lists as an owner task anyway), then
->   `flask --app run remove-demo-content`; or
-> * re-run the seed against the **deployed** API once `SUPABASE_URL` and
->   `SUPABASE_SERVICE_KEY` are set, so the images are written to object storage; or
-> * reset the `production` branch to drop the demo data entirely.
+> If you seed again from a machine with no `S3_*` settings, you will recreate
+> the problem. Either set them first, or run the migration afterwards.
+
+## Object storage
+
+Product images live in a Neon `product-images` bucket (`public_read`), reached
+as plain S3 — see `backend/app/services/objectstore.py`, which is not
+Neon-specific.
+
+| | |
+|---|---|
+| Endpoint | per **branch**: it embeds the branch id, so dev, test and production differ |
+| Buckets | per **branch** too; a branch made before the bucket existed has none |
+| Credentials | per **branch**, and **destroyed by a branch reset** |
+| Public URL | `<endpoint>/<bucket>/<key>`, path-style, no credentials needed |
+
+**The reset trap.** Resetting a branch keeps its bucket and objects but revokes
+its credentials. Public reads keep working, so the storefront looks healthy and
+only uploads fail with `AccessDenied`. After any reset:
+
+```bash
+python scripts/refresh_storage_credential.py --branch dev
+```
+
+That recreates the bucket if missing, revokes the stale key, issues a new
+`storage:read + storage:write` one and rewrites the `S3_*` values in
+`backend/.env` — without printing anything.
+
+Production credentials are never written to a file; they are set in the Render
+Dashboard (see `docs/DEPLOYMENT.md`).
 
 ## Resetting a branch
 

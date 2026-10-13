@@ -17,6 +17,9 @@ Flask-Cors==6.0.0
 Flask-Limiter==3.9.2             # brute-force protection on auth endpoints
 redis==5.2.1                     # RATELIMIT_STORAGE_URI backend for multi-instance
 
+# ── Object storage (S3-compatible: Neon Object Storage) ─────
+boto3==1.43.112                  # product images; endpoint_url + path-style
+
 # ── Image processing ────────────────────────────────────────
 Pillow==12.3.0                   # resize + WebP conversion for uploads
 marshmallow==3.26.2              # request/response validation

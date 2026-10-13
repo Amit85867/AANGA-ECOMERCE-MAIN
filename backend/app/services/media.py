@@ -1,6 +1,6 @@
 """Media library: every uploaded image, recorded once and reusable anywhere.
 
-The picture itself goes through app/services/storage.py (Supabase Storage in
+The picture itself goes through app/services/storage.py (object storage in
 production, local disk in development) and is resized to the widths the
 storefront's ``srcset`` asks for. This module adds the catalogue of what has
 been uploaded and answers "where is this image used?" before one is deleted.
@@ -8,13 +8,12 @@ been uploaded and answers "where is this image used?" before one is deleted.
 import io
 import os
 
-import requests
 from flask import current_app
 from PIL import Image
 
 from app.extensions import db
 from app.models.owner import MediaAsset
-from app.services import storage
+from app.services import objectstore, storage
 
 
 def record(url, file_storage, uploaded_by=None, alt_text=None, source_note=None):
@@ -93,9 +92,15 @@ def usage_counts(urls):
 
 
 def delete_files(url):
-    """Remove a stored image and its resized copies. Best effort."""
+    """Remove a stored image and its resized copies. Best effort.
+
+    Called when the last row referencing an image is gone (see count_usage),
+    so a failure here leaks a file rather than breaking a delete -- which is
+    why nothing raises.
+    """
     filename = url.rsplit("/", 1)[-1]
     names = [filename] + [storage.variant_name(filename, w) for w in storage.VARIANT_WIDTHS]
+
     if url.startswith("/static/uploads/"):
         folder = os.path.join(current_app.root_path, "..", "static", "uploads")
         for name in names:
@@ -104,18 +109,11 @@ def delete_files(url):
             except OSError:
                 pass
         return
-    if storage.is_object_storage_configured():
-        base = current_app.config["SUPABASE_URL"].rstrip("/")
-        key = current_app.config["SUPABASE_SERVICE_KEY"]
-        bucket = current_app.config.get("SUPABASE_STORAGE_BUCKET", "product-images")
-        if f"/object/public/{bucket}/" not in url:
-            return
-        try:
-            requests.delete(
-                f"{base}/storage/v1/object/{bucket}",
-                json={"prefixes": names},
-                headers={"Authorization": f"Bearer {key}", "apikey": key},
-                timeout=30,
-            )
-        except requests.RequestException as exc:
-            current_app.logger.warning("MEDIA_DELETE_FAILED url=%s err=%s", url, exc)
+
+    if not objectstore.is_configured():
+        return
+    # Only delete things that live in our own bucket: an image whose URL points
+    # somewhere else was not put there by us.
+    if objectstore.key_for_url(url) is None:
+        return
+    objectstore.delete_keys(names)

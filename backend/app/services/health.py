@@ -22,6 +22,7 @@ from flask import current_app
 from sqlalchemy import text
 
 from app.extensions import db, limiter
+from app.services import objectstore
 
 OK, NOT_CONFIGURED, ERROR = "ok", "not_configured", "error"
 PROBE_TIMEOUT = 6
@@ -128,38 +129,49 @@ def check_shiprocket(probe=False):
 
 
 def check_storage(probe=False):
-    url, key = _has("SUPABASE_URL", config=True), _has("SUPABASE_SERVICE_KEY", config=True)
-    if not url and not key:
+    """Object storage: configured at all, and does the bucket actually work?
+
+    The probe writes and deletes a tiny object rather than reading bucket
+    metadata: that is the operation an upload actually performs, so it catches
+    a credential with read-only scope, which a metadata read would not.
+    """
+    missing = objectstore.missing_settings(current_app.config)
+    if len(missing) == len(objectstore.REQUIRED_SETTINGS):
         return _result(
             NOT_CONFIGURED,
             "Images are saved to local disk. That is lost on every deploy — "
-            "configure Supabase Storage before going live.",
+            "configure object storage before going live.",
         )
-    if not (url and key):
-        return _result(ERROR, "Project URL and service key must both be set.")
+    if missing:
+        return _result(ERROR, "Incomplete: " + ", ".join(missing) + " not set.")
     if not probe:
         return _result(OK, "Configured.")
 
-    cfg = current_app.config
-    bucket = cfg.get("SUPABASE_STORAGE_BUCKET", "product-images")
+    bucket = current_app.config["S3_BUCKET"]
+    key = "_healthcheck/probe.txt"
     try:
-        resp = requests.get(
-            f"{cfg['SUPABASE_URL'].rstrip('/')}/storage/v1/bucket/{bucket}",
-            headers={"Authorization": f"Bearer {cfg['SUPABASE_SERVICE_KEY']}",
-                     "apikey": cfg["SUPABASE_SERVICE_KEY"]},
-            timeout=PROBE_TIMEOUT,
-        )
+        objectstore.put_bytes(key, b"ok", "text/plain")
+    except objectstore.StorageError as exc:
+        return _result(ERROR, f"Could not write to bucket \"{bucket}\": {exc}")
+
+    # The storefront fetches images with no credentials, so check that too:
+    # a private bucket stores fine and then shows broken images to everyone.
+    public = objectstore.public_url(key)
+    try:
+        resp = requests.get(public, timeout=PROBE_TIMEOUT)
+        readable = resp.status_code == 200
     except requests.RequestException:
-        return _result(ERROR, "Could not reach Supabase Storage.")
-    if resp.status_code in (401, 403):
-        return _result(ERROR, "Supabase rejected the service key.")
-    if resp.status_code == 404:
-        return _result(ERROR, f'Bucket "{bucket}" does not exist.')
-    if resp.status_code != 200:
-        return _result(ERROR, f"Supabase answered {resp.status_code}.")
-    if not resp.json().get("public"):
-        return _result(ERROR, f'Bucket "{bucket}" is private; product images will not load.')
-    return _result(OK, f'Connected (bucket "{bucket}").')
+        readable = False
+    finally:
+        objectstore.delete_keys([key])
+
+    if not readable:
+        return _result(
+            ERROR,
+            f'Bucket "{bucket}" is not publicly readable; product images will '
+            "not load. Create it with access level public_read.",
+        )
+    return _result(OK, f'Connected (bucket "{bucket}", public reads work).')
 
 
 def check_email():
@@ -189,7 +201,7 @@ def run_all(probe=False):
         {"key": "database", "label": "Database", **check_database()},
         {"key": "schema", "label": "Database migrations", **check_schema()},
         {"key": "rate_limit_store", "label": "Redis (rate limits)", **check_rate_limit_store()},
-        {"key": "storage", "label": "Supabase Storage (images)", **check_storage(probe)},
+        {"key": "storage", "label": "Object storage (images)", **check_storage(probe)},
         {"key": "razorpay", "label": "Razorpay (payments)", **check_razorpay(probe)},
         {"key": "shiprocket", "label": "Shiprocket (delivery)", **check_shiprocket(probe)},
         {"key": "email", "label": "Resend (email)", **check_email()},

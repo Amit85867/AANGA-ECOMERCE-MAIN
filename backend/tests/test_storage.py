@@ -6,7 +6,6 @@ ephemeral) and every upload must be optimised before it is stored.
 import io
 
 import pytest
-import requests
 from PIL import Image
 from werkzeug.datastructures import FileStorage
 
@@ -80,24 +79,27 @@ def test_object_storage_not_configured_without_keys():
     # Explicit config so the result never depends on the developer's ambient
     # .env (which may legitimately have Supabase configured).
     assert is_object_storage_configured({}) is False
-    assert is_object_storage_configured({"SUPABASE_URL": "", "SUPABASE_SERVICE_KEY": ""}) is False
+    assert is_object_storage_configured(
+        {"S3_ENDPOINT_URL": "", "S3_BUCKET": "", "S3_ACCESS_KEY_ID": "", "S3_SECRET_ACCESS_KEY": ""}
+    ) is False
 
 
 def test_object_storage_detected_when_keys_present():
-    cfg = {"SUPABASE_URL": "https://x.supabase.co", "SUPABASE_SERVICE_KEY": "k"}
+    cfg = {"S3_ENDPOINT_URL": "https://s3.example", "S3_BUCKET": "b",
+           "S3_ACCESS_KEY_ID": "k", "S3_SECRET_ACCESS_KEY": "s"}
     assert is_object_storage_configured(cfg) is True
 
 
 def test_partial_config_does_not_count_as_configured():
-    assert is_object_storage_configured({"SUPABASE_URL": "https://x.supabase.co"}) is False
-    assert is_object_storage_configured({"SUPABASE_SERVICE_KEY": "k"}) is False
+    assert is_object_storage_configured({"S3_ENDPOINT_URL": "https://s3.example"}) is False
+    assert is_object_storage_configured({"S3_BUCKET": "b", "S3_ACCESS_KEY_ID": "k"}) is False
 
 
 def test_local_backend_writes_webp_and_returns_static_url(app, monkeypatch):
-    # Force the local-disk branch regardless of any Supabase keys in the
+    # Force the local-disk branch regardless of any S3 settings in the
     # ambient .env, so this test is deterministic and offline.
-    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
-    monkeypatch.setitem(app.config, "SUPABASE_SERVICE_KEY", "")
+    for name in ("S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"):
+        monkeypatch.setitem(app.config, name, "")
 
     url = save_image(_png_upload())
 
@@ -105,56 +107,37 @@ def test_local_backend_writes_webp_and_returns_static_url(app, monkeypatch):
     assert url.endswith(".webp")
 
 
-# ── Supabase backend ──────────────────────────────────────────────────────
-def test_supabase_backend_posts_and_returns_public_url(app, monkeypatch):
-    app.config["SUPABASE_URL"] = "https://proj.supabase.co"
-    app.config["SUPABASE_SERVICE_KEY"] = "service-key"
-    app.config["SUPABASE_STORAGE_BUCKET"] = "product-images"
-    captured = {}
+# ── Object-storage backend ────────────────────────────────────────────────
+# The driver itself (put/delete/list, path style, public URLs) is covered in
+# test_objectstore.py against a fake S3; here we only check that save_image
+# routes through it and returns what it returns.
+def test_object_storage_backend_returns_the_public_url(app, monkeypatch, fake_s3):
+    url = save_image(_png_upload())
 
-    class _Resp:
-        status_code = 200
-        text = ""
-
-    def fake_post(url, data=None, headers=None, timeout=None):
-        captured["url"] = url
-        captured["headers"] = headers
-        captured["content_type"] = headers["Content-Type"]
-        return _Resp()
-
-    monkeypatch.setattr(requests, "post", fake_post)
-    try:
-        url = save_image(_png_upload())
-    finally:
-        app.config["SUPABASE_URL"] = ""
-        app.config["SUPABASE_SERVICE_KEY"] = ""
-
-    assert "/storage/v1/object/product-images/" in captured["url"]
-    assert captured["headers"]["Authorization"] == "Bearer service-key"
-    assert captured["content_type"] == "image/webp"
-    assert url.startswith("https://proj.supabase.co/storage/v1/object/public/product-images/")
+    assert url.startswith("https://s3.example/test-bucket/")
     assert url.endswith(".webp")
+    key = url.rsplit("/", 1)[-1]
+    assert fake_s3.content_type(key) == "image/webp"
 
 
-def test_supabase_failure_raises_storage_error(app, monkeypatch):
-    app.config["SUPABASE_URL"] = "https://proj.supabase.co"
-    app.config["SUPABASE_SERVICE_KEY"] = "service-key"
+def test_object_storage_failure_raises_storage_error(app, monkeypatch, fake_s3):
+    fake_s3.fail_on_put = True
 
-    class _Resp:
-        status_code = 403
-        text = "denied"
-
-    monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp())
-    try:
-        with pytest.raises(StorageError):
-            save_image(_png_upload())
-    finally:
-        app.config["SUPABASE_URL"] = ""
-        app.config["SUPABASE_SERVICE_KEY"] = ""
+    with pytest.raises(StorageError):
+        save_image(_png_upload())
 
 
 # ── Production guard ──────────────────────────────────────────────────────
-def test_production_refuses_ephemeral_image_storage():
+def _no_integration_env(monkeypatch):
+    """_validate_config reads os.environ for the all-or-nothing integration
+    rules, so a developer's .env must not decide whether these tests pass."""
+    for name in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET",
+                 "SHIPROCKET_EMAIL", "SHIPROCKET_PASSWORD", "SHIPROCKET_PICKUP_PINCODE"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_production_refuses_ephemeral_image_storage(monkeypatch):
+    _no_integration_env(monkeypatch)
     bad = _FakeApp(
         DEBUG=False,
         TESTING=False,
@@ -164,18 +147,26 @@ def test_production_refuses_ephemeral_image_storage():
     )
     with pytest.raises(RuntimeError) as exc:
         _validate_config(bad)
-    assert "SUPABASE_URL" in str(exc.value)
+    message = str(exc.value)
+    assert "object storage is not configured" in message
+    # It must name what is missing, not just complain.
+    assert "S3_ENDPOINT_URL" in message
+    # The old Supabase settings must not come back as a requirement.
+    assert "SUPABASE" not in message
 
 
-def test_production_accepts_configured_object_storage():
+def test_production_accepts_configured_object_storage(monkeypatch):
+    _no_integration_env(monkeypatch)
     ok = _FakeApp(
         DEBUG=False,
         TESTING=False,
         SECRET_KEY="x" * 40,
         JWT_SECRET_KEY="y" * 40,
         SQLALCHEMY_DATABASE_URI="postgresql://u:p@host/db",
-        SUPABASE_URL="https://proj.supabase.co",
-        SUPABASE_SERVICE_KEY="service-key",
+        S3_ENDPOINT_URL="https://s3.example",
+        S3_BUCKET="product-images",
+        S3_ACCESS_KEY_ID="key",
+        S3_SECRET_ACCESS_KEY="secret",
     )
     _validate_config(ok)  # must not raise
 
@@ -190,7 +181,8 @@ def _png(width, height):
 
 
 def test_upload_stores_smaller_variants_next_to_the_original(app, tmp_path, monkeypatch):
-    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    for name in ("S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"):
+        monkeypatch.setitem(app.config, name, "")
     saved = {}
     monkeypatch.setattr(storage, "_save_bytes_to_disk",
                         lambda data, name: saved.setdefault(name, data) and f"/static/uploads/{name}")
@@ -208,7 +200,8 @@ def test_upload_stores_smaller_variants_next_to_the_original(app, tmp_path, monk
 
 
 def test_small_images_get_no_thumbnail(app, monkeypatch):
-    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    for _name in ("S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"):
+        monkeypatch.setitem(app.config, _name, "")
     saved = {}
     monkeypatch.setattr(storage, "_save_bytes_to_disk",
                         lambda data, name: saved.setdefault(name, data) and f"/static/uploads/{name}")
@@ -219,7 +212,8 @@ def test_small_images_get_no_thumbnail(app, monkeypatch):
 
 
 def test_a_failed_thumbnail_does_not_fail_the_upload(app, monkeypatch):
-    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    for _name in ("S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"):
+        monkeypatch.setitem(app.config, _name, "")
     monkeypatch.setattr(storage, "_save_bytes_to_disk", lambda data, name: f"/static/uploads/{name}")
 
     def _boom(_bytes, _width):

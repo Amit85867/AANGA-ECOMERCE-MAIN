@@ -115,12 +115,22 @@ class BaseConfig:
     RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
-    # Supabase Storage (product images).
-    # Required in production: Render/Railway filesystems are ephemeral, so
-    # images written to local disk vanish on the next deploy.
-    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-    SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
-    SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "product-images")
+    # Object storage for product images (Neon Object Storage, which speaks S3).
+    # Required in production: Render's filesystem is ephemeral, so images
+    # written to local disk vanish on the next deploy.
+    #
+    # Nothing here is Neon-specific -- any S3-compatible store works by
+    # changing these values. Note the Neon endpoint embeds the BRANCH id, so
+    # dev, test and production each have a different S3_ENDPOINT_URL.
+    S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "")
+    S3_BUCKET = os.environ.get("S3_BUCKET", "")
+    S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", "")
+    S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", "")
+    S3_REGION = os.environ.get("S3_REGION", "auto")
+    # What a browser fetches. Defaults to <endpoint>/<bucket>, which is correct
+    # for a path-style public_read bucket; set it if you put a CDN in front.
+    S3_PUBLIC_BASE_URL = os.environ.get("S3_PUBLIC_BASE_URL", "")
+    S3_FORCE_PATH_STYLE = os.environ.get("S3_FORCE_PATH_STYLE", "true").lower() != "false"
 
     # Transactional email (Resend). Leave RESEND_API_KEY blank to log instead
     # of sending (local dev). EMAIL_ENABLED is a manual kill switch.

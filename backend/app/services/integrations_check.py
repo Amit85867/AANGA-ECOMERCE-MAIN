@@ -28,8 +28,10 @@ VARIABLES = {
         ("SHIPROCKET_PICKUP_LOCATION", "the pickup location's nickname in Shiprocket -> Settings -> Pickup Addresses"),
     ],
     "storage": [
-        ("SUPABASE_URL", "Supabase -> Project Settings -> API -> Project URL"),
-        ("SUPABASE_SERVICE_KEY", "Supabase -> Project Settings -> API -> service_role key"),
+        ("S3_ENDPOINT_URL", "Neon -> the branch's object-storage endpoint (neon api /projects/<id>/branches/<id>/storage)"),
+        ("S3_BUCKET", "the bucket name, e.g. product-images"),
+        ("S3_ACCESS_KEY_ID", "Neon -> credentials: the token id of a storage:read + storage:write credential"),
+        ("S3_SECRET_ACCESS_KEY", "Neon -> credentials reveal <tokenId> -> s3_secret_access_key"),
     ],
     "email": [("RESEND_API_KEY", "Resend -> API Keys")],
     "google_login": [("GOOGLE_CLIENT_ID", "Google Cloud Console -> Credentials -> OAuth client ID")],
@@ -37,7 +39,7 @@ VARIABLES = {
 }
 LABELS = {
     "database": "Database", "schema": "Database migrations", "rate_limit_store": "Redis",
-    "razorpay": "Razorpay (payments)", "shiprocket": "Shiprocket (delivery)", "storage": "Supabase Storage (images)",
+    "razorpay": "Razorpay (payments)", "shiprocket": "Shiprocket (delivery)", "storage": "Object storage (images)",
     "email": "Resend (email)", "google_login": "Google sign-in", "sentry": "Sentry (error reports)",
 }
 FIXES = {
@@ -52,10 +54,9 @@ FIXES = {
         "Pickup PIN code is missing": "Set SHIPROCKET_PICKUP_PINCODE to the PIN code of your pickup address.",
     },
     "storage": {
-        "must both be set": "Set both SUPABASE_URL and SUPABASE_SERVICE_KEY.",
-        "rejected the service key": "Use the service_role key, not the anon key.",
-        "does not exist": "Create the bucket in Supabase -> Storage, or set SUPABASE_STORAGE_BUCKET to its name.",
-        "is private": "Open the bucket's settings in Supabase and make it public.",
+        "Incomplete": "Set every S3_* value. The endpoint embeds the branch id, so dev, test and production each have their own.",
+        "Could not write": "The credential needs storage:write, and the bucket must exist on THIS branch (buckets are per-branch; a branch made before the bucket does not inherit it).",
+        "not publicly readable": "Recreate the bucket with --access-level public_read: neonctl buckets create product-images --branch <branch> --access-level public_read",
     },
 }
 

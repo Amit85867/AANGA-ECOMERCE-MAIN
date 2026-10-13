@@ -205,11 +205,13 @@ def _validate_config(app):
     # a persistent volume (a self-hosted server with a mounted disk).
     # Never set it on Render, whose disk is wiped on every deploy.
     local_uploads_ok = str(os.environ.get("ALLOW_LOCAL_UPLOADS", "")).lower() == "true"
-    from app.services.storage import is_object_storage_configured
-    if not is_object_storage_configured(app.config) and not local_uploads_ok:
+    from app.services import objectstore
+    missing_storage = objectstore.missing_settings(app.config)
+    if missing_storage and not local_uploads_ok:
         problems.append(
-            "SUPABASE_URL / SUPABASE_SERVICE_KEY are unset — product images "
-            "would be written to an ephemeral disk and lost on the next deploy"
+            f"object storage is not configured ({', '.join(missing_storage)} "
+            "unset) — product images would be written to an ephemeral disk and "
+            "lost on the next deploy"
         )
 
     problems += _half_configured_integrations(os.environ)

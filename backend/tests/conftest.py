@@ -208,3 +208,85 @@ def _clean_db(app):
     yield
     _db.session.rollback()
     _db.session.remove()
+
+
+# ── Object storage ────────────────────────────────────────────────────────
+class _FakeS3:
+    """An in-memory stand-in for the S3 client boto3 would build.
+
+    Only the four calls objectstore makes. Keeping the suite offline matters
+    here: the real bucket is shared, and a test that deleted from it would take
+    the storefront's images with it.
+    """
+
+    def __init__(self):
+        self.objects = {}          # key -> {"Body", "ContentType", "CacheControl"}
+        self.fail_on_put = False
+
+    # -- the boto3 surface --
+    def put_object(self, Bucket=None, Key=None, Body=None, ContentType=None,
+                   CacheControl=None, **_):
+        if self.fail_on_put:
+            from botocore.exceptions import ClientError
+            raise ClientError({"Error": {"Code": "AccessDenied",
+                                         "Message": "denied"}}, "PutObject")
+        self.objects[Key] = {"Body": Body, "ContentType": ContentType,
+                             "CacheControl": CacheControl}
+        return {}
+
+    def delete_object(self, Bucket=None, Key=None, **_):
+        self.objects.pop(Key, None)
+        return {}
+
+    def head_object(self, Bucket=None, Key=None, **_):
+        if Key not in self.objects:
+            from botocore.exceptions import ClientError
+            raise ClientError({"Error": {"Code": "404", "Message": "not found"}},
+                              "HeadObject")
+        return {}
+
+    def get_paginator(self, _name):
+        objects = self.objects
+
+        class _P:
+            def paginate(self, Bucket=None, Prefix="", **_):
+                yield {"Contents": [{"Key": k} for k in sorted(objects)
+                                    if k.startswith(Prefix)]}
+        return _P()
+
+    # -- helpers for assertions --
+    def keys(self):
+        return sorted(self.objects)
+
+    def body(self, key):
+        return self.objects[key]["Body"]
+
+    def content_type(self, key):
+        return self.objects[key]["ContentType"]
+
+    def cache_control(self, key):
+        return self.objects[key]["CacheControl"] or ""
+
+
+@pytest.fixture()
+def fake_s3(app, monkeypatch):
+    """Configure object storage and serve it from memory."""
+    from app.services import objectstore
+
+    settings = {
+        "S3_ENDPOINT_URL": "https://s3.example",
+        "S3_BUCKET": "test-bucket",
+        "S3_ACCESS_KEY_ID": "key",
+        "S3_SECRET_ACCESS_KEY": "secret",
+        "S3_REGION": "ap-southeast-1",
+        "S3_PUBLIC_BASE_URL": "",
+        "S3_FORCE_PATH_STYLE": True,
+    }
+    for name, value in settings.items():
+        monkeypatch.setitem(app.config, name, value)
+
+    fake = _FakeS3()
+    monkeypatch.setattr(objectstore, "client", lambda config=None: fake)
+    objectstore.reset_client()
+    yield fake
+    objectstore.reset_client()
