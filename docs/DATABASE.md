@@ -1,190 +1,243 @@
-# AANGA — database (dockerized Postgres)
+# AANGA — database (Neon Postgres)
 
-The database runs in Docker rather than on Supabase's managed Postgres.
-This document covers the layout, the one-time migration off Supabase, and the
-backup/restore drill that Supabase used to do for you.
+The database is **Neon** serverless Postgres. There is no local Postgres, no
+Docker, and no Supabase database any more. Every environment — your laptop, CI
+and Render — talks to a branch of one Neon project.
 
-Object storage (product images) is **still Supabase** — see
-[Still on Supabase](#still-on-supabase) at the bottom.
+Object storage for product images is still Supabase (or local disk in
+development); only the *database* moved.
 
-## Three databases, three compose files
+## The project
 
-| Purpose | File | Port | Persistence |
+| | |
+|---|---|
+| Project | `AANGA` (`dry-base-24522506`) |
+| Region | AWS Asia Pacific 1, Singapore (`aws-ap-southeast-1`) |
+| Postgres | 17 |
+| Database | `aanga` |
+| Role | `aanga_owner` |
+
+## Three branches, one schema
+
+| Branch | Used by | Compute | Auto-delete |
 |---|---|---|---|
-| Dev / production data | `backend/docker-compose.yml` | 55433 | named volume `aanga-pgdata` |
-| pytest | `backend/docker-compose.test.yml` | 55432 | tmpfs, wiped on restart |
-| Supabase (migration source) | — | — | read-only, being retired |
+| `production` (default) | Render | 0.25 CU fixed | — |
+| `dev` | your laptop | 0.25 ↔ 2 CU | Never |
+| `test` | pytest, CI | 0.25 ↔ 2 CU | Never |
 
-Port 55433 was chosen because 5432/5433 are usually taken by a local Postgres
-install and 55432 belongs to the test database.
+`dev` and `test` are branches *of* `production`, so they start as an exact copy
+and cost storage only for what they change. Resetting a branch throws away its
+changes and re-copies the parent — instant, and the normal way to get back to a
+known state.
 
-## Quick start
+> **Auto-delete.** Neon's "Create branch" dialog defaults to **After 1 day**.
+> Both branches here were created with **Never**. If you add a branch by hand,
+> change that field or it will vanish overnight.
 
-Add to `backend/.env` (see `.env.example`):
+### Pooled vs direct
 
-```bash
-POSTGRES_USER=aanga
-POSTGRES_PASSWORD=<pick-one>
-POSTGRES_DB=aanga
-POSTGRES_PORT=55433
-DATABASE_URL=postgresql://aanga:<same-password>@127.0.0.1:55433/aanga
-```
+Every branch has two connection strings:
 
-Then, from `backend/`:
-
-```bash
-docker compose up -d db
-```
-
-First boot runs `/docker-entrypoint-initdb.d` in order and builds the whole
-schema. Watch it with `docker compose logs -f db`; it is ready when the
-healthcheck reports `healthy` (`docker compose ps`).
-
-| Script | Source file | Does |
+| | Host | Use for |
 |---|---|---|
-| `00_bootstrap.sql` | `db/init/00_bootstrap.sql` | drops the stock `public` schema, creates `anon` / `authenticated` / `service_role` stub roles |
-| `01_supabase_compat.sql` | `tests/sql/00_prereqs.sql` | `extensions.uuid_generate_v4()` + a stub `auth.uid()` |
-| `02_schema.sql` | `schema.sql` | the canonical schema dump |
+| **Pooled** | `…-pooler.…` | the application (PgBouncer, thousands of connections) |
+| **Direct** | no `-pooler` | migrations, `pg_dump`/`pg_restore`, DDL, anything needing session state |
 
-`tests/sql/00_prereqs.sql` is bind-mounted, not copied, so the dev container
-and the test suite can never drift apart.
+Both appear in `backend/.env`:
 
-> **These scripts only run when the data volume is empty.** Editing them does
-> nothing to a database that already exists. To rebuild from scratch:
-> `docker compose down -v && docker compose up -d db` — which destroys all
-> local data.
+```
+DATABASE_URL              dev, pooled     <- the app in development
+DIRECT_DATABASE_URL       dev, direct     <- migrations, dumps
+TEST_DATABASE_URL         test, pooled    <- pytest
+TEST_DIRECT_DATABASE_URL  test, direct    <- test schema loads
+```
 
-## Migrating the data off Supabase
+**Production strings live only in the Render dashboard**, never in a file in
+this repository.
 
-One command, from `backend/`:
+### Connection limits
+
+At 0.25 CU the production compute allows **105 direct** and **10,000 pooled**
+connections. That is why the application uses the pooled string: the pool
+ceiling stops being the thing you have to size around. See
+`docs/DEPLOYMENT.md` for worker/pool arithmetic.
+
+## Getting the connection strings
+
+Never copy them out of the console into a terminal, a commit or a chat. Use the
+CLI and redirect:
 
 ```bash
-powershell -File .\db\migrate-from-supabase.ps1
+npm install -g neonctl
+neonctl auth                      # browser sign-in, once
+
+# write one into a file without it passing through your screen
+neonctl connection-string dev \
+  --project-id dry-base-24522506 --org-id org-long-mud-04364433 \
+  --role-name aanga_owner --database-name aanga --pooled >> backend/.env
 ```
 
-It reads `POOLER_DATABASE_URL` from `.env`, dumps Supabase's `public` schema
-into `db/backups/`, restores it into the container, and prints a per-table row
-count of Supabase vs local so you can see the migration was complete.
+`backend/.env` is gitignored (`.gitignore` line 2).
 
-Everything runs inside the `postgres:17` container, so no local `pg_dump` is
-needed and the client version always matches the server. **Supabase is only
-ever read from.**
+Add `--pooled` for the pooled string, leave it off for the direct one.
 
-### It also re-applies outstanding migrations
+## Loading a branch from scratch
 
-A dump reflects the state of the **live** Supabase database, which is not
-necessarily what `schema.sql` describes. `migrations_orders_idempotency.sql`
-(the `payment_ref` / `idempotency_key` unique indexes) was never applied to
-Supabase, so a straight restore would silently drop the payment-integrity
-guards a fresh container gets for free. The script re-applies it after the
-restore; the file is `IF NOT EXISTS` throughout, so it is safe either way.
-
-If that step fails, the restored data already violates the constraint. Find the
-offenders with:
-
-```sql
-SELECT payment_ref, count(*) FROM orders
-WHERE payment_ref IS NOT NULL GROUP BY payment_ref HAVING count(*) > 1;
-```
-
-Useful variants:
+`scripts/render_bootstrap_db.sh` is the only thing that builds the schema. It
+needs a **direct** connection string, passed in the environment for that one
+process:
 
 ```bash
-powershell -File .\db\migrate-from-supabase.ps1 -DumpOnly
-powershell -File .\db\migrate-from-supabase.ps1 -RestoreOnly supabase-20260808-142530.dump
+DATABASE_URL="$(neonctl connection-string production \
+  --project-id dry-base-24522506 --org-id org-long-mud-04364433 \
+  --role-name aanga_owner --database-name aanga)" \
+  scripts/render_bootstrap_db.sh
 ```
 
-### Why the pooler URL
+Order, all of it idempotent except the first load:
 
-`db.<ref>.supabase.co` resolves to IPv6 only and is unreachable from inside a
-container. The session pooler host is IPv4. Supabase → Project Settings →
-Database → Connection string → **Session pooler**.
+1. `backend/tests/sql/00_prereqs.sql` — `uuid-ossp` in an `extensions` schema,
+   and a stub `auth.uid()` the row-level-security policies name.
+2. `backend/schema.sql` — every table, enum, trigger, index and policy.
+3. The six migrations listed in the script, in order.
+4. Verification — table and trigger counts, named columns, tables, indexes,
+   table ownership, and a check that no `@local.test` QA account leaked in.
 
-### Cutting over
+Modes: no argument = fresh load (refuses a database that already has tables);
+`--migrate` = apply migrations to an existing database; `--check` = report only.
 
-1. Run the migration, confirm every row count matches.
-2. In `backend/.env`, rename the Supabase `DATABASE_URL` to
-   `SUPABASE_DATABASE_URL` (keeping it) and point `DATABASE_URL` at the
-   container.
-3. Restart the API and exercise a full checkout — the order path leans on
-   triggers, so it is the honest smoke test.
-4. Rolling back is a one-line edit while the Supabase project still exists.
+## Adaptations needed for Neon
 
-Leave the Supabase project running until you have taken and *test-restored* at
-least one local backup.
+**None.** The schema, the prerequisites and all six migrations loaded into Neon
+unchanged on the first attempt, and every verification check passed:
+
+```
+tables: 40   triggers: 10
+ok  all 7 expected columns, all 10 expected tables, all 3 expected indexes
+ok  all tables owned by aanga_owner
+ok  no QA test accounts
+```
+
+This was not a given, so it is worth recording *why* nothing had to change:
+
+| Thing that usually breaks on a managed Postgres | Why it did not here |
+|---|---|
+| `GRANT` / `REVOKE` to Supabase's `anon`, `authenticated`, `service_role` roles | `schema.sql` contains none — zero `GRANT`, `REVOKE`, `CREATE ROLE`, `ALTER … OWNER`, `ALTER DEFAULT PRIVILEGES`, `CREATE PUBLICATION` or `CREATE EVENT TRIGGER` statements |
+| `CREATE EXTENSION` for an unavailable extension | the only extension is `uuid-ossp`, which Neon supports; it is created `WITH SCHEMA extensions` by the prereqs file |
+| RLS policies calling Supabase's `auth.uid()` | the prereqs file creates a stub `auth.uid()` returning `NULL`; the app connects as the table owner and bypasses RLS anyway |
+| `DROP SCHEMA public` refused | `aanga_owner` owns `public` on Neon and may drop it; the script only does so after confirming the database holds no tables |
+| `\restrict` / `\unrestrict` psql meta-commands in the dump | the bootstrap runs real `psql`, which understands them (the Python test loader strips them — see `backend/tests/conftest.py`) |
+| Version mismatch with a Postgres 17 dump | the Neon branch is Postgres 17 (17.11) |
+
+So the record of adaptations is: **no SQL was modified, no statement was
+skipped, and no object was created by hand.** If a future `schema.sql` re-dump
+introduces role grants, this table is the list of things to re-check.
+
+## Seeding the catalogue
+
+Separate from the schema, and it goes through the **running admin API** so that
+uploads take the real storage path:
+
+```bash
+python backend/db/seed_catalogue.py --api http://127.0.0.1:5000
+```
+
+It is idempotent (an existing slug is skipped) and creates 30 products, 90
+variants, 30 images and 17 categories from the Stitch zip at the repo root,
+resizing and re-encoding each image to WebP on the way in.
+
+> ### ⚠️ The images follow whoever runs the API
+>
+> The seed uploads through the API, so the files land wherever **that**
+> process's storage is configured to put them. The current `production` branch
+> was seeded from a laptop with no Supabase keys, so its 30 `product_images`
+> rows point at `/static/uploads/…` files that exist **only on that laptop**.
+>
+> Before go-live, do one of these:
+>
+> * replace the demo catalogue with real products through the admin UI (which
+>   the pre-launch report lists as an owner task anyway), then
+>   `flask --app run remove-demo-content`; or
+> * re-run the seed against the **deployed** API once `SUPABASE_URL` and
+>   `SUPABASE_SERVICE_KEY` are set, so the images are written to object storage; or
+> * reset the `production` branch to drop the demo data entirely.
+
+## Resetting a branch
+
+The everyday way to get back to a known state. Destroys that branch's changes
+and re-copies its parent:
+
+```bash
+neonctl branches reset dev  --project-id dry-base-24522506 \
+  --org-id org-long-mud-04364433 --parent
+neonctl branches reset test --project-id dry-base-24522506 \
+  --org-id org-long-mud-04364433 --parent
+```
+
+After the initial load all three branches were verified identical:
+
+```
+                   production      dev     test
+tables                     40       40       40
+triggers                   10       10       10
+db size                 10 MB    10 MB    10 MB
+products                   30       30       30
+product_variants           90       90       90
+product_images             30       30       30
+categories                 17       17       17
+admins                      1        1        1
+```
+
+`scripts/reset_test_branch.sh` wraps the `test` reset and is what the test
+suite uses before a full run.
 
 ## Backups
 
-Supabase did this for you. Now you do.
+Neon keeps a continuous history and lets you branch or restore from any point
+inside the retention window of your plan (**24 hours on the free plan** — check
+this before launch; it is the single most important number here). That replaces
+the old scheduled `pg_dump`.
+
+It does **not** replace an off-platform copy. For anything you would be sorry
+to lose, take a dump with the **direct** string and keep it somewhere else:
 
 ```bash
-powershell -File .\db\backup.ps1            # -> db/backups/aanga-<timestamp>.dump
-powershell -File .\db\backup.ps1 -Keep 30   # retention, default 14
+pg_dump "$DIRECT_DATABASE_URL" -Fc -f aanga-$(date +%Y%m%d).dump
+pg_restore -d "$DIRECT_DATABASE_URL" --clean --if-exists aanga-20261013.dump
 ```
+
+Point-in-time restore and branch-from-timestamp are in the Neon console under
+the branch's **History**.
+
+## Scale to zero
+
+Every branch suspends after **5 minutes** of inactivity (fixed on the free
+plan) and resumes on the next connection. The first query after a quiet period
+therefore pays a cold start of roughly a second. Consequences:
+
+* `pool_pre_ping` is on, so SQLAlchemy discards a connection the suspend closed
+  instead of handing a dead one to a request.
+* A health check that touches the database keeps the compute awake and burns
+  CU-hours. `/api/ping` deliberately does not touch it; `/api/health` does.
+* The first request after a deploy, or after a quiet night, is slow. That is
+  the design, not a fault.
+
+## What happened to the old setup
+
+Everything Docker- and Supabase-shaped was removed in the Neon migration. If
+you need to look at it:
 
 ```bash
-powershell -File .\db\restore.ps1                                  # newest backup
-powershell -File .\db\restore.ps1 -File aanga-20260808-030000.dump
+git checkout pre-neon-docker
 ```
 
-`restore.ps1` is destructive: it drops `public`, re-applies the compat shims
-and restores. It prompts unless given `-Force`.
+Gone: `backend/docker-compose.yml` (local Postgres on 55433),
+`backend/docker-compose.test.yml` (pytest Postgres on 55432),
+`scripts/prod_local/` and `scripts/prod_local.sh` (the four-container
+production-like stack), `backend/db/init/` (container bootstrap scripts),
+`backend/db/migrate-from-supabase.ps1`, `backend/db/backup.ps1`,
+`backend/db/restore.ps1` and `backend/Dockerfile`.
 
-Schedule `backup.ps1` daily (Task Scheduler on Windows, cron on a VPS) — and
-**actually run a restore once** against a scratch database. An untested backup
-is not a backup.
-
-Dumps are gitignored (`backend/db/backups/`): they contain customer data.
-
-## Re-dumping schema.sql
-
-`schema.sql` is the canonical DDL, consumed by both the dev container and the
-test suite. After changing the schema, re-dump it from whichever database is
-now authoritative:
-
-```bash
-docker compose exec -T db pg_dump -U aanga -d aanga --schema=public --schema-only --no-owner --no-privileges > schema.sql
-```
-
-Commit the result. The test suite picks it up on the next run.
-
-## Common problems
-
-**`POSTGRES_PASSWORD is required` on `docker compose up`** — the three
-`POSTGRES_*` variables are not in `backend/.env`. Compose reads that file for
-interpolation.
-
-**`invalid command \restrict` during init** — the Postgres image is older than
-17.6. The dump was produced by pg_dump 17.6 and contains `\restrict`
-meta-commands that older `psql` builds reject. Pull a current `postgres:17`.
-
-**Init scripts appear to have been ignored** — the volume already existed. They
-run only against an empty `aanga-pgdata`.
-
-**Port 55433 already in use** — set `POSTGRES_PORT` in `.env` and update
-`DATABASE_URL` to match.
-
-**`FATAL: (ENOTFOUND) tenant/user postgres.<ref> not found`** — this is the
-pooler answering, so DNS and TCP are fine; it simply has no such tenant. The
-Supabase project is **paused or deleted**, not misconfigured, and no password
-change will fix it. Free-tier projects auto-pause after a period of inactivity;
-restore it from the Supabase dashboard before running the migration. A wrong
-password gives `password authentication failed` instead.
-
-**`role "anon" does not exist` during a restore** — the volume predates
-`00_bootstrap.sql`. Create the roles by hand, or rebuild with
-`docker compose down -v`.
-
-## Still on Supabase
-
-Migrating the database does **not** retire the Supabase account. Product images
-still go to Supabase Storage (`app/services/storage.py`), and `_validate_config`
-in `app/__init__.py` refuses to boot a production app without
-`SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — local disk is ephemeral on
-Render/Railway, so images would vanish on redeploy.
-
-To leave Supabase entirely, that backend has to be replaced first (MinIO in the
-same compose stack, S3/R2, or a persistent volume on a host that has one).
-Until then, keep the Storage credentials even after the database has moved.
-
-Related: [DEPLOYMENT.md](DEPLOYMENT.md), `backend/tests/README.md`.
+Kept and now pointed at Neon: `backend/schema.sql`, the `migrations_*.sql`
+files, `backend/tests/sql/00_prereqs.sql`, `backend/db/seed_catalogue.py` and
+`scripts/render_bootstrap_db.sh`.
