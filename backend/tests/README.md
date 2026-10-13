@@ -47,10 +47,28 @@ scripts/reset_test_branch.sh -k payments # reset, then a subset
 > branch. Pin the production endpoint in `NEON_PRODUCTION_ENDPOINT` so that
 > protection works even on a machine that holds no production URL.
 
-It is slower than it used to be against a container on localhost: every test
-truncates forty tables, and each round trip now crosses the network to
-Singapore. That is the cost of having one real Postgres everywhere instead of
-three different ones.
+## It is much slower than it used to be
+
+Measured from India against the Singapore branch: a single `SELECT 1` round
+trip is about **150 ms**. Every test truncates forty tables and then does its
+own work, so a typical test costs a few seconds of pure network wait and the
+**full suite takes roughly 35-40 minutes** — against a container on localhost
+it was a couple of minutes.
+
+Nothing is wrong; that is the price of one real Postgres everywhere instead of
+three different ones. Work with it rather than against it:
+
+- **Locally, run what you are changing**, not everything:
+  `pytest tests/test_payments.py`, `pytest -k coupon`, `pytest -x` to stop at
+  the first failure.
+- **Let CI run the full suite.** It uses a Postgres service container on
+  localhost, so it is back to a couple of minutes.
+- Before a release, `scripts/reset_test_branch.sh` for the full run, and go and
+  do something else.
+
+If this becomes painful, the fix is to stop truncating forty tables per test
+(wrap each test in a transaction and roll it back instead) — a real change to
+`conftest.py`, not a setting.
 
 ## How it works
 
