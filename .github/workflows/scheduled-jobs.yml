@@ -5,7 +5,7 @@ name: Scheduled jobs
 # Repository secrets:
 #   JOBS_TOKEN   shared secret, also set as JOBS_TOKEN on the Render service.
 #                Generate with: python -c "import secrets;print(secrets.token_urlsafe(48))"
-#   (plus the Hostinger secrets used by deploy-frontend.yml, for the sitemap)
+#   HOSTINGER_FTP_HOST / _USER / _PASSWORD  (same as deploy-frontend.yml)
 #
 # Repository variables:
 #   SITE_URL, API_BASE_URL
@@ -82,17 +82,20 @@ jobs:
 
       # Only these two files are uploaded, so a scheduled run can never
       # overwrite the deployed app with a stale build.
-      - name: Upload just the two files
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      - name: Upload just the two files (FTPS)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.HOSTINGER_HOST }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-          username: ${{ secrets.HOSTINGER_USER }}
-          password: ${{ secrets.HOSTINGER_PASSWORD }}
-          ssh_private_key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          local_path: './seo-out/*'
-          remote_path: ${{ secrets.HOSTINGER_PATH }}
-          sftp_only: true
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USER }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: loose
+          local-dir: ./seo-out/
+          server-dir: ./public_html/
+          # Its own state file, so this never treats the app's files as
+          # "deleted" and never touches them.
+          state-name: .ftp-deploy-sync-state-seo.json
 
       - name: Confirm
         if: ${{ vars.SITE_URL != '' }}

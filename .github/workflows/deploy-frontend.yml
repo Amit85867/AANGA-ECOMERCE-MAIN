@@ -2,13 +2,15 @@ name: Deploy storefront to Hostinger
 
 # Builds the static storefront and uploads it to Hostinger's public_html.
 #
+# Hostinger's Single plan has NO SSH, so this deploys over FTPS: FTP with
+# explicit TLS on port 21. Plain FTP would send the password in clear text.
+#
 # Repository secrets (Settings -> Secrets and variables -> Actions):
-#   HOSTINGER_HOST        e.g. 123.45.67.89  or  ftp.example.com
-#   HOSTINGER_PORT        SSH/SFTP port (Hostinger shared hosting is often 65002)
-#   HOSTINGER_USER        SSH user (e.g. u123456789)
-#   HOSTINGER_SSH_KEY     private key, PEM. Use this OR the password below.
-#   HOSTINGER_PASSWORD    SSH password, if you are not using a key
-#   HOSTINGER_PATH        e.g. /home/u123456789/domains/example.com/public_html
+#   HOSTINGER_FTP_HOST      145.223.17.73
+#   HOSTINGER_FTP_USER      u224349413
+#   HOSTINGER_FTP_PASSWORD  the FTP password (hPanel -> Files -> FTP Accounts)
+#
+# The remote directory is public_html/ relative to the FTP account's root.
 #
 # Repository variables (not secret):
 #   SITE_URL              https://example.com
@@ -75,33 +77,28 @@ jobs:
           test -f sitemap.xml || { echo "no sitemap.xml"; exit 1; }
           echo "dist contents:"; ls -la
 
-      # rsync over SSH: deletes files that no longer exist, so old hashed
-      # assets do not accumulate for ever. index.html is written last by
-      # rsync's default ordering being alphabetical — not guaranteed, but the
-      # no-cache header on index.html means a brief mismatch self-corrects.
-      - name: Deploy over SSH (key)
-        if: ${{ secrets.HOSTINGER_SSH_KEY != '' }}
-        uses: burnett01/rsync-deployments@7.0.2
+      # FTPS, not SSH: the Single plan has no SSH. dangerous-clean-slate is
+      # left OFF on purpose -- old hashed assets accumulating is a disk-space
+      # problem for later; a wildcard delete on a live site is not.
+      #
+      # The action syncs by a state file it keeps on the server, so only
+      # changed files are uploaded after the first run.
+      - name: Deploy over FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          switches: -avzr --delete --exclude='.well-known' --exclude='.git*'
-          path: frontend/dist/
-          remote_path: ${{ secrets.HOSTINGER_PATH }}
-          remote_host: ${{ secrets.HOSTINGER_HOST }}
-          remote_port: ${{ secrets.HOSTINGER_PORT }}
-          remote_user: ${{ secrets.HOSTINGER_USER }}
-          remote_key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USER }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: loose          # Hostinger's cert names its own host, not the IP
+          local-dir: ./frontend/dist/
+          server-dir: ./public_html/
+          exclude: |
+            **/*.map
 
-      - name: Deploy over SFTP (password)
-        if: ${{ secrets.HOSTINGER_SSH_KEY == '' }}
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
-        with:
-          server: ${{ secrets.HOSTINGER_HOST }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-          username: ${{ secrets.HOSTINGER_USER }}
-          password: ${{ secrets.HOSTINGER_PASSWORD }}
-          local_path: './frontend/dist/*'
-          remote_path: ${{ secrets.HOSTINGER_PATH }}
-          sftp_only: true
+      # A CDN in front of the site can keep serving the previous index.html.
+      # Purge it in hPanel (Dashboard -> Clear cache) if a deploy does not show.
 
       - name: Smoke test the live site
         if: ${{ vars.SITE_URL != '' }}
