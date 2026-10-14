@@ -6,6 +6,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env(name, default):
+    """An environment variable, treating an EMPTY value as unset.
+
+    os.environ.get(name, default) only falls back when the variable is absent.
+    A platform that creates a blank variable -- Render does for a Blueprint key
+    marked `sync: false` that nobody filled in -- would otherwise replace a
+    sensible default with "": an empty rate-limit storage URI, int("") for a
+    pool size, an empty SITE_URL in every canonical link.
+    """
+    value = os.environ.get(name)
+    return default if value is None or value.strip() == "" else value
+
 # There is no local database any more: every environment uses a Neon branch,
 # so an unset DATABASE_URL is always a mistake. This sentinel is what the app
 # falls back to, and _validate_config recognises it, so the failure is a clear
@@ -18,7 +31,7 @@ DEV_DATABASE_URL = UNSET_DATABASE_URL
 
 
 class BaseConfig:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    SECRET_KEY = _env("SECRET_KEY", "dev-secret-change-me")
 
     # SQLAlchemy. There is no fallback database to connect to: set DATABASE_URL
     # to a Neon branch (docs/DATABASE.md). The schema is Postgres-native (UUID
@@ -38,20 +51,20 @@ class BaseConfig:
         # Check a pooled connection is alive before using it: managed
         # databases drop idle connections and restart for maintenance.
         "pool_pre_ping": True,
-        "pool_size": int(os.environ.get("DB_POOL_SIZE", "5")),
-        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "5")),
+        "pool_size": int(_env("DB_POOL_SIZE", "5")),
+        "max_overflow": int(_env("DB_MAX_OVERFLOW", "5")),
         # Fail a request after 10s waiting for a connection rather than
         # queueing forever behind a saturated pool.
-        "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT", "10")),
+        "pool_timeout": int(_env("DB_POOL_TIMEOUT", "10")),
         # Recycle before the platform's idle timeout closes it underneath us.
-        "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "280")),
+        "pool_recycle": int(_env("DB_POOL_RECYCLE", "280")),
     }
 
     # JWT
     # The access token is short-lived and lives only in the client's memory
     # (sent as an Authorization header). The refresh token is long-lived and
     # travels exclusively in an httpOnly cookie, so XSS cannot read it.
-    JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-jwt-change-me")
+    JWT_SECRET_KEY = _env("JWT_SECRET_KEY", "dev-jwt-change-me")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 
@@ -83,8 +96,8 @@ class BaseConfig:
 
     # Observability (Sentry). Leave SENTRY_DSN blank to disable entirely.
     SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
-    SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", os.environ.get("FLASK_ENV", "development"))
-    SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.0"))
+    SENTRY_ENVIRONMENT = _env("SENTRY_ENVIRONMENT", _env("FLASK_ENV", "development"))
+    SENTRY_TRACES_SAMPLE_RATE = float(_env("SENTRY_TRACES_SAMPLE_RATE", "0.0"))
     APP_RELEASE = os.environ.get("APP_RELEASE", "")
 
     # Rate limiting (Flask-Limiter).
@@ -99,18 +112,18 @@ class BaseConfig:
     #   Upstash -> Redis -> Create database (region: ap-south-1 / ap-southeast-1)
     #   -> copy the "redis://" (TLS: "rediss://") URL into RATELIMIT_STORAGE_URI.
     # There is no Redis container any more; nothing to run locally.
-    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_STORAGE_URI = _env("RATELIMIT_STORAGE_URI", "memory://")
     RATELIMIT_HEADERS_ENABLED = True
     # Off only for the end-to-end run, which registers dozens of accounts in a
     # few minutes and would otherwise spend its time testing the limiter.
     # _validate_config refuses to start a production app with this set.
-    RATELIMIT_ENABLED = os.environ.get("RATELIMIT_ENABLED", "true").lower() != "false"
+    RATELIMIT_ENABLED = _env("RATELIMIT_ENABLED", "true").lower() != "false"
 
     # How many reverse proxies sit in front of the app and append to
     # X-Forwarded-For. Trusting too few makes every visitor share the proxy's
     # IP (one rate-limit bucket for everyone); trusting too many lets a client
     # forge its own address. Check with the admin System Health page.
-    TRUSTED_PROXY_COUNT = int(os.environ.get("TRUSTED_PROXY_COUNT", "1"))
+    TRUSTED_PROXY_COUNT = int(_env("TRUSTED_PROXY_COUNT", "1"))
 
     # Phone-OTP sign-in needs something to deliver the code. No provider is
     # integrated yet, so this stays empty and the option stays hidden.
@@ -122,7 +135,7 @@ class BaseConfig:
     #
     # CORS_ORIGINS is a comma-separated list; apex and www are usually both
     # needed because a visitor can arrive at either before the redirect.
-    FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
+    FRONTEND_ORIGIN = _env("FRONTEND_ORIGIN", "http://localhost:5173")
     CORS_ORIGINS = [
         o.strip().rstrip("/")
         for o in os.environ.get("CORS_ORIGINS", "").split(",")
@@ -131,7 +144,7 @@ class BaseConfig:
 
     # Public storefront origin used to build absolute URLs in sitemap.xml /
     # robots.txt (canonical links, Open Graph). Defaults to the frontend origin.
-    SITE_URL = os.environ.get("SITE_URL", os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173"))
+    SITE_URL = _env("SITE_URL", _env("FRONTEND_ORIGIN", "http://localhost:5173"))
 
     # Search-engine indexing. OFF for launch: a half-finished catalogue indexed
     # on day one is expensive to undo, because removing pages from an index is
@@ -145,7 +158,7 @@ class BaseConfig:
     # The environment variable is the floor: with INDEXING=false the admin
     # toggle cannot turn indexing on, so a live site cannot be exposed by a
     # mis-click in the dashboard.
-    INDEXING = os.environ.get("INDEXING", "false").lower() in ("1", "true", "yes", "on")
+    INDEXING = _env("INDEXING", "false").lower() in ("1", "true", "yes", "on")
 
     # Google OAuth
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
@@ -165,31 +178,31 @@ class BaseConfig:
     S3_BUCKET = os.environ.get("S3_BUCKET", "")
     S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", "")
     S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", "")
-    S3_REGION = os.environ.get("S3_REGION", "auto")
+    S3_REGION = _env("S3_REGION", "auto")
     # What a browser fetches. Defaults to <endpoint>/<bucket>, which is correct
     # for a path-style public_read bucket; set it if you put a CDN in front.
     S3_PUBLIC_BASE_URL = os.environ.get("S3_PUBLIC_BASE_URL", "")
-    S3_FORCE_PATH_STYLE = os.environ.get("S3_FORCE_PATH_STYLE", "true").lower() != "false"
+    S3_FORCE_PATH_STYLE = _env("S3_FORCE_PATH_STYLE", "true").lower() != "false"
 
     # Transactional email (Resend). Leave RESEND_API_KEY blank to log instead
     # of sending (local dev). EMAIL_ENABLED is a manual kill switch.
     RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-    EMAIL_FROM = os.environ.get("EMAIL_FROM", "AANGA <orders@aanga.in>")
-    EMAIL_ENABLED = os.environ.get("EMAIL_ENABLED", "true").lower() == "true"
+    EMAIL_FROM = _env("EMAIL_FROM", "AANGA <orders@aanga.in>")
+    EMAIL_ENABLED = _env("EMAIL_ENABLED", "true").lower() == "true"
     # Hand the HTTP call to a background thread so a slow mail provider never
     # holds up the checkout response. Off in tests, which assert on the call.
-    EMAIL_ASYNC = os.environ.get("EMAIL_ASYNC", "true").lower() == "true"
+    EMAIL_ASYNC = _env("EMAIL_ASYNC", "true").lower() == "true"
 
     # Short-lived cache for public catalogue responses (app/services/cache.py).
     # Uses CACHE_REDIS_URL, else RATELIMIT_STORAGE_URI when that is Redis, else
     # a small per-process cache.
-    CACHE_ENABLED = os.environ.get("CACHE_ENABLED", "true").lower() == "true"
+    CACHE_ENABLED = _env("CACHE_ENABLED", "true").lower() == "true"
     CACHE_REDIS_URL = os.environ.get("CACHE_REDIS_URL", "")
 
     # Shiprocket (delivery)
     SHIPROCKET_EMAIL = os.environ.get("SHIPROCKET_EMAIL", "")
     SHIPROCKET_PASSWORD = os.environ.get("SHIPROCKET_PASSWORD", "")
-    SHIPROCKET_PICKUP_LOCATION = os.environ.get("SHIPROCKET_PICKUP_LOCATION", "Primary")
+    SHIPROCKET_PICKUP_LOCATION = _env("SHIPROCKET_PICKUP_LOCATION", "Primary")
 
 
 class DevelopmentConfig(BaseConfig):
@@ -205,7 +218,7 @@ class ProductionConfig(BaseConfig):
     # Lax is correct for the storefront/API-subdomain split: same site, so the
     # cookie is sent, and it still does not ride along on requests from other
     # sites. "None" would only be needed for a different registrable domain.
-    JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "Lax")
+    JWT_COOKIE_SAMESITE = _env("JWT_COOKIE_SAMESITE", "Lax")
     JWT_COOKIE_SECURE = True
 
 
@@ -241,4 +254,4 @@ config_by_name = {
 
 
 def get_config():
-    return config_by_name.get(os.environ.get("FLASK_ENV", "development"), DevelopmentConfig)
+    return config_by_name.get(_env("FLASK_ENV", "development"), DevelopmentConfig)

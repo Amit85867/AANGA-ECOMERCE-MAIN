@@ -65,19 +65,16 @@ envVarGroups:
         sync: false
 
       # ── The storefront's origin, and the cookie that spans both hosts ──
-      # Set all four together. Examples for the domain "example.com":
-      #   FRONTEND_ORIGIN  https://example.com
-      #   SITE_URL         https://example.com        (canonicals, sitemap)
-      #   CORS_ORIGINS     https://example.com,https://www.example.com
-      #   COOKIE_DOMAIN    .example.com               (leading dot, no scheme)
+      # These four move together: get one wrong and sign-in returns 200, the
+      # cookie is never stored, and the customer is signed out on reload.
       - key: FRONTEND_ORIGIN
-        sync: false
+        value: https://aanga.co
       - key: SITE_URL
-        sync: false
+        value: https://aanga.co
       - key: CORS_ORIGINS
-        sync: false
+        value: https://aanga.co,https://www.aanga.co
       - key: COOKIE_DOMAIN
-        sync: false
+        value: .aanga.co
 
       # Lax is correct for storefront + api subdomain: same site, so the
       # cookie is sent, and it still does not ride along from other sites.
@@ -97,21 +94,35 @@ envVarGroups:
       - key: RATELIMIT_STORAGE_URI
         sync: false
 
-      # Product images. Required: the service refuses to start without them
-      # (Render's disk is ephemeral, so local uploads would vanish on deploy).
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_KEY
-        sync: false
-      - key: SUPABASE_STORAGE_BUCKET
+      # ── Product images: Neon Object Storage (S3-compatible) ──
+      # Required: the service refuses to start without them, because Render's
+      # disk is wiped on every deploy. Only the secret is entered by hand; the
+      # rest is not sensitive. The endpoint embeds the PRODUCTION branch id.
+      - key: S3_ENDPOINT_URL
+        value: https://br-silent-base-b3gmwzx8.storage.c-4.ap-southeast-1.aws.neon.tech
+      - key: S3_BUCKET
         value: product-images
+      - key: S3_REGION
+        value: ap-southeast-1
+      - key: S3_FORCE_PATH_STYLE
+        value: "true"
+      - key: S3_PUBLIC_BASE_URL
+        value: https://br-silent-base-b3gmwzx8.storage.c-4.ap-southeast-1.aws.neon.tech/product-images
+      # The credential's token id. An identifier, not a secret -- like an AWS
+      # access key id -- but kept out of the repo all the same.
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
 
-      # First master admin, created on first boot. Change the password
-      # afterwards with:  flask --app run set-admin-password
+      # The master admin already exists in the production database, so this is
+      # only used to find it. ADMIN_PASSWORD is deliberately NOT defined: the
+      # boot-time auto-seed creates an admin when ADMIN_EMAIL has no row and a
+      # password is set, so leaving it out means a typo here can never quietly
+      # create a second master admin. Rotate with:
+      #   powershell -File scripts/rotate_admin_password.ps1 production
       - key: ADMIN_EMAIL
-        sync: false
-      - key: ADMIN_PASSWORD
-        sync: false
+        value: admin@aanga.co
 
       # Online payments. Leave all three blank to launch COD-only. Once the key
       # is set, the secret and the webhook secret are required.
