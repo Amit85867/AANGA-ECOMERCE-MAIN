@@ -48,7 +48,16 @@ def _catalogue(count):
 
 # ── Query counts do not grow with the data ────────────────────
 
-def test_product_list_query_count_is_independent_of_page_size(app, client):
+def test_product_list_query_count_is_independent_of_page_size(app, client, monkeypatch):
+    # The maintenance flag is cached for 5 s. Creating nine products takes
+    # longer than that against a remote database (~150 ms a round trip to the
+    # Neon branch), so the cache expired between the two measurements and the
+    # "large" request paid one extra site_settings query that has nothing to do
+    # with products. Hold the cache for the length of the test so only the
+    # product queries are being compared.
+    from app.services import maintenance
+    monkeypatch.setattr(maintenance, "_CACHE_SECONDS", 3600)
+
     _catalogue(3)
     client.get("/api/categories")   # warm the one-off maintenance-flag lookup
     with count_queries() as small:
