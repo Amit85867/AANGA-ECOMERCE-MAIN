@@ -32,9 +32,15 @@ def jobs_token_required(view):
     def wrapper(*args, **kwargs):
         expected = _token()
         if not expected:
-            # Not configured: behave as if the route does not exist rather
-            # than inviting attempts at a secret that is not there.
-            return jsonify(error="Not found"), 404
+            # With no token configured nobody can authenticate, so 401 is the
+            # truthful answer. An earlier version returned 404 to avoid
+            # advertising the route, but that broke the rule the security audit
+            # enforces -- every non-public route answers 401 to an anonymous
+            # caller -- and the obscurity was worth less than the invariant.
+            current_app.logger.warning(
+                "JOBS_TOKEN is not set; %s cannot be used.", request.path
+            )
+            return jsonify(error="Unauthorized"), 401
 
         header = request.headers.get("Authorization", "")
         presented = header[7:] if header.lower().startswith("bearer ") else ""

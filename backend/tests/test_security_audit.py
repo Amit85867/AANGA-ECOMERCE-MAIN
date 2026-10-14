@@ -39,7 +39,10 @@ PUBLIC = {
     ("POST", "/api/contact"), ("POST", "/api/wholesale"),
     ("POST", "/api/newsletter/subscribe"), ("POST", "/api/newsletter/unsubscribe"),
     ("POST", "/api/payments/webhook"), ("GET", "/api/shipping/serviceability"),
-    ("GET", "/api/health"),
+    # Liveness and readiness. /api/ping is the platform's health check and
+    # deliberately touches nothing, so a probe cannot hold the Neon compute
+    # awake; /api/health does reach the database, for when you want that.
+    ("GET", "/api/ping"), ("GET", "/api/health"),
 }
 
 
@@ -211,8 +214,15 @@ def _image_bytes(fmt="PNG", size=(32, 32)):
 
 
 @pytest.fixture()
-def no_disk(monkeypatch):
-    """Let save_image run for real (validation, re-encoding) but keep files off the disk."""
+def no_disk(monkeypatch, app):
+    """Let save_image run for real (validation, re-encoding) but write nowhere.
+
+    Object storage has to be switched off explicitly: the developer's .env
+    configures a real bucket, and without this these tests would upload to it
+    on every run and then assert against a local path that was never written.
+    """
+    for name in ("S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"):
+        monkeypatch.setitem(app.config, name, "")
     written = []
     monkeypatch.setattr("app.services.storage._save_bytes_to_disk",
                         lambda data, name: written.append((name, data)) or f"/static/uploads/{name}")

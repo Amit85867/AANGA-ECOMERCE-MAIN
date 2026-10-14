@@ -23,13 +23,18 @@ def jobs_token(monkeypatch):
     return token
 
 
-def test_endpoint_is_invisible_when_no_token_is_configured(client, monkeypatch):
-    """Unconfigured should look absent, not like a secret worth guessing."""
+def test_without_a_configured_token_nobody_can_authenticate(client, monkeypatch):
+    """No token configured means no caller can be authenticated: 401.
+
+    It answers 401 rather than 404 so it obeys the same rule as every other
+    protected route (tests/test_security_audit.py checks that an anonymous
+    caller gets 401 everywhere), which is worth more than hiding the path.
+    """
     monkeypatch.delenv("JOBS_TOKEN", raising=False)
 
     response = client.post("/api/jobs/reconcile-payments", json={})
 
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_without_a_token_the_job_is_refused(client, jobs_token):
