@@ -1,6 +1,8 @@
 import axios from 'axios'
+import { describeApiError } from '@/utils/apiError'
+import { API_BASE_URL } from '@/utils/apiBase'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+const baseURL = API_BASE_URL
 
 const adminApi = axios.create({
   baseURL,
@@ -21,8 +23,26 @@ export const setAdminAccessToken = (token) => {
 }
 export const getAdminAccessToken = () => adminAccessToken
 
+/*
+ * Demo mode (Owner → Demo content). While it is on, every request from this
+ * browser tab asks the server to tag whatever it creates as demo content, so
+ * it can all be removed later in one step. Kept per tab, so it cannot be left
+ * on by accident in another window.
+ */
+const DEMO_KEY = 'aanga.demoMode'
+export const isDemoMode = () => {
+  try { return sessionStorage.getItem(DEMO_KEY) === '1' } catch { return false }
+}
+export const setDemoMode = (on) => {
+  try {
+    if (on) sessionStorage.setItem(DEMO_KEY, '1')
+    else sessionStorage.removeItem(DEMO_KEY)
+  } catch { /* storage unavailable: demo mode simply stays off */ }
+}
+
 adminApi.interceptors.request.use((config) => {
   if (adminAccessToken) config.headers.Authorization = `Bearer ${adminAccessToken}`
+  if (isDemoMode()) config.headers['X-Demo-Content'] = '1'
   return config
 })
 
@@ -75,13 +95,20 @@ adminApi.interceptors.response.use(
       }
     }
 
-    if (err.response?.status === 403 || (err.response?.status === 401 && isAuthCall)) {
+    // A failed refresh means the session is over. A 403 does not: it means this
+    // admin may not do this one thing (a staff admin on a master-only screen),
+    // and signing them out for it would lose their work for no reason. The one
+    // 403 that does end the session is a deactivated or deleted account.
+    const accountGone =
+      err.response?.status === 403 &&
+      /not found or deactivated/i.test(err.response?.data?.error || '')
+    const refreshFailed = err.response?.status === 401 && original?.url?.includes('/admin/auth/refresh')
+
+    if (accountGone || refreshFailed) {
       setAdminAccessToken(null)
-      if (!original?.url?.includes('/admin/auth/login')) {
-        window.location.href = '/admin/login'
-      }
+      window.location.href = '/admin/login'
     }
-    return Promise.reject(err)
+    return Promise.reject(describeApiError(err))
   },
 )
 

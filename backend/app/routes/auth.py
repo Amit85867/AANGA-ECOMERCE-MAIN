@@ -1,6 +1,5 @@
 """Authentication: register, login, Google OAuth, phone OTP, refresh, logout."""
 import os
-import random
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -20,7 +19,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, login_email
 from app.models.user import User, OTP, PasswordReset
 from app.models.cart import Cart
 from app.models.enums import AuthProviderType, AccountType
@@ -101,6 +100,7 @@ def register():
 
 @auth_bp.route("/login", methods=["POST"])
 @limiter.limit("10 per 15 minutes")
+@limiter.limit("20 per hour", key_func=login_email)
 def login():
     try:
         data = _login_schema.load(request.get_json())
@@ -143,9 +143,20 @@ def google_auth():
             return jsonify(error="Invalid Google token"), 401
     else:
         import requests as http_requests
+        # userinfo confirms the token is valid, but NOT that it was issued for
+        # *our* app. Verify the audience via tokeninfo first, so an access token
+        # minted for a different Google client cannot be replayed here.
+        tokeninfo = http_requests.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"access_token": data["access_token"]},
+            timeout=10,
+        )
+        if tokeninfo.status_code != 200 or tokeninfo.json().get("aud") != client_id:
+            return jsonify(error="Invalid Google access token"), 401
         resp = http_requests.get(
             "https://www.googleapis.com/oauth2/v3/userinfo",
             headers={"Authorization": f"Bearer {data['access_token']}"},
+            timeout=10,
         )
         if resp.status_code != 200:
             return jsonify(error="Invalid Google access token"), 401
@@ -184,9 +195,28 @@ def google_auth():
 
 # ── Phone OTP ──────────────────────────────────────────────────
 
+def phone_login_available():
+    """True when a code can actually reach the phone.
+
+    Without an SMS provider the code is generated and stored but never sent, so
+    in production the flow can only ever dead-end — and an endpoint that mints
+    sign-in codes nobody receives is attack surface with no purpose. Local
+    development and tests keep it, reading the code from the response or the
+    database.
+    """
+    return bool(
+        current_app.config.get("SMS_PROVIDER")
+        or current_app.config.get("DEBUG")
+        or current_app.config.get("TESTING")
+    )
+
+
 @auth_bp.route("/otp/send", methods=["POST"])
 @limiter.limit("10 per hour")
 def send_otp():
+    if not phone_login_available():
+        return jsonify(error="Phone sign-in is not available. Use email or Google."), 503
+
     try:
         data = _send_otp_schema.load(request.get_json())
     except ValidationError as err:
@@ -201,7 +231,9 @@ def send_otp():
     if recent:
         return jsonify(error="Please wait 60 seconds before requesting another OTP"), 429
 
-    code = f"{random.randint(0, 999999):06d}"
+    # secrets, not random: the code is a credential, and the Mersenne Twister
+    # behind `random` is predictable from a handful of observed outputs.
+    code = f"{secrets.randbelow(1_000_000):06d}"
 
     otp = OTP(
         phone=phone,
@@ -212,7 +244,11 @@ def send_otp():
     db.session.commit()
 
     # TODO: integrate an SMS provider (MSG91 / Twilio) to actually deliver this.
-    current_app.logger.info(f"[DEV] OTP for {phone}: {code}")
+    # Until then the code only reaches the developer's console — and it must
+    # never reach a production log, where anyone with log access could sign in
+    # as any phone number.
+    if current_app.config.get("DEBUG"):
+        current_app.logger.info(f"[DEV] OTP for {phone}: {code}")
 
     resp = {"message": "OTP sent successfully"}
     # NEVER expose the code outside local development — returning it would let
@@ -225,6 +261,9 @@ def send_otp():
 @auth_bp.route("/otp/verify", methods=["POST"])
 @limiter.limit("20 per hour")
 def verify_otp():
+    if not phone_login_available():
+        return jsonify(error="Phone sign-in is not available. Use email or Google."), 503
+
     try:
         data = _verify_otp_schema.load(request.get_json())
     except ValidationError as err:
@@ -345,8 +384,9 @@ def forgot_password():
     frontend = current_app.config.get("FRONTEND_ORIGIN", "http://localhost:5173")
     reset_link = f"{frontend}/reset-password?token={raw_token}"
 
-    # TODO: send reset_link via email (SendGrid / SES / SMTP).
-    current_app.logger.info(f"[DEV] Password reset link for {user.email}: {reset_link}")
+    from app.services.email import send_password_reset
+    send_password_reset(user.email, reset_link)
+    # When email isn't configured, send_* logs the message so dev still works.
 
     resp = dict(generic)
     if current_app.config.get("DEBUG"):

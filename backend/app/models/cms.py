@@ -18,8 +18,17 @@ class HeroBanner(db.Model):
     link_text = db.Column(db.Text)
     secondary_link_url = db.Column(db.Text)
     secondary_link_text = db.Column(db.Text)
+    # Optional decorative overlays on the hero visual (see the reference design):
+    # a "pill" (small label + value, e.g. "This Season" / "Summer Edit '26") and
+    # a "chip" (big value + small label, e.g. "40%" / "Off Sale Items").
+    pill_label = db.Column(db.Text)
+    pill_value = db.Column(db.Text)
+    chip_value = db.Column(db.Text)
+    chip_label = db.Column(db.Text)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
+    campaign_id = db.Column(db.BigInteger, db.ForeignKey("campaigns.id", ondelete="CASCADE"))
     starts_at = db.Column(db.DateTime(timezone=True))
     ends_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -39,6 +48,7 @@ class Announcement(db.Model):
     highlight_color = db.Column(db.Text, nullable=False, default="#D4AF37")
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     starts_at = db.Column(db.DateTime(timezone=True))
     ends_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -58,6 +68,8 @@ class PromoBanner(db.Model):
     items = db.Column(JSONB)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
+    campaign_id = db.Column(db.BigInteger, db.ForeignKey("campaigns.id", ondelete="CASCADE"))
     starts_at = db.Column(db.DateTime(timezone=True))
     ends_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -74,6 +86,7 @@ class Testimonial(db.Model):
     avatar_url = db.Column(db.Text)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
@@ -87,6 +100,7 @@ class Feature(db.Model):
     image_url = db.Column(db.Text)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

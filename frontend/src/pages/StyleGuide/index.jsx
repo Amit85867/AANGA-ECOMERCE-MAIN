@@ -61,7 +61,7 @@ export default function StyleGuide() {
               <div key={token}>
                 <div className={`${cls} h-20 rounded-card border border-hairline`} />
                 <div className="mt-2 text-sm font-medium text-fg">{label}</div>
-                <div className="text-xs text-subtle font-mono">--color-{token}</div>
+                <div className="text-xs text-muted font-mono">--color-{token}</div>
               </div>
             ))}
           </div>
@@ -76,7 +76,7 @@ export default function StyleGuide() {
             <p className="text-sm font-semibold tracking-[0.05em] uppercase text-fg">
               Button — Inter 14/600
             </p>
-            <p className="text-xs font-medium text-subtle">Label small — Inter 12/500</p>
+            <p className="text-xs font-medium text-muted">Label small — Inter 12/500</p>
           </div>
         </Section>
 

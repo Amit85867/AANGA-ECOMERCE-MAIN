@@ -1,55 +1,54 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import apiClient from '@/services/apiClient'
+import { IconArrowUpRight } from '@tabler/icons-react'
+import { Container } from '@/components/ui/Display'
+import SectionHeading from './SectionHeading'
+import { useProductStore } from '@/store/useProductStore'
 import { useSetting } from '@/store/useSettingsStore'
 
-const FALLBACK_BG = [
-  'from-[#1a1a2e] to-[#16213e]',
-  'from-[#4a1942] to-[#8B1A1A]',
-  'from-[#1a3a1a] to-[#2d5a2d]',
-  'from-[#222] to-[#444]',
-]
-
-export default function CategoryGrid() {
-  const [categories, setCategories] = useState([])
+export default function CategoryGrid({ heading }) {
+  // Loaded by CategoryStrip above; shared through the store, not fetched twice.
+  const categories = useProductStore((s) => s.categories).slice(0, 8)
+  const fetchCategories = useProductStore((s) => s.fetchCategories)
+  // (A no-op when the strip above already loaded them; needed when the owner has hidden it.)
+  useEffect(() => { fetchCategories() }, [fetchCategories])
   const s = useSetting()
 
-  useEffect(() => {
-    apiClient.get('/categories')
-      .then((r) => {
-        const roots = r.data.categories || []
-        setCategories(roots.slice(0, 8))
-      })
-      .catch(() => {})
-  }, [])
-
-  if (!categories.length) return null
+  if (categories.length === 0) return null
 
   return (
-    <section className="px-8 lg:px-12 py-14">
-      <div className="mb-10">
-        <div className="text-[10px] tracking-[3px] text-gold uppercase font-semibold mb-2">{s('section_categories_tag', 'Explore')}</div>
-        <h2 className="font-serif text-[34px] font-bold">{s('section_categories_title', 'Shop by Category')}</h2>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {categories.map((cat, i) => (
-          <Link key={cat.id} to={`/shop?category=${cat.slug}`} className="group rounded overflow-hidden relative aspect-[3/4]">
-            {cat.image_url ? (
-              <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className={`w-full h-full bg-gradient-to-b ${FALLBACK_BG[i % FALLBACK_BG.length]}`} />
-            )}
-            <div className="absolute bottom-0 inset-x-0 p-5 bg-gradient-to-t from-black/80 to-transparent group-hover:from-maroon/90 transition-colors">
-              <div className="font-serif text-xl text-white font-bold">{cat.name}</div>
-              {cat.children?.length > 0 && (
-                <div className="text-[10px] text-white/55 tracking-[1px] mt-0.5">
-                  {cat.children.length} subcategories
-                </div>
+    <Container as="section" className="py-14 lg:py-20" aria-labelledby="categories-heading">
+      <SectionHeading
+        id="categories-heading"
+        eyebrow={heading?.subtitle || s('section_categories_tag', 'Explore')}
+        title={heading?.title || s('section_categories_title', 'Shop by category')}
+      />
+      <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {categories.map((cat) => (
+          <li key={cat.id}>
+            <Link
+              to={`/shop?category=${cat.slug}`}
+              className="group relative block aspect-[3/4] overflow-hidden rounded-card bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              {cat.image_url && (
+                <img
+                  src={cat.image_url} alt="" width="600" height="800" loading="lazy" decoding="async"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                />
               )}
-            </div>
-          </Link>
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-4 pt-16">
+                <div>
+                  <h3 className="display text-lg text-white">{cat.name}</h3>
+                  {cat.children?.length > 0 && (
+                    <p className="text-xs text-white/80">{cat.children.length} collections</p>
+                  )}
+                </div>
+                <IconArrowUpRight size={20} className="shrink-0 text-white transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+              </div>
+            </Link>
+          </li>
         ))}
-      </div>
-    </section>
+      </ul>
+    </Container>
   )
 }

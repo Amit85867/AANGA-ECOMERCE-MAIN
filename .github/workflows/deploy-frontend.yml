@@ -1,0 +1,114 @@
+name: Deploy storefront to Hostinger
+
+# Builds the static storefront and uploads it to Hostinger's public_html.
+#
+# Hostinger's Single plan has NO SSH, so this deploys over FTPS: FTP with
+# explicit TLS on port 21. Plain FTP would send the password in clear text.
+#
+# Repository secrets (Settings -> Secrets and variables -> Actions):
+#   HOSTINGER_FTP_HOST      145.223.17.73
+#   HOSTINGER_FTP_USER      u224349413
+#   HOSTINGER_FTP_PASSWORD  the FTP password (hPanel -> Files -> FTP Accounts)
+#
+# The remote directory is public_html/ relative to the FTP account's root.
+#
+# Repository variables (not secret):
+#   SITE_URL              https://example.com
+#   API_BASE_URL          https://api.example.com
+#
+# Deliberately manual by default: `workflow_dispatch` plus pushes to main that
+# actually touch the storefront. A deploy replaces a live shop, so it should
+# not fire on an unrelated README edit.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'scripts/generate_seo_files.mjs'
+      - '.github/workflows/deploy-frontend.yml'
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npx oxlint
+
+      - name: Build
+        working-directory: frontend
+        env:
+          # The storefront calls the API on its own subdomain. Without this the
+          # build falls back to a same-origin /api, which does not exist on
+          # Hostinger, and every API call 404s.
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: npm run build
+
+      - name: Generate sitemap.xml and robots.txt
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: node scripts/generate_seo_files.mjs
+
+      - name: Check the build looks deployable
+        working-directory: frontend/dist
+        run: |
+          test -f index.html || { echo "no index.html"; exit 1; }
+          test -f .htaccess  || { echo "no .htaccess — SPA routes would 404"; exit 1; }
+          test -f robots.txt || { echo "no robots.txt"; exit 1; }
+          test -f sitemap.xml || { echo "no sitemap.xml"; exit 1; }
+          echo "dist contents:"; ls -la
+
+      # FTPS, not SSH: the Single plan has no SSH. dangerous-clean-slate is
+      # left OFF on purpose -- old hashed assets accumulating is a disk-space
+      # problem for later; a wildcard delete on a live site is not.
+      #
+      # The action syncs by a state file it keeps on the server, so only
+      # changed files are uploaded after the first run.
+      - name: Deploy over FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USER }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: loose          # Hostinger's cert names its own host, not the IP
+          local-dir: ./frontend/dist/
+          server-dir: ./public_html/
+          exclude: |
+            **/*.map
+
+      # A CDN in front of the site can keep serving the previous index.html.
+      # Purge it in hPanel (Dashboard -> Clear cache) if a deploy does not show.
+
+      - name: Smoke test the live site
+        if: ${{ vars.SITE_URL != '' }}
+        run: |
+          set -e
+          echo "waiting a moment for the upload to settle"; sleep 10
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.SITE_URL }}/")
+          echo "home            -> $code"; [ "$code" = "200" ]
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.SITE_URL }}/robots.txt")
+          echo "robots.txt      -> $code"; [ "$code" = "200" ]
+          # A deep link must be served by the SPA fallback, not 404.
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.SITE_URL }}/shop")
+          echo "/shop (fallback)-> $code"; [ "$code" = "200" ]

@@ -1,0 +1,10 @@
+{
+  "pickup_status": 1,
+  "response": {
+    "pickup_scheduled_date": "2026-10-12 10:00:00",
+    "pickup_token_number": "Reference No: 194_TEST_11102026",
+    "status": 3,
+    "others": "{}",
+    "data": "Pickup is confirmed by Delhivery for AWB: 1091234567890"
+  }
+}

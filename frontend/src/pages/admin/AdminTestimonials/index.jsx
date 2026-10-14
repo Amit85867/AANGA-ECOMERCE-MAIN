@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/toastStore'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconEdit, IconTrash, IconPhoto, IconStarFilled } from '@tabler/icons-react'
 
 export default function AdminTestimonials() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -14,7 +20,8 @@ export default function AdminTestimonials() {
 
   const fetchItems = () => {
     setLoading(true)
-    adminApi.get('/admin/testimonials').then((r) => setItems(r.data.testimonials)).catch(() => {}).finally(() => setLoading(false))
+    setError(null)
+    adminApi.get('/admin/testimonials', { params: { per_page: 100 } }).then((r) => setItems(r.data.testimonials)).catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.')).finally(() => setLoading(false))
   }
   useEffect(() => { fetchItems() }, [])
 
@@ -34,11 +41,23 @@ export default function AdminTestimonials() {
     try {
       const r = await adminApi.post('/admin/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       setForm((f) => ({ ...f, avatar_url: r.data.url }))
-    } catch { alert('Upload failed') }
+    } catch { toast.error('Upload failed') }
     setUploading(false)
   }
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const payload = {
       ...form,
@@ -50,17 +69,23 @@ export default function AdminTestimonials() {
     try {
       if (editing) await adminApi.put(`/admin/testimonials/${editing.id}`, payload)
       else await adminApi.post('/admin/testimonials', payload)
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false); fetchItems()
-    } catch (err) { alert(err.response?.data?.error || 'Save failed') }
+    } catch (err) { notifyError(err, 'Save failed') }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this testimonial?')) return
-    await adminApi.delete(`/admin/testimonials/${id}`)
-    fetchItems()
+    if (!(await confirm({ title: 'Delete this testimonial?', message: 'It will be removed from the home page.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      await adminApi.delete(`/admin/testimonials/${id}`)
+      toast.success('Deleted.')
+      fetchItems()
+    } catch (err) {
+      notifyError(err, 'Could not delete this.')
+    }
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
   const labelCls = 'block text-xs font-medium text-gray-500 mb-1'
 
   return (
@@ -70,7 +95,7 @@ export default function AdminTestimonials() {
           <h1 className="text-2xl font-semibold text-gray-900">Testimonials</h1>
           <p className="mt-1 text-sm text-gray-500">Customer reviews on the homepage. Only 4–5★ show up front; the rest sit under "View more".</p>
         </div>
-        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-[#C8963E] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#b88534]">
+        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-dark">
           <IconPlus size={18} /> Add Testimonial
         </button>
       </div>
@@ -79,49 +104,51 @@ export default function AdminTestimonials() {
         <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
           <h3 className="mb-4 text-lg font-medium text-gray-900">{editing ? 'Edit Testimonial' : 'New Testimonial'}</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className={labelCls}>Customer Name *</label><input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
-            <div><label className={labelCls}>Location</label><input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="e.g. Patna, Bihar" className={inputCls} /></div>
+            <div><label htmlFor="testimonials-customer-name" className={labelCls}>Customer Name *</label><input id="testimonials-customer-name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="testimonials-location" className={labelCls}>Location</label><input id="testimonials-location" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="e.g. Patna, Bihar" className={inputCls} /></div>
             <div>
-              <label className={labelCls}>Rating</label>
-              <select value={form.rating} onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))} className={inputCls}>
+              <label htmlFor="testimonials-rating" className={labelCls}>Rating</label>
+              <select id="testimonials-rating" value={form.rating} onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))} className={inputCls}>
                 {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} Star{r > 1 ? 's' : ''}{r >= 4 ? ' (shown up front)' : ' (in View more)'}</option>)}
               </select>
             </div>
           </div>
           <div className="mt-4">
-            <label className={labelCls}>Review Quote *</label>
-            <textarea required value={form.quote} onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))} rows={3} className={inputCls} />
+            <label htmlFor="testimonials-review-quote" className={labelCls}>Review Quote *</label>
+            <textarea id="testimonials-review-quote" required value={form.quote} onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))} rows={3} className={inputCls} />
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Customer Photo</label>
+              <label htmlFor="testimonials-customer-photo" className={labelCls}>Customer Photo</label>
               <div className="flex gap-2">
-                <input value={form.avatar_url} onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))} placeholder="Image URL or upload →" className={inputCls} />
+                <input id="testimonials-customer-photo" value={form.avatar_url} onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))} placeholder="Image URL or upload →" className={inputCls} />
                 <label className="shrink-0 cursor-pointer rounded-lg border border-gray-200 px-3 py-2.5 text-gray-500 hover:bg-gray-50">
                   <IconPhoto size={18} />
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+                  <input type="file" accept="image/*" aria-label="Upload image" className="hidden" onChange={handleUpload} />
                 </label>
               </div>
               {form.avatar_url && <img src={form.avatar_url} alt="" className="mt-2 h-14 w-14 rounded-full border object-cover" />}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className={labelCls}>Sort Order</label><input type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} /></div>
+              <div><label htmlFor="testimonials-sort-order" className={labelCls}>Sort Order</label><input id="testimonials-sort-order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} /></div>
               <div className="flex items-end pb-1">
                 <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="rounded" /><span className="text-sm text-gray-700">Active</span></label>
               </div>
             </div>
           </div>
           <div className="mt-5 flex gap-2">
-            <button type="submit" disabled={uploading} className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-50">{uploading ? 'Uploading…' : editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={uploading || saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-gold px-5 py-2 text-sm font-medium text-white hover:bg-gold-dark disabled:opacity-50">{uploading ? 'Uploading…' : editing ? 'Update' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetchItems()} />
       ) : items.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No testimonials yet.</div>
+        <EmptyState title="No testimonials yet" hint="Add what customers have said about you." />
       ) : (
         <div className="grid gap-4">
           {items.map((t) => (
@@ -132,7 +159,7 @@ export default function AdminTestimonials() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-900">{t.name}</span>
-                  <span className="flex items-center text-[#C8963E]">{[...Array(t.rating)].map((_, i) => <IconStarFilled key={i} size={12} />)}</span>
+                  <span className="flex items-center text-gold">{[...Array(t.rating)].map((_, i) => <IconStarFilled key={i} size={12} />)}</span>
                   {t.rating < 4 && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">View more</span>}
                   {!t.is_active && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">Inactive</span>}
                 </div>
@@ -140,8 +167,8 @@ export default function AdminTestimonials() {
                 <p className="mt-1 text-sm text-gray-600 line-clamp-2">{t.quote}</p>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => openEdit(t)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                <button onClick={() => handleDelete(t.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                <button type="button" onClick={() => openEdit(t)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                <button type="button" onClick={() => handleDelete(t.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
               </div>
             </div>
           ))}

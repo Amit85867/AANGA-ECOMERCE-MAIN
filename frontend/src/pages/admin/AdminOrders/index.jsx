@@ -1,146 +1,114 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import adminApi from '@/services/adminApi'
-import { IconSearch, IconEye } from '@tabler/icons-react'
+import { IconShoppingCart } from '@tabler/icons-react'
+import DataState, { TableSkeleton } from '@/components/admin/DataState'
+import Pagination from '@/components/admin/Pagination'
+import useAdminList from '@/components/admin/useAdminList'
+import { Badge, PageHeading, SearchInput } from '@/components/admin/controls'
+import {
+  ORDER_STATUS_TONE, countOf, formatDateTime, humanize, inputCls, inr,
+} from '@/components/admin/helpers'
 
-const STATUS_COLORS = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  confirmed: 'bg-blue-100 text-blue-700',
-  packed: 'bg-indigo-100 text-indigo-700',
-  shipped: 'bg-purple-100 text-purple-700',
-  out_for_delivery: 'bg-cyan-100 text-cyan-700',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-  return_requested: 'bg-orange-100 text-orange-700',
-  returned: 'bg-gray-100 text-gray-600',
-}
+const STATUSES = [
+  'pending', 'confirmed', 'packed', 'shipped', 'out_for_delivery',
+  'delivered', 'cancelled', 'return_requested', 'returned',
+]
+const PAYMENT_TONE = { paid: 'green', pending: 'amber', failed: 'red', refunded: 'gray' }
 
-const STATUSES = ['', 'pending', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'return_requested', 'returned']
+const SORTS = [
+  ['placed_at:desc', 'Newest first'],
+  ['placed_at:asc', 'Oldest first'],
+  ['total_amount:desc', 'Highest value'],
+  ['total_amount:asc', 'Lowest value'],
+]
 
 export default function AdminOrders() {
-  const [orders, setOrders] = useState([])
-  const [page, setPage] = useState(1)
-  const [pages, setPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [search, setSearch] = useState('')
+  const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [paymentStatus, setPaymentStatus] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [sort, setSort] = useState('placed_at:desc')
 
-  const fetchOrders = useCallback(
-    (pg = 1) => {
-      setLoading(true)
-      const params = { page: pg, per_page: 20 }
-      if (search) params.q = search
-      if (status) params.status = status
-      adminApi
-        .get('/admin/orders', { params })
-        .then((r) => {
-          setOrders(r.data.orders)
-          setPage(r.data.page)
-          setPages(r.data.pages)
-          setTotal(r.data.total)
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false))
-    },
-    [search, status],
-  )
-
-  useEffect(() => { fetchOrders() }, [status])
-
-  const handleSearch = (e) => {
-    e.preventDefault()
-    fetchOrders(1)
-  }
+  const [sortBy, dir] = sort.split(':')
+  const list = useAdminList('/admin/orders', 'orders', {
+    q, status, payment_status: paymentStatus, from, to, sort: sortBy, dir,
+  })
+  const filtered = Boolean(q || status || paymentStatus || from || to)
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-gray-900">Orders ({total})</h1>
+      <PageHeading title="Orders" subtitle={`${countOf(list.total, 'orders')} found`} />
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <form onSubmit={handleSearch} className="relative flex-1">
-          <IconSearch size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by order number..."
-            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-[#C8963E]"
-          />
-        </form>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none"
-        >
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto]">
+        <SearchInput value={q} onChange={setQ} placeholder="Order number, customer name, email or phone" />
+        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Order status" className={`${inputCls} w-auto`}>
           <option value="">All statuses</option>
-          {STATUSES.filter(Boolean).map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-          ))}
+          {STATUSES.map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
+        </select>
+        <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)} aria-label="Payment status" className={`${inputCls} w-auto`}>
+          <option value="">Any payment</option>
+          {Object.keys(PAYMENT_TONE).map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
+        </select>
+        <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label="Placed from" className={`${inputCls} w-auto`} />
+        <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label="Placed to" className={`${inputCls} w-auto`} />
+        <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" className={`${inputCls} w-auto`}>
+          {SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </div>
 
-      {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
-      ) : orders.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No orders found</div>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-                  <th className="px-6 py-3 font-medium">Order</th>
-                  <th className="px-6 py-3 font-medium">Customer</th>
-                  <th className="px-6 py-3 font-medium">Status</th>
-                  <th className="px-6 py-3 font-medium">Payment</th>
-                  <th className="px-6 py-3 font-medium">Amount</th>
-                  <th className="px-6 py-3 font-medium">Date</th>
-                  <th className="px-6 py-3 font-medium"></th>
+      <DataState
+        loading={list.loading && list.rows.length === 0}
+        error={list.error}
+        onRetry={list.reload}
+        empty={list.rows.length === 0}
+        filtered={filtered}
+        skeleton={<TableSkeleton rows={8} columns={6} />}
+        emptyIcon={IconShoppingCart}
+        emptyTitle="No orders yet"
+        emptyHint="Orders appear here as soon as a customer checks out."
+      >
+        <div className={`overflow-x-auto rounded-xl border border-gray-200 bg-white ${list.loading ? 'opacity-60' : ''}`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+                <th className="px-6 py-3 font-medium">Order</th>
+                <th className="px-6 py-3 font-medium">Customer</th>
+                <th className="px-6 py-3 font-medium">Status</th>
+                <th className="px-6 py-3 font-medium">Payment</th>
+                <th className="px-6 py-3 text-right font-medium">Total</th>
+                <th className="px-6 py-3 font-medium">Placed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.rows.map((o) => (
+                <tr key={o.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                  <td className="px-6 py-3">
+                    <Link to={`/admin/orders/${o.id}`} className="font-medium text-gray-900 hover:underline">
+                      {o.order_number}
+                    </Link>
+                    <div className="text-xs text-gray-500">{o.item_count} item{o.item_count === 1 ? '' : 's'}</div>
+                  </td>
+                  <td className="px-6 py-3">
+                    <div className="text-gray-900">{o.customer_name}</div>
+                    <div className="text-xs text-gray-500">{o.customer_email}</div>
+                  </td>
+                  <td className="px-6 py-3">
+                    <Badge tone={ORDER_STATUS_TONE[o.status]}>{humanize(o.status)}</Badge>
+                  </td>
+                  <td className="px-6 py-3">
+                    <Badge tone={PAYMENT_TONE[o.payment_status]}>{humanize(o.payment_status)}</Badge>
+                    <div className="mt-0.5 text-xs uppercase text-gray-400">{humanize(o.payment_method)}</div>
+                  </td>
+                  <td className="px-6 py-3 text-right tabular-nums text-gray-900">{inr(o.total_amount)}</td>
+                  <td className="whitespace-nowrap px-6 py-3 text-gray-500">{formatDateTime(o.placed_at)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {orders.map((o) => (
-                  <tr key={o.id} className="border-b border-gray-50 last:border-0">
-                    <td className="px-6 py-3 font-medium text-gray-900">{o.order_number}</td>
-                    <td className="px-6 py-3">
-                      <div className="text-gray-900">{o.customer_name}</div>
-                      <div className="text-xs text-gray-400">{o.customer_email}</div>
-                    </td>
-                    <td className="px-6 py-3">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {o.status.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${o.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        {o.payment_status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-gray-700">₹{o.total_amount.toLocaleString('en-IN')}</td>
-                    <td className="px-6 py-3 text-gray-400">{new Date(o.placed_at).toLocaleDateString('en-IN')}</td>
-                    <td className="px-6 py-3">
-                      <Link to={`/admin/orders/${o.id}`} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
-                        <IconEye size={16} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {pages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-2">
-              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => fetchOrders(p)} className={`h-9 min-w-9 rounded-lg px-3 text-sm ${p === page ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                  {p}
-                </button>
               ))}
-            </div>
-          )}
-        </>
-      )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={list.page} pages={list.pages} total={list.total} onChange={list.setPage} noun="orders" />
+      </DataState>
     </div>
   )
 }

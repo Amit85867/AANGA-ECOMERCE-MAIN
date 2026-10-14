@@ -16,6 +16,7 @@ class Category(db.Model):
     image_url = db.Column(db.Text)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
 
     children = db.relationship("Category", backref=db.backref("parent", remote_side=[id]))
@@ -44,6 +45,11 @@ class Product(db.Model):
     badge_class = db.Column(db.Text)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     is_featured = db.Column(db.Boolean, nullable=False, default=False)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
+    care_details = db.Column(db.Text)
+    meta_title = db.Column(db.Text)
+    meta_description = db.Column(db.Text)
+    share_image_url = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
 

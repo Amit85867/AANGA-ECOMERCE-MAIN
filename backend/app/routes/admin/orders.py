@@ -1,23 +1,48 @@
 """Admin order management: list, detail, update status, add tracking, manage returns."""
-from flask import request, jsonify
+from datetime import datetime, timedelta, timezone
+
+from flask import request, jsonify, current_app
 from marshmallow import ValidationError
+from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.models.order import Order, OrderItem, OrderTracking, Return
 from app.models.catalogue import ProductImage
 from app.models.user import User
-from app.models.enums import OrderStatus, TrackingStatusType, ReturnStatus, ResolutionType
+from app.models.enums import (
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+    TrackingStatusType,
+    ReturnStatus,
+    ResolutionType,
+)
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
 from app.schemas.admin import AdminOrderStatusIn, AdminTrackingIn, AdminReturnUpdateIn
+from app.services import audit, order_status
+from app.services.catalogue import primary_images
+from app.services.order_service import refund_order_if_prepaid
+from app.utils.pagination import apply_sort, page_meta, paginate, parse_day
 
 _status_in = AdminOrderStatusIn()
 _tracking_in = AdminTrackingIn()
 _return_in = AdminReturnUpdateIn()
 
+# order status -> (label, description, tracking type) shown on the customer's order page
+_STATUS_EVENTS = {
+    OrderStatus.confirmed: ("Order Confirmed", "We have confirmed your order.", TrackingStatusType.confirmed),
+    OrderStatus.packed: ("Packed", "Your order is packed and ready to ship.", TrackingStatusType.packed),
+    OrderStatus.shipped: ("Shipped", "Your order is on its way.", TrackingStatusType.dispatched),
+    OrderStatus.out_for_delivery: (
+        "Out for Delivery", "Your order will reach you today.", TrackingStatusType.out_for_delivery),
+    OrderStatus.delivered: ("Delivered", "Your order has been delivered.", TrackingStatusType.delivered),
+    OrderStatus.cancelled: ("Order Cancelled", "This order was cancelled.", TrackingStatusType.returned),
+}
 
-def _serialize_order_list(o):
-    user = db.session.get(User, o.user_id)
+
+def _serialize_order_list(o, customer_name, customer_email):
     return {
         "id": o.id,
         "order_number": o.order_number,
@@ -26,41 +51,66 @@ def _serialize_order_list(o):
         "payment_method": o.payment_method.value,
         "payment_status": o.payment_status.value,
         "item_count": sum(i.quantity for i in o.items),
-        "customer_name": user.full_name if user else "Unknown",
-        "customer_email": user.email if user else None,
+        "customer_name": customer_name or "Unknown",
+        "customer_email": customer_email,
         "placed_at": o.placed_at.isoformat(),
         "expected_delivery": o.expected_delivery.isoformat() if o.expected_delivery else None,
     }
 
 
+_ORDER_SORTS = {
+    "placed_at": Order.placed_at,
+    "total_amount": Order.total_amount,
+    "order_number": Order.order_number,
+}
+
+
 @admin_bp.route("/orders", methods=["GET"])
 @admin_required
 def admin_list_orders():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
+    # The customer comes along in the same query and items in one more, instead
+    # of two extra queries per row.
+    q = (
+        db.session.query(Order, User.full_name, User.email)
+        .outerjoin(User, Order.user_id == User.id)
+        .options(selectinload(Order.items))
+    )
+
     status = request.args.get("status")
-    search = request.args.get("q")
-
-    q = Order.query
-
     if status:
         try:
-            q = q.filter_by(status=OrderStatus(status))
+            q = q.filter(Order.status == OrderStatus(status))
         except ValueError:
             pass
 
-    if search:
-        q = q.filter(Order.order_number.ilike(f"%{search}%"))
+    payment_status = request.args.get("payment_status")
+    if payment_status:
+        try:
+            q = q.filter(Order.payment_status == PaymentStatus(payment_status))
+        except ValueError:
+            pass
 
-    paginated = q.order_by(Order.placed_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = f"%{search}%"
+        q = q.filter(or_(
+            Order.order_number.ilike(like),
+            User.full_name.ilike(like),
+            User.email.ilike(like),
+            User.phone.ilike(like),
+        ))
+
+    since, until = parse_day(request.args.get("from")), parse_day(request.args.get("to"))
+    if since:
+        q = q.filter(Order.placed_at >= since)
+    if until:
+        q = q.filter(Order.placed_at < until + timedelta(days=1))
+
+    page = paginate(apply_sort(q, _ORDER_SORTS, "placed_at"))
 
     return jsonify(
-        orders=[_serialize_order_list(o) for o in paginated.items],
-        page=paginated.page,
-        pages=paginated.pages,
-        total=paginated.total,
+        orders=[_serialize_order_list(o, name, email) for o, name, email in page.items],
+        **page_meta(page),
     ), 200
 
 
@@ -74,15 +124,12 @@ def admin_order_detail(order_id):
     user = db.session.get(User, order.user_id)
     addr = order.address
 
+    images = primary_images(oi.variant.product_id for oi in order.items)
+
     items = []
     for oi in order.items:
         variant = oi.variant
         product = variant.product
-        primary = (
-            ProductImage.query
-            .filter_by(product_id=product.id, is_primary=True)
-            .first()
-        )
         items.append({
             "id": oi.id,
             "product_name": product.name,
@@ -90,7 +137,7 @@ def admin_order_detail(order_id):
             "size": variant.size,
             "color_name": variant.color_name,
             "color_hex": variant.color_hex,
-            "image_url": primary.image_url if primary else None,
+            "image_url": images.get(product.id),
             "quantity": oi.quantity,
             "unit_price": float(oi.unit_price),
             "total_price": float(oi.total_price) if oi.total_price else float(oi.unit_price) * oi.quantity,
@@ -112,6 +159,8 @@ def admin_order_detail(order_id):
         id=order.id,
         order_number=order.order_number,
         status=order.status.value,
+        # What the status control may offer next (app/services/order_status.py).
+        allowed_statuses=[s.value for s in order_status.allowed_next(order.status, order_status.ADMIN)],
         subtotal=float(order.subtotal),
         discount_amount=float(order.discount_amount),
         gst_amount=float(order.gst_amount),
@@ -157,15 +206,55 @@ def update_order_status(order_id):
         return jsonify(error="Order not found"), 404
 
     new_status = OrderStatus(data["status"])
-    order.status = new_status
+    previous_status = order.status
 
+    if new_status == previous_status:
+        return jsonify(message="Status unchanged", status=new_status.value), 200
+
+    # Checked before anything else happens: the refund and the restock below
+    # only ever follow a change the rules allow.
+    try:
+        order_status.transition(order, new_status, order_status.ADMIN)
+    except order_status.InvalidTransition as err:
+        return jsonify(order_status.conflict_body(err)), 409
+
+    audit.annotate(
+        by_admin=True,
+        summary=f"Order {order.order_number}: {previous_status.value} → {new_status.value}",
+        changes={"from": previous_status.value, "to": new_status.value},
+    )
+
+    # The customer follows the order through its tracking events, and the
+    # return window is counted from the "delivered" one — so a status change
+    # always leaves an event behind.
+    event = _STATUS_EVENTS.get(new_status)
+    if event:
+        label, description, status_type = event
+        db.session.add(OrderTracking(
+            order_id=order.id, status_label=label, description=description, status_type=status_type,
+        ))
+
+    # Cash on delivery is collected at the door.
+    if (
+        new_status == OrderStatus.delivered
+        and order.payment_method == PaymentMethod.cod
+        and order.payment_status == PaymentStatus.pending
+    ):
+        order.payment_status = PaymentStatus.paid
+
+    refunded = None
     if new_status == OrderStatus.cancelled:
-        for oi in order.items:
-            oi.variant.stock_qty += oi.quantity
+        # Stock is restored by the trg_restore_inventory trigger the moment this
+        # UPDATE flips status to 'cancelled' — adding it back here as well would
+        # double the restock and silently inflate inventory.
+        refunded = refund_order_if_prepaid(order)
 
     db.session.commit()
 
-    return jsonify(message="Status updated", status=new_status.value), 200
+    payload = {"message": "Status updated", "status": new_status.value}
+    if refunded is not None:
+        payload["refunded"] = refunded
+    return jsonify(payload), 200
 
 
 @admin_bp.route("/orders/<int:order_id>/tracking", methods=["POST"])
@@ -202,33 +291,63 @@ def add_tracking_event(order_id):
 
 # ── Returns ───────────────────────────────────────────────────
 
+# A return that has been resolved or rejected is closed: money may already
+# have moved, so it cannot be reopened or resolved a second time.
+_CLOSED_RETURN_STATUSES = {ReturnStatus.resolved, ReturnStatus.rejected}
+
+
+_RETURN_SORTS = {
+    "requested_at": Return.requested_at,
+    "refund_amount": Return.refund_amount,
+}
+
+
 @admin_bp.route("/returns", methods=["GET"])
 @admin_required
 def list_returns():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
-    status = request.args.get("status")
+    q = (
+        db.session.query(Return, Order, User.full_name, User.email)
+        .join(OrderItem, Return.order_item_id == OrderItem.id)
+        .join(Order, OrderItem.order_id == Order.id)
+        .outerjoin(User, Return.user_id == User.id)
+    )
 
-    q = Return.query
-    if status:
+    status = request.args.get("status")
+    if status == "open":
+        q = q.filter(Return.status.notin_(list(_CLOSED_RETURN_STATUSES)))
+    elif status:
         try:
-            q = q.filter_by(status=ReturnStatus(status))
+            q = q.filter(Return.status == ReturnStatus(status))
         except ValueError:
             pass
 
-    paginated = q.order_by(Return.requested_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = f"%{search}%"
+        q = q.filter(or_(
+            Order.order_number.ilike(like),
+            User.full_name.ilike(like),
+            User.email.ilike(like),
+        ))
+
+    page = paginate(apply_sort(q, _RETURN_SORTS, "requested_at"))
 
     items = []
-    for r in paginated.items:
+    for r, order, customer_name, customer_email in page.items:
         oi = r.order_item
-        user = db.session.get(User, r.user_id)
+        paid = float(oi.total_price or float(oi.unit_price) * oi.quantity)
         items.append({
             "id": r.id,
+            "order_id": order.id,
+            "order_number": order.order_number,
             "order_item_id": r.order_item_id,
-            "product_name": oi.variant.product.name if oi else "Unknown",
-            "customer_name": user.full_name if user else "Unknown",
+            "product_name": oi.variant.product.name,
+            "variant": f"{oi.variant.size} · {oi.variant.color_name}",
+            "quantity": oi.quantity,
+            "item_total": paid,
+            "prepaid": order.payment_status == PaymentStatus.paid and bool(order.payment_ref),
+            "customer_name": customer_name or "Unknown",
+            "customer_email": customer_email,
             "reason": r.reason.value,
             "description": r.description,
             "status": r.status.value,
@@ -238,17 +357,19 @@ def list_returns():
             "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
         })
 
-    return jsonify(
-        returns=items,
-        page=paginated.page,
-        pages=paginated.pages,
-        total=paginated.total,
-    ), 200
+    return jsonify(returns=items, **page_meta(page)), 200
 
 
 @admin_bp.route("/returns/<int:return_id>", methods=["PATCH"])
 @admin_required
 def update_return(return_id):
+    """Move a return along, and settle it.
+
+    Resolving as a refund is where money moves: a prepaid order is refunded
+    through Razorpay for the approved amount, and only if that succeeds is the
+    return marked resolved. A COD order has nothing to reverse online, so the
+    response says the refund must be paid out manually.
+    """
     try:
         data = _return_in.load(request.get_json())
     except ValidationError as err:
@@ -258,16 +379,131 @@ def update_return(return_id):
     if not ret:
         return jsonify(error="Return not found"), 404
 
-    ret.status = ReturnStatus(data["status"])
-    if data.get("resolution_type"):
-        ret.resolution_type = ResolutionType(data["resolution_type"])
-    if data.get("refund_amount") is not None:
-        ret.refund_amount = data["refund_amount"]
+    if ret.status in _CLOSED_RETURN_STATUSES:
+        return jsonify(error=f"This return is already {ret.status.value} and cannot be changed."), 409
 
-    from datetime import datetime, timezone
-    if ret.status == ReturnStatus.resolved:
+    item = ret.order_item
+    order = item.order
+
+    # An open return always sits on an order in "return requested". Anything
+    # else means the order was settled another way (e.g. cancelled and
+    # refunded), and refunding or restocking here would do it twice.
+    if order.status != OrderStatus.return_requested:
+        return jsonify(
+            error=f"Order {order.order_number} is {order.status.value.replace('_', ' ')}, "
+                  "so this return can no longer be processed.",
+            status=order.status.value,
+        ), 409
+    paid_for_item = float(item.total_price or float(item.unit_price) * item.quantity)
+
+    # A refund can be for less than the item cost (partial), never more.
+    refund_amount = data.get("refund_amount")
+    if refund_amount is not None and refund_amount > paid_for_item:
+        return jsonify(errors={"refund_amount": [
+            f"Cannot exceed the {paid_for_item:.2f} paid for this item."
+        ]}), 422
+
+    new_status = ReturnStatus(data["status"])
+    previous_status = ret.status
+    resolution = (
+        ResolutionType(data["resolution_type"]) if data.get("resolution_type")
+        else ret.resolution_type
+    )
+
+    refund_method = None
+    if new_status == ReturnStatus.resolved:
+        if resolution is None:
+            return jsonify(errors={"resolution_type": [
+                "Choose how this return is being resolved."
+            ]}), 422
+
+        if resolution == ResolutionType.refund:
+            if refund_amount is None:
+                refund_amount = float(ret.refund_amount) if ret.refund_amount else paid_for_item
+
+            if order.payment_status == PaymentStatus.paid and order.payment_ref:
+                from app.routes.payments import refund_payment
+                ok = refund_payment(
+                    order.payment_ref, int(round(refund_amount * 100)),
+                    reason=f"return_{ret.id}",
+                )
+                if not ok:
+                    current_app.logger.critical(
+                        "REFUND_FAILED_ON_RETURN return=%s order=%s amount=%s",
+                        ret.id, order.order_number, refund_amount,
+                    )
+                    return jsonify(
+                        error="The payment gateway did not accept the refund. "
+                              "The return has not been resolved — try again, or "
+                              "refund it in the Razorpay Dashboard."
+                    ), 502
+                refund_method = "gateway"
+            else:
+                # COD (or never captured): nothing to reverse online.
+                refund_method = "manual"
+
+        if data.get("restock"):
+            item.variant.stock_qty += item.quantity
+
         ret.resolved_at = datetime.now(timezone.utc)
+
+    ret.status = new_status
+    ret.resolution_type = resolution
+    if refund_amount is not None:
+        ret.refund_amount = refund_amount
+
+    if new_status == ReturnStatus.rejected:
+        ret.resolved_at = datetime.now(timezone.utc)
+
+    db.session.flush()
+    _sync_order_after_return(order)
+
+    restocked = bool(new_status == ReturnStatus.resolved and data.get("restock"))
+    audit.annotate(
+        entity="refunds" if refund_method else "returns",
+        summary=(
+            f"Return #{ret.id} on order {order.order_number}: "
+            f"{previous_status.value} → {new_status.value}"
+            + (f", refunded ₹{refund_amount:.2f} ({refund_method})" if refund_method else "")
+            + (", item restocked" if restocked else "")
+        ),
+        changes={
+            "order_number": order.order_number,
+            "from": previous_status.value, "to": new_status.value,
+            "resolution_type": resolution.value if resolution else None,
+            "refund_amount": refund_amount, "refund_method": refund_method,
+            "restocked": restocked,
+        },
+    )
 
     db.session.commit()
 
-    return jsonify(message="Return updated"), 200
+    return jsonify(
+        message="Return updated",
+        status=ret.status.value,
+        refund_method=refund_method,
+        refund_amount=float(ret.refund_amount) if ret.refund_amount else None,
+    ), 200
+
+
+def _sync_order_after_return(order):
+    """Reflect the state of an order's returns on the order itself.
+
+    Every item returned and refunded -> the order is "returned". Otherwise, once
+    no return is still in progress, it goes back to "delivered".
+    """
+    returns = Return.query.join(OrderItem, Return.order_item_id == OrderItem.id).filter(
+        OrderItem.order_id == order.id
+    ).all()
+    open_returns = [r for r in returns if r.status not in _CLOSED_RETURN_STATUSES]
+    resolved_items = {
+        r.order_item_id for r in returns
+        if r.status == ReturnStatus.resolved and r.resolution_type == ResolutionType.refund
+    }
+
+    if open_returns:
+        return
+    if resolved_items and resolved_items == {i.id for i in order.items}:
+        order_status.transition(order, OrderStatus.returned, order_status.RETURNS)
+    else:
+        order_status.transition(order, OrderStatus.delivered, order_status.RETURNS)

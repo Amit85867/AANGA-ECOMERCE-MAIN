@@ -1,0 +1,1094 @@
+[
+ {
+  "file": "share-card.webp",
+  "url": "/static/uploads/8d631468413e4b4699867f78ea9d8fc5.webp",
+  "used_for": "Store settings: default share image",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-men.webp",
+  "url": "/static/uploads/6bbb68ac3e2d468688b4b0d29d0a6656.webp",
+  "used_for": "Category tile: Men",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-mens-shirts.webp",
+  "url": "/static/uploads/8b3d6fac1e7f4ba5ae6d1be67a91003a.webp",
+  "used_for": "Category tile: Shirts",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-mens-tees.webp",
+  "url": "/static/uploads/81b5dcfcfcea454f8529368dd91197ee.webp",
+  "used_for": "Category tile: T-Shirts & Polos",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-mens-sweats.webp",
+  "url": "/static/uploads/2cba4f5220f842c2a3be5d2f656bdf6e.webp",
+  "used_for": "Category tile: Sweatshirts & Hoodies",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-mens-outerwear.webp",
+  "url": "/static/uploads/378f793d2cc3488c9181007895f34436.webp",
+  "used_for": "Category tile: Jackets & Coats",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-mens-bottoms.webp",
+  "url": "/static/uploads/9c75e58119504b9f8c482c2a4a7d4f44.webp",
+  "used_for": "Category tile: Trousers & Jeans",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-women.webp",
+  "url": "/static/uploads/621b3462cb5c473ab3e203a8a9194077.webp",
+  "used_for": "Category tile: Women",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-womens-dresses.webp",
+  "url": "/static/uploads/f1c79d4218d94ea78c12cf264500a2ef.webp",
+  "used_for": "Category tile: Dresses",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-womens-ethnic.webp",
+  "url": "/static/uploads/f6ce85fbc8af4a3e8f7752a8621152b1.webp",
+  "used_for": "Category tile: Ethnic Wear",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-womens-knitwear.webp",
+  "url": "/static/uploads/2215d9a4758840d48b7ef02cafcf06c5.webp",
+  "used_for": "Category tile: Knitwear",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-womens-blazers.webp",
+  "url": "/static/uploads/51af611ce3a848e4acb169ab8ba1a809.webp",
+  "used_for": "Category tile: Blazers",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-womens-skirts.webp",
+  "url": "/static/uploads/df9cbd63ee1040d6bf3e1530d6afc297.webp",
+  "used_for": "Category tile: Skirts",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-womens-activewear.webp",
+  "url": "/static/uploads/8106c89f185743d0b32eb0aac6935c78.webp",
+  "used_for": "Category tile: Activewear",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-footwear.webp",
+  "url": "/static/uploads/03e44630f1434358ad9ff44601f86259.webp",
+  "used_for": "Category tile: Footwear",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-bags.webp",
+  "url": "/static/uploads/4a897e36a1964e3b9f89c9904b9d855b.webp",
+  "used_for": "Category tile: Bags",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-jewellery.webp",
+  "url": "/static/uploads/77746bfe32234aa38b58061cb45917cc.webp",
+  "used_for": "Category tile: Jewellery",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "category-accessories.webp",
+  "url": "/static/uploads/7f032469336c4e7ca18a4f3e30d720be.webp",
+  "used_for": "Category tile: Accessories",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "oxford-button-down-shirt-front.webp",
+  "url": "/static/uploads/ca6b832cd46c44fc9eb0e085fc57304d.webp",
+  "used_for": "Product: Oxford Button-Down Shirt (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "oxford-button-down-shirt-detail.webp",
+  "url": "/static/uploads/52bdd7cb72584446bf8bb048b6b629a6.webp",
+  "used_for": "Product: Oxford Button-Down Shirt (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "oxford-button-down-shirt-flat.webp",
+  "url": "/static/uploads/ab79feaed9864b2983ff82b6a91b6df3.webp",
+  "used_for": "Product: Oxford Button-Down Shirt (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "checked-flannel-shirt-front.webp",
+  "url": "/static/uploads/547f880021394e17b4061600b9891d03.webp",
+  "used_for": "Product: Checked Flannel Shirt (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "checked-flannel-shirt-detail.webp",
+  "url": "/static/uploads/896d1f3bc537416ca476ad42a80d0e9a.webp",
+  "used_for": "Product: Checked Flannel Shirt (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "checked-flannel-shirt-flat.webp",
+  "url": "/static/uploads/ec67e7c296be46d09b5aedb36009d2a2.webp",
+  "used_for": "Product: Checked Flannel Shirt (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "striped-crew-neck-t-shirt-front.webp",
+  "url": "/static/uploads/fd5544a879d14dfbb721f42b437a1069.webp",
+  "used_for": "Product: Striped Crew-Neck T-Shirt (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "striped-crew-neck-t-shirt-detail.webp",
+  "url": "/static/uploads/90043ddc94114db4ab7c29d8047c7a20.webp",
+  "used_for": "Product: Striped Crew-Neck T-Shirt (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "striped-crew-neck-t-shirt-flat.webp",
+  "url": "/static/uploads/a4ebe672892644689c54995f71bed841.webp",
+  "used_for": "Product: Striped Crew-Neck T-Shirt (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "quarter-zip-fleece-pullover-front.webp",
+  "url": "/static/uploads/03ce9916df1a4a4aa908420c5512b916.webp",
+  "used_for": "Product: Quarter-Zip Fleece Pullover (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "quarter-zip-fleece-pullover-detail.webp",
+  "url": "/static/uploads/68739dd19f81417694816af2a955f698.webp",
+  "used_for": "Product: Quarter-Zip Fleece Pullover (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "quarter-zip-fleece-pullover-flat.webp",
+  "url": "/static/uploads/59e773de33aa4af79ef3ae655a63adc1.webp",
+  "used_for": "Product: Quarter-Zip Fleece Pullover (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "garment-dyed-pullover-hoodie-front.webp",
+  "url": "/static/uploads/390f0322a64f4257a2d80251ee398c80.webp",
+  "used_for": "Product: Garment-Dyed Pullover Hoodie (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "garment-dyed-pullover-hoodie-detail.webp",
+  "url": "/static/uploads/c1c6c047a29c4e669598828b1f66a6c3.webp",
+  "used_for": "Product: Garment-Dyed Pullover Hoodie (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "garment-dyed-pullover-hoodie-flat.webp",
+  "url": "/static/uploads/ff6a241523c148229b9cd5a335c2996a.webp",
+  "used_for": "Product: Garment-Dyed Pullover Hoodie (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "quilted-puffer-jacket-front.webp",
+  "url": "/static/uploads/481e15fc31f74ed8b633286cf7b8152a.webp",
+  "used_for": "Product: Quilted Puffer Jacket (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "quilted-puffer-jacket-detail.webp",
+  "url": "/static/uploads/e55c846f79364dc39d149f9653708fe7.webp",
+  "used_for": "Product: Quilted Puffer Jacket (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "quilted-puffer-jacket-flat.webp",
+  "url": "/static/uploads/97beb4e6f41a4a7a8fd3b8b192de4910.webp",
+  "used_for": "Product: Quilted Puffer Jacket (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "slim-chino-trousers-front.webp",
+  "url": "/static/uploads/97f7bcfdbbc14d76a0ae36f46593629c.webp",
+  "used_for": "Product: Slim Chino Trousers (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "slim-chino-trousers-detail.webp",
+  "url": "/static/uploads/57cb7fb0c4a94fa0b0dc83ac70af8527.webp",
+  "used_for": "Product: Slim Chino Trousers (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "slim-chino-trousers-flat.webp",
+  "url": "/static/uploads/31d8780ed8064d849f79f807b4777f1d.webp",
+  "used_for": "Product: Slim Chino Trousers (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "relaxed-linen-trousers-front.webp",
+  "url": "/static/uploads/6bbaf2a205d545c5b0938f964e329561.webp",
+  "used_for": "Product: Relaxed Linen Trousers (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "relaxed-linen-trousers-detail.webp",
+  "url": "/static/uploads/e0f543b38ce74d9099803c324b25053a.webp",
+  "used_for": "Product: Relaxed Linen Trousers (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "relaxed-linen-trousers-flat.webp",
+  "url": "/static/uploads/72b16ee6eb4a4882808fae4b7c985543.webp",
+  "used_for": "Product: Relaxed Linen Trousers (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "floral-wrap-dress-front.webp",
+  "url": "/static/uploads/dea59f6ac61b476da2f0909e8662c40b.webp",
+  "used_for": "Product: Floral Wrap Dress (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "floral-wrap-dress-detail.webp",
+  "url": "/static/uploads/147fb274f89a47e5ac97244b9fb66dea.webp",
+  "used_for": "Product: Floral Wrap Dress (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "floral-wrap-dress-flat.webp",
+  "url": "/static/uploads/361938b5c56041eaaac5b5f376c02138.webp",
+  "used_for": "Product: Floral Wrap Dress (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "linen-shirt-dress-front.webp",
+  "url": "/static/uploads/b1483ebaaaa74118bb223b40cc4bc5d8.webp",
+  "used_for": "Product: Linen Shirt Dress (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "linen-shirt-dress-detail.webp",
+  "url": "/static/uploads/967c8bf6bf2a448b8dcc8fbac7df2859.webp",
+  "used_for": "Product: Linen Shirt Dress (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "linen-shirt-dress-flat.webp",
+  "url": "/static/uploads/e58eac09252d4d878d02886c411a4062.webp",
+  "used_for": "Product: Linen Shirt Dress (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "satin-slip-dress-front.webp",
+  "url": "/static/uploads/db39a07e93f24ff2a4d13a1d700a15ac.webp",
+  "used_for": "Product: Satin Slip Dress (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "satin-slip-dress-detail.webp",
+  "url": "/static/uploads/b1641f5c0d1e45da827c3fbe14ed55ae.webp",
+  "used_for": "Product: Satin Slip Dress (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "satin-slip-dress-flat.webp",
+  "url": "/static/uploads/b01ec8cae69243c3bf5f15794c17304b.webp",
+  "used_for": "Product: Satin Slip Dress (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "silk-blend-anarkali-kurta-front.webp",
+  "url": "/static/uploads/9853c5404e6a4fafb5d272c91f870559.webp",
+  "used_for": "Product: Silk Blend Anarkali Kurta (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "silk-blend-anarkali-kurta-detail.webp",
+  "url": "/static/uploads/c37354f26e2e44e6b9cb42516aeab731.webp",
+  "used_for": "Product: Silk Blend Anarkali Kurta (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "silk-blend-anarkali-kurta-flat.webp",
+  "url": "/static/uploads/dfe40695d3cc495385e66be583a7e686.webp",
+  "used_for": "Product: Silk Blend Anarkali Kurta (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "cotton-straight-kurta-set-front.webp",
+  "url": "/static/uploads/0e4a2c03394a48e9ab10530e43370fed.webp",
+  "used_for": "Product: Cotton Straight Kurta Set (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "cotton-straight-kurta-set-detail.webp",
+  "url": "/static/uploads/5ff62e8915a94387a7e75d1289d487bf.webp",
+  "used_for": "Product: Cotton Straight Kurta Set (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "cotton-straight-kurta-set-flat.webp",
+  "url": "/static/uploads/863b2424d7a74cffa73f9651450c970d.webp",
+  "used_for": "Product: Cotton Straight Kurta Set (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "chanderi-festive-kurta-front.webp",
+  "url": "/static/uploads/183824228130474a8214986ee10db9ab.webp",
+  "used_for": "Product: Chanderi Festive Kurta (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "chanderi-festive-kurta-detail.webp",
+  "url": "/static/uploads/b5d6cecd1de94281af1a78379b86074d.webp",
+  "used_for": "Product: Chanderi Festive Kurta (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "chanderi-festive-kurta-flat.webp",
+  "url": "/static/uploads/29f61daf57974063a91636683cf3d673.webp",
+  "used_for": "Product: Chanderi Festive Kurta (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "ribbed-merino-cardigan-front.webp",
+  "url": "/static/uploads/0f79ff4da5634c0babc65a41aad1078e.webp",
+  "used_for": "Product: Ribbed Merino Cardigan (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "ribbed-merino-cardigan-detail.webp",
+  "url": "/static/uploads/4638e246c2f54d249c89354a62da2e23.webp",
+  "used_for": "Product: Ribbed Merino Cardigan (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "ribbed-merino-cardigan-flat.webp",
+  "url": "/static/uploads/961a833794b04015abcd3c5c56b5a0b0.webp",
+  "used_for": "Product: Ribbed Merino Cardigan (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "chunky-turtleneck-sweater-front.webp",
+  "url": "/static/uploads/b38acf1c44094507bb0d447c0f9b8dc9.webp",
+  "used_for": "Product: Chunky Turtleneck Sweater (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "chunky-turtleneck-sweater-detail.webp",
+  "url": "/static/uploads/1f3ba28da539427fab7d56724e76da55.webp",
+  "used_for": "Product: Chunky Turtleneck Sweater (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "chunky-turtleneck-sweater-flat.webp",
+  "url": "/static/uploads/2110c4fe27c146cc9f4d908b9b8f3071.webp",
+  "used_for": "Product: Chunky Turtleneck Sweater (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "fine-knit-polo-sweater-front.webp",
+  "url": "/static/uploads/309d3dae5fcd4622b377290884a9a7ac.webp",
+  "used_for": "Product: Fine-Knit Polo Sweater (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "fine-knit-polo-sweater-detail.webp",
+  "url": "/static/uploads/8d9f30567d7b41ffb0c5e8d7a2d8ebae.webp",
+  "used_for": "Product: Fine-Knit Polo Sweater (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "fine-knit-polo-sweater-flat.webp",
+  "url": "/static/uploads/2035a20344c047c796dbc6440b5fa191.webp",
+  "used_for": "Product: Fine-Knit Polo Sweater (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "double-breasted-wool-blazer-front.webp",
+  "url": "/static/uploads/5083945e4d954fa5b9244ff095f99512.webp",
+  "used_for": "Product: Double-Breasted Wool Blazer (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "double-breasted-wool-blazer-detail.webp",
+  "url": "/static/uploads/8e023ac9b2a0475e8e2745691a81908e.webp",
+  "used_for": "Product: Double-Breasted Wool Blazer (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "double-breasted-wool-blazer-flat.webp",
+  "url": "/static/uploads/64cd118ccf8a49b3b68067c2c127caf0.webp",
+  "used_for": "Product: Double-Breasted Wool Blazer (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "checked-single-button-blazer-front.webp",
+  "url": "/static/uploads/f6101765e3984106afdfa7998def8a81.webp",
+  "used_for": "Product: Checked Single-Button Blazer (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "checked-single-button-blazer-detail.webp",
+  "url": "/static/uploads/d55739e9777146fa91627cbcd7c0cf32.webp",
+  "used_for": "Product: Checked Single-Button Blazer (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "checked-single-button-blazer-flat.webp",
+  "url": "/static/uploads/9c43b4d77e5e46d6b773646f70454fc9.webp",
+  "used_for": "Product: Checked Single-Button Blazer (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "cropped-linen-blazer-front.webp",
+  "url": "/static/uploads/6075080da85a41289dece4de0f190928.webp",
+  "used_for": "Product: Cropped Linen Blazer (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "cropped-linen-blazer-detail.webp",
+  "url": "/static/uploads/977b84897391434bb15f796d2ae55d0d.webp",
+  "used_for": "Product: Cropped Linen Blazer (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "cropped-linen-blazer-flat.webp",
+  "url": "/static/uploads/820b5181287a4cbb8c0dfeb9f42c1a3a.webp",
+  "used_for": "Product: Cropped Linen Blazer (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "a-line-denim-skirt-front.webp",
+  "url": "/static/uploads/d01d3d4e1fa44fa3897673e47823361c.webp",
+  "used_for": "Product: A-Line Denim Skirt (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "a-line-denim-skirt-detail.webp",
+  "url": "/static/uploads/05228f194d694e23a5571ca0966700e4.webp",
+  "used_for": "Product: A-Line Denim Skirt (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "a-line-denim-skirt-flat.webp",
+  "url": "/static/uploads/db0c92c39840414fbb3ee82be7dce464.webp",
+  "used_for": "Product: A-Line Denim Skirt (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "satin-bias-midi-skirt-front.webp",
+  "url": "/static/uploads/50fb6b46d49e49209beb573d0503dfe9.webp",
+  "used_for": "Product: Satin Bias Midi Skirt (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "satin-bias-midi-skirt-detail.webp",
+  "url": "/static/uploads/6138a250b67d4a4c8173ae9cf871bdf4.webp",
+  "used_for": "Product: Satin Bias Midi Skirt (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "satin-bias-midi-skirt-flat.webp",
+  "url": "/static/uploads/7077c4ff5d2e47bab483fa861fdf9edb.webp",
+  "used_for": "Product: Satin Bias Midi Skirt (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "printed-cotton-wrap-skirt-front.webp",
+  "url": "/static/uploads/a1d82e4b0b064ff5b543fa18545b095b.webp",
+  "used_for": "Product: Printed Cotton Wrap Skirt (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "printed-cotton-wrap-skirt-detail.webp",
+  "url": "/static/uploads/540e5c3e467b4fa0bc45faf7b02a2d7e.webp",
+  "used_for": "Product: Printed Cotton Wrap Skirt (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "printed-cotton-wrap-skirt-flat.webp",
+  "url": "/static/uploads/0242e4b09b8a447486d7f9b53662fc0d.webp",
+  "used_for": "Product: Printed Cotton Wrap Skirt (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "seamless-sports-tank-front.webp",
+  "url": "/static/uploads/78901699fa3741d0bd65e3c95e053733.webp",
+  "used_for": "Product: Seamless Sports Tank (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "seamless-sports-tank-detail.webp",
+  "url": "/static/uploads/d1d5243f6f14464fb4ae90faffe0a1b4.webp",
+  "used_for": "Product: Seamless Sports Tank (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "seamless-sports-tank-flat.webp",
+  "url": "/static/uploads/f23ffc98e049496e8988eadc69ac6356.webp",
+  "used_for": "Product: Seamless Sports Tank (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "tapered-training-joggers-front.webp",
+  "url": "/static/uploads/5d953bd0437b4004a51e9386d9f3cd44.webp",
+  "used_for": "Product: Tapered Training Joggers (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "tapered-training-joggers-detail.webp",
+  "url": "/static/uploads/685f00b8c13341a69dde148205591101.webp",
+  "used_for": "Product: Tapered Training Joggers (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "tapered-training-joggers-flat.webp",
+  "url": "/static/uploads/1a796a24495b43ac8e221b69361e6c63.webp",
+  "used_for": "Product: Tapered Training Joggers (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "zip-front-training-jacket-front.webp",
+  "url": "/static/uploads/7759e802469c4954bd9de1a3f41774bf.webp",
+  "used_for": "Product: Zip-Front Training Jacket (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "zip-front-training-jacket-detail.webp",
+  "url": "/static/uploads/40e1eb93604847559edcb867bddab8f0.webp",
+  "used_for": "Product: Zip-Front Training Jacket (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "zip-front-training-jacket-flat.webp",
+  "url": "/static/uploads/e838722a25ec43a698ad910bd8354ce7.webp",
+  "used_for": "Product: Zip-Front Training Jacket (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "suede-chelsea-boots-front.webp",
+  "url": "/static/uploads/7dca2fb217044f23b93f3179359e76f9.webp",
+  "used_for": "Product: Suede Chelsea Boots (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "suede-chelsea-boots-detail.webp",
+  "url": "/static/uploads/61061a180db54041ae703ef1b9bd87c2.webp",
+  "used_for": "Product: Suede Chelsea Boots (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "suede-chelsea-boots-flat.webp",
+  "url": "/static/uploads/0586e37289d04a3fa9aae41b475371e7.webp",
+  "used_for": "Product: Suede Chelsea Boots (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "canvas-weekend-tote-front.webp",
+  "url": "/static/uploads/02cff51d63dd4dfb90cd8e4550f72b02.webp",
+  "used_for": "Product: Canvas Weekend Tote (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "canvas-weekend-tote-detail.webp",
+  "url": "/static/uploads/5453ec8950344cb3b401c31a8ee7cba3.webp",
+  "used_for": "Product: Canvas Weekend Tote (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "canvas-weekend-tote-flat.webp",
+  "url": "/static/uploads/7945c83b5d87451a840dcc0953d769e8.webp",
+  "used_for": "Product: Canvas Weekend Tote (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "mini-crossbody-bag-front.webp",
+  "url": "/static/uploads/5d4a41a63e2c4c568e82155102bed92d.webp",
+  "used_for": "Product: Mini Crossbody Bag (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "mini-crossbody-bag-detail.webp",
+  "url": "/static/uploads/3765d61b6de04b29b2e0709e45ecdf1b.webp",
+  "used_for": "Product: Mini Crossbody Bag (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "mini-crossbody-bag-flat.webp",
+  "url": "/static/uploads/05eed872b2d04b1c9a08dcc822045a79.webp",
+  "used_for": "Product: Mini Crossbody Bag (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "gold-plated-jhumka-earrings-front.webp",
+  "url": "/static/uploads/b9337b7f884540f08b5096973b923970.webp",
+  "used_for": "Product: Gold-Plated Jhumka Earrings (front)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "gold-plated-jhumka-earrings-detail.webp",
+  "url": "/static/uploads/fd77db6ff3064327803f0eaef1e14bbf.webp",
+  "used_for": "Product: Gold-Plated Jhumka Earrings (detail)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "gold-plated-jhumka-earrings-flat.webp",
+  "url": "/static/uploads/e9a622d9e286462380cb939a8b2aea46.webp",
+  "used_for": "Product: Gold-Plated Jhumka Earrings (flat)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "straight-fit-denim-jeans-closeup-1.webp",
+  "url": "/static/uploads/c0eaa5af1f594d24841f13c4be2736d6.webp",
+  "used_for": "Product: Straight-Fit Denim Jeans (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "straight-fit-denim-jeans-closeup-2.webp",
+  "url": "/static/uploads/3d0188312eee4beea9de2f6c06ae1bf1.webp",
+  "used_for": "Product: Straight-Fit Denim Jeans (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "cotton-cargo-trousers-closeup-1.webp",
+  "url": "/static/uploads/9b10d7ced4a5469fa185cc0b5e0160e6.webp",
+  "used_for": "Product: Cotton Cargo Trousers (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "cotton-cargo-trousers-closeup-2.webp",
+  "url": "/static/uploads/728d7ed430d947f2b916d862be639139.webp",
+  "used_for": "Product: Cotton Cargo Trousers (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "high-rise-performance-leggings-closeup-1.webp",
+  "url": "/static/uploads/497558eca99c443fac6b47ac71276d23.webp",
+  "used_for": "Product: High-Rise Performance Leggings (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "high-rise-performance-leggings-closeup-2.webp",
+  "url": "/static/uploads/e1ad175954984c28b2cc4693a44e4344.webp",
+  "used_for": "Product: High-Rise Performance Leggings (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "minimal-leather-sneakers-closeup-1.webp",
+  "url": "/static/uploads/d86526ee67b14cadab0daa481f87e5de.webp",
+  "used_for": "Product: Minimal Leather Sneakers (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "minimal-leather-sneakers-closeup-2.webp",
+  "url": "/static/uploads/9016c23ff073459ba208c602c1dc6bd9.webp",
+  "used_for": "Product: Minimal Leather Sneakers (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "performance-running-shoes-closeup-1.webp",
+  "url": "/static/uploads/f677a947c1854d448973e820881531a4.webp",
+  "used_for": "Product: Performance Running Shoes (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "performance-running-shoes-closeup-2.webp",
+  "url": "/static/uploads/2bbe27b94b864d88a609facdc92d026a.webp",
+  "used_for": "Product: Performance Running Shoes (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "classic-aviator-sunglasses-closeup-1.webp",
+  "url": "/static/uploads/2a4af59ac15145b9a7bda769748f68d3.webp",
+  "used_for": "Product: Classic Aviator Sunglasses (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "classic-aviator-sunglasses-closeup-2.webp",
+  "url": "/static/uploads/e6273e1ccf2144c88971b350b06e8bd5.webp",
+  "used_for": "Product: Classic Aviator Sunglasses (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "leather-wingtip-brogues-closeup-1.webp",
+  "url": "/static/uploads/a11d6ae279ed4743bee1aca9ee028903.webp",
+  "used_for": "Product: Leather Wingtip Brogues (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "leather-wingtip-brogues-closeup-2.webp",
+  "url": "/static/uploads/0555e97e27294e34bda6d58c512afccf.webp",
+  "used_for": "Product: Leather Wingtip Brogues (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "draped-silk-maxi-dress-closeup-1.webp",
+  "url": "/static/uploads/320446aa93d0450e94b4652c72b0ffc5.webp",
+  "used_for": "Product: Draped Silk Maxi Dress (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "draped-silk-maxi-dress-closeup-2.webp",
+  "url": "/static/uploads/55f64815c67d4b60a2fd1339ece38006.webp",
+  "used_for": "Product: Draped Silk Maxi Dress (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "pleated-chiffon-midi-skirt-closeup-1.webp",
+  "url": "/static/uploads/1de43d304fa645e5b66d3adc5ef20150.webp",
+  "used_for": "Product: Pleated Chiffon Midi Skirt (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "pleated-chiffon-midi-skirt-closeup-2.webp",
+  "url": "/static/uploads/e6660c4a18da46c79f79241bfa81079f.webp",
+  "used_for": "Product: Pleated Chiffon Midi Skirt (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "floral-embroidered-kurti-closeup-1.webp",
+  "url": "/static/uploads/7914def9ca4b41d1ad149d9525ba1339.webp",
+  "used_for": "Product: Floral Embroidered Kurti (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "floral-embroidered-kurti-closeup-2.webp",
+  "url": "/static/uploads/afa5b622403b4acd8e5342ac36784001.webp",
+  "used_for": "Product: Floral Embroidered Kurti (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "tailored-linen-blazer-closeup-1.webp",
+  "url": "/static/uploads/ce8208e3f7d74b0285cf79f9b32769e5.webp",
+  "used_for": "Product: Tailored Linen Blazer (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "tailored-linen-blazer-closeup-2.webp",
+  "url": "/static/uploads/8a98b6b6056345eaa075157568db7fae.webp",
+  "used_for": "Product: Tailored Linen Blazer (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "pique-cotton-polo-closeup-1.webp",
+  "url": "/static/uploads/a9a1ad1ef6784fabb34dd218b34610c9.webp",
+  "used_for": "Product: Pique Cotton Polo (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "pique-cotton-polo-closeup-2.webp",
+  "url": "/static/uploads/d5198fb2c74a413e84cd13570480f6c1.webp",
+  "used_for": "Product: Pique Cotton Polo (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "technical-hooded-windbreaker-closeup-1.webp",
+  "url": "/static/uploads/3bff9b7ad56d47f3b82b879ab3b634b1.webp",
+  "used_for": "Product: Technical Hooded Windbreaker (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "technical-hooded-windbreaker-closeup-2.webp",
+  "url": "/static/uploads/86fc72eca07641eab8d1898d13f45ad5.webp",
+  "used_for": "Product: Technical Hooded Windbreaker (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "full-grain-leather-belt-closeup-1.webp",
+  "url": "/static/uploads/fc778ee45915450291d506b98ecc3c0f.webp",
+  "used_for": "Product: Full-Grain Leather Belt (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "full-grain-leather-belt-closeup-2.webp",
+  "url": "/static/uploads/4eb1d56bcb83417e8b671e8ebf7729e6.webp",
+  "used_for": "Product: Full-Grain Leather Belt (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "technical-commuter-backpack-closeup-1.webp",
+  "url": "/static/uploads/699f30fbe0604fefa34c3459f98536dc.webp",
+  "used_for": "Product: Technical Commuter Backpack (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "technical-commuter-backpack-closeup-2.webp",
+  "url": "/static/uploads/62f3ae922a874c6095697f3d1d4527b7.webp",
+  "used_for": "Product: Technical Commuter Backpack (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "chunky-curb-link-bracelet-closeup-1.webp",
+  "url": "/static/uploads/839d705e35654b9bb58c4a5f18c42ccc.webp",
+  "used_for": "Product: Chunky Curb Link Bracelet (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "chunky-curb-link-bracelet-closeup-2.webp",
+  "url": "/static/uploads/ffd80dfd30f24796ae60d61091d33140.webp",
+  "used_for": "Product: Chunky Curb Link Bracelet (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "double-breasted-wool-overcoat-closeup-1.webp",
+  "url": "/static/uploads/fe7dbcdaf762409481c7b3eb82215834.webp",
+  "used_for": "Product: Double-Breasted Wool Overcoat (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "double-breasted-wool-overcoat-closeup-2.webp",
+  "url": "/static/uploads/1240abeda1624f51ab6d4eeef21fb5de.webp",
+  "used_for": "Product: Double-Breasted Wool Overcoat (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "oversized-cotton-t-shirt-closeup-1.webp",
+  "url": "/static/uploads/d6e6d9f8807d4252a0abd951c1355a5b.webp",
+  "used_for": "Product: Oversized Cotton T-Shirt (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "oversized-cotton-t-shirt-closeup-2.webp",
+  "url": "/static/uploads/f6286fe802bd450da350d395db37b459.webp",
+  "used_for": "Product: Oversized Cotton T-Shirt (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "bifold-leather-wallet-closeup-1.webp",
+  "url": "/static/uploads/6a8435d9ba0b4b988dba425a87fcd7f8.webp",
+  "used_for": "Product: Bifold Leather Wallet (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "bifold-leather-wallet-closeup-2.webp",
+  "url": "/static/uploads/ff7faef63c064cc4bab205118b1523d1.webp",
+  "used_for": "Product: Bifold Leather Wallet (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "heavyweight-cotton-hoodie-closeup-1.webp",
+  "url": "/static/uploads/0501e5d06e424aaaaf39ba88f6133eaa.webp",
+  "used_for": "Product: Heavyweight Cotton Hoodie (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "heavyweight-cotton-hoodie-closeup-2.webp",
+  "url": "/static/uploads/cdb89a0574b24b099c6c60622b58ef62.webp",
+  "used_for": "Product: Heavyweight Cotton Hoodie (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "classic-bomber-jacket-closeup-1.webp",
+  "url": "/static/uploads/4d36430409144751b8ee7f9a17f83b00.webp",
+  "used_for": "Product: Classic Bomber Jacket (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "classic-bomber-jacket-closeup-2.webp",
+  "url": "/static/uploads/33023aedc94b4dfbab72b0b3c199685d.webp",
+  "used_for": "Product: Classic Bomber Jacket (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "minimalist-leather-strap-watch-closeup-1.webp",
+  "url": "/static/uploads/01128edeeb414715afd0e420ca6b96b1.webp",
+  "used_for": "Product: Minimalist Leather-Strap Watch (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "minimalist-leather-strap-watch-closeup-2.webp",
+  "url": "/static/uploads/a9a422bf87204bf9b1fd0af1d5b77661.webp",
+  "used_for": "Product: Minimalist Leather-Strap Watch (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "brushed-gold-band-ring-closeup-1.webp",
+  "url": "/static/uploads/83b038d70ffe41148851dacc2950c70a.webp",
+  "used_for": "Product: Brushed Gold Band Ring (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "brushed-gold-band-ring-closeup-2.webp",
+  "url": "/static/uploads/ac48d4cb9e4d470aacdb9193dcba0dff.webp",
+  "used_for": "Product: Brushed Gold Band Ring (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "petite-diamond-pendant-necklace-closeup-1.webp",
+  "url": "/static/uploads/bb85f724678e414abddbfd83a137ec95.webp",
+  "used_for": "Product: Petite Diamond Pendant Necklace (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "petite-diamond-pendant-necklace-closeup-2.webp",
+  "url": "/static/uploads/0109ad6ff44a4915a706aa4dca1258a8.webp",
+  "used_for": "Product: Petite Diamond Pendant Necklace (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "washed-linen-shirt-closeup-1.webp",
+  "url": "/static/uploads/530a900f199e473fa6386bfa501d4bc7.webp",
+  "used_for": "Product: Washed Linen Shirt (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "washed-linen-shirt-closeup-2.webp",
+  "url": "/static/uploads/4f653cf7116e4d55be936fb5543b691f.webp",
+  "used_for": "Product: Washed Linen Shirt (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "crisp-cotton-formal-shirt-closeup-1.webp",
+  "url": "/static/uploads/2c0e9810d2f043099e160cb7150f926c.webp",
+  "used_for": "Product: Crisp Cotton Formal Shirt (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "crisp-cotton-formal-shirt-closeup-2.webp",
+  "url": "/static/uploads/71822053dcab447cb739396c4585a449.webp",
+  "used_for": "Product: Crisp Cotton Formal Shirt (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "structured-leather-top-handle-bag-closeup-1.webp",
+  "url": "/static/uploads/7af7e61fa594457dab657d051e249033.webp",
+  "used_for": "Product: Structured Leather Top-Handle Bag (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "structured-leather-top-handle-bag-closeup-2.webp",
+  "url": "/static/uploads/35b37b890d8b4aafac88639cbe2aa870.webp",
+  "used_for": "Product: Structured Leather Top-Handle Bag (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "cable-knit-cashmere-sweater-closeup-1.webp",
+  "url": "/static/uploads/4a30f69f010d40f480446bfe6d0cb36d.webp",
+  "used_for": "Product: Cable-Knit Cashmere Sweater (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "cable-knit-cashmere-sweater-closeup-2.webp",
+  "url": "/static/uploads/092c14b05c5e4eae80003bab20b2e798.webp",
+  "used_for": "Product: Cable-Knit Cashmere Sweater (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "loopback-cotton-sweatshirt-closeup-1.webp",
+  "url": "/static/uploads/7c9aeb98f8e84d6badd71fe22616d3fc.webp",
+  "used_for": "Product: Loopback Cotton Sweatshirt (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "loopback-cotton-sweatshirt-closeup-2.webp",
+  "url": "/static/uploads/375576c3b629464a83f3dc583a75f513.webp",
+  "used_for": "Product: Loopback Cotton Sweatshirt (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "essential-cotton-baseball-cap-closeup-1.webp",
+  "url": "/static/uploads/21bee991d7c84b7e92ebbea7ce049f71.webp",
+  "used_for": "Product: Essential Cotton Baseball Cap (close-up 1)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "essential-cotton-baseball-cap-closeup-2.webp",
+  "url": "/static/uploads/770df0b809fd4fada99a8688bdca0167.webp",
+  "used_for": "Product: Essential Cotton Baseball Cap (close-up 2)",
+  "source": "Close-up cut from the product picture that came with the project (Stitch design export supplied by the owner)."
+ },
+ {
+  "file": "hero-new-season.webp",
+  "url": "/static/uploads/e1a53a837741474aa1315e9cc1240c52.webp",
+  "used_for": "Hero slide: The New Season Has Arrived",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "hero-workwear.webp",
+  "url": "/static/uploads/f8b3ae68bfc742769c3ee812c58a6c4b.webp",
+  "used_for": "Hero slide: Workwear, Sharpened",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "hero-weekend.webp",
+  "url": "/static/uploads/57f728a7811f48b3995fc4751c0e08ab.webp",
+  "used_for": "Hero slide: Made for the Weekend",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "promo-everyday.webp",
+  "url": "/static/uploads/547cb932542f49a29f7cf5e0539fe67e.webp",
+  "used_for": "Promo banner: Season Sale is Live Now",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "avatar-rahul-kumar.webp",
+  "url": "/static/uploads/17eeb2aa28184822a3592aa6db56035b.webp",
+  "used_for": "Testimonial photo: Rahul Kumar (initials)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "avatar-priya-singh.webp",
+  "url": "/static/uploads/cb5585fc7c8644d390445d5263e7df43.webp",
+  "used_for": "Testimonial photo: Priya Singh (initials)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "avatar-arjun-verma.webp",
+  "url": "/static/uploads/0439f34550144d6297e03aa282a3e01a.webp",
+  "used_for": "Testimonial photo: Arjun Verma (initials)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "avatar-neha-gupta.webp",
+  "url": "/static/uploads/9c7a65ad8a2b4b7ca68b4f24c22fa3df.webp",
+  "used_for": "Testimonial photo: Neha Gupta (initials)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "avatar-sample-review.webp",
+  "url": "/static/uploads/45d4d58946fc42e297801c8a853aca0a.webp",
+  "used_for": "Testimonial photo: Sample Review (initials)",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "collection-diwali-edit.webp",
+  "url": "/static/uploads/1461eb93a7dc4cef85ee46d77dbd8535.webp",
+  "used_for": "Collection picture: Diwali Edit",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "collection-workwear-edit.webp",
+  "url": "/static/uploads/6763a45c6d624b06ace91e7b37bbfbb5.webp",
+  "used_for": "Collection picture: Workwear Edit",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "diwali-hero-lights.webp",
+  "url": "/static/uploads/8027ff0c76d24fa499d26325afe584b7.webp",
+  "used_for": "Diwali hero slide: Lights",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "diwali-hero-diyas.webp",
+  "url": "/static/uploads/465c8c4a21be4d52a98dcd4b06d931de.webp",
+  "used_for": "Diwali hero slide: Diyas",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ },
+ {
+  "file": "diwali-hero-gifting.webp",
+  "url": "/static/uploads/27e74496904a4928b53a25093e3f92eb.webp",
+  "used_for": "Diwali hero slide: Gifting",
+  "source": "Original artwork drawn for this project by backend/db/demo/make_art.py. No third-party material."
+ }
+]

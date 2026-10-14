@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.cms import PromoBanner
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminPromoBannerIn
 
 _promo_in = AdminPromoBannerIn()
@@ -14,6 +15,8 @@ _promo_in = AdminPromoBannerIn()
 def _serialize_promo(p):
     return {
         "id": p.id,
+        "campaign_id": p.campaign_id,
+        "is_demo": p.is_demo,
         "title": p.title,
         "subtitle": p.subtitle,
         "description": p.description,
@@ -33,8 +36,20 @@ def _serialize_promo(p):
 @admin_bp.route("/promo-banners", methods=["GET"])
 @admin_required
 def admin_list_promos():
-    promos = PromoBanner.query.order_by(PromoBanner.sort_order, PromoBanner.created_at.desc()).all()
-    return jsonify(promo_banners=[_serialize_promo(p) for p in promos]), 200
+    campaign_id = request.args.get("campaign_id", type=int)
+    q = PromoBanner.query.filter(
+        PromoBanner.campaign_id == campaign_id if campaign_id else PromoBanner.campaign_id.is_(None)
+    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(PromoBanner.title.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(PromoBanner.sort_order, PromoBanner.created_at.desc()), default=50)
+    return jsonify(
+        promo_banners=[_serialize_promo(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/promo-banners", methods=["POST"])
@@ -58,6 +73,7 @@ def create_promo():
         is_active=data.get("is_active", True),
         starts_at=data.get("starts_at"),
         ends_at=data.get("ends_at"),
+        campaign_id=data.get("campaign_id"),
     )
     db.session.add(promo)
     db.session.commit()
@@ -86,6 +102,7 @@ def update_promo(promo_id):
     promo.items = data.get("items")
     promo.sort_order = data.get("sort_order", 0)
     promo.is_active = data.get("is_active", True)
+    promo.campaign_id = data.get("campaign_id")
     promo.starts_at = data.get("starts_at")
     promo.ends_at = data.get("ends_at")
 

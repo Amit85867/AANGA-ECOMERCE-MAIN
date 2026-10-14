@@ -1,25 +1,29 @@
 import { Link, Outlet } from 'react-router-dom'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { ROUTES } from '@/utils/constants'
-import logoMain from '@/assets/images/logo-main.png'
-import logoTitle from '@/assets/images/logo-title.png'
+import logoTitle from '@/assets/images/logo-title.webp'
+import MaintenanceGate from '@/components/layout/MaintenanceGate'
 
+/* Sign-in pages: just the logo, a way back, and the form. */
 export default function AuthLayout() {
   return (
-    <div className="min-h-screen flex flex-col bg-surface">
-      <nav className="bg-paper border-b border-line h-[60px] flex items-center px-6">
-        <Link to={ROUTES.HOME} className="flex items-center gap-2">
-          <img src={logoMain} alt="" className="h-9 w-9 object-contain" />
-          <img src={logoTitle} alt="AANGA" className="h-8 object-contain" />
-        </Link>
-        <Link to={ROUTES.HOME} className="ml-auto flex items-center gap-2 text-xs">
-          <IconArrowLeft size={18} />
-          Back to Home
-        </Link>
-      </nav>
-      <div className="flex-1 flex items-center justify-center py-10 px-5">
-        <Outlet />
+    <MaintenanceGate>
+      <div className="min-h-screen flex flex-col bg-bg">
+        <header className="flex h-16 items-center justify-between px-4 sm:px-8">
+          <Link to={ROUTES.HOME} aria-label="AANGA home">
+            <img src={logoTitle} alt="AANGA" width="40" height="40" className="h-10 w-10 object-contain" />
+          </Link>
+          <Link
+            to={ROUTES.HOME}
+            className="inline-flex items-center gap-1.5 rounded text-sm text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <IconArrowLeft size={16} aria-hidden="true" /> Back to store
+          </Link>
+        </header>
+        <main className="flex flex-1 items-center justify-center px-4 py-8 sm:py-12">
+          <Outlet />
+        </main>
       </div>
-    </div>
+    </MaintenanceGate>
   )
 }

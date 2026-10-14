@@ -1,5 +1,6 @@
 """Admin: wholesale inquiries & contact messages management."""
 from flask import request, jsonify
+from sqlalchemy import or_
 from marshmallow import ValidationError
 
 from app.extensions import db
@@ -7,6 +8,7 @@ from app.models.marketing import WholesaleInquiry, ContactMessage
 from app.models.enums import InquiryStatus, ContactSubject, MessageStatus
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import apply_sort, paginate
 from app.schemas.admin import AdminInquiryStatusIn, AdminMessageStatusIn
 
 _inquiry_status_in = AdminInquiryStatusIn()
@@ -18,8 +20,6 @@ _message_status_in = AdminMessageStatusIn()
 @admin_bp.route("/wholesale-inquiries", methods=["GET"])
 @admin_required
 def list_inquiries():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
     status = request.args.get("status")
 
     q = WholesaleInquiry.query
@@ -29,9 +29,20 @@ def list_inquiries():
         except ValueError:
             pass
 
-    paginated = q.order_by(WholesaleInquiry.submitted_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = f"%{search}%"
+        q = q.filter(or_(
+            WholesaleInquiry.shop_name.ilike(like),
+            WholesaleInquiry.owner_name.ilike(like),
+            WholesaleInquiry.email.ilike(like),
+            WholesaleInquiry.phone.ilike(like),
+            WholesaleInquiry.city.ilike(like),
+        ))
+
+    paginated = paginate(apply_sort(
+        q, {"submitted_at": WholesaleInquiry.submitted_at}, "submitted_at"
+    ))
 
     items = [
         {
@@ -86,8 +97,6 @@ def update_inquiry(inquiry_id):
 @admin_bp.route("/contact-messages", methods=["GET"])
 @admin_required
 def list_messages():
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
     status = request.args.get("status")
 
     q = ContactMessage.query
@@ -97,9 +106,16 @@ def list_messages():
         except ValueError:
             pass
 
-    paginated = q.order_by(ContactMessage.sent_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = f"%{search}%"
+        q = q.filter(or_(
+            ContactMessage.name.ilike(like),
+            ContactMessage.email.ilike(like),
+            ContactMessage.message.ilike(like),
+        ))
+
+    paginated = paginate(apply_sort(q, {"sent_at": ContactMessage.sent_at}, "sent_at"))
 
     items = [
         {

@@ -1,0 +1,14 @@
+{
+  "id": "order_Q1w2E3r4T5y6U7",
+  "entity": "order",
+  "amount": 52500,
+  "amount_paid": 0,
+  "amount_due": 52500,
+  "currency": "INR",
+  "receipt": "cart_1",
+  "offer_id": null,
+  "status": "created",
+  "attempts": 0,
+  "notes": [],
+  "created_at": 1760000000
+}

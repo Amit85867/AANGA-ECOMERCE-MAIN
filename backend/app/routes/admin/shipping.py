@@ -1,14 +1,14 @@
 """Admin Shiprocket actions: create shipment + sync tracking."""
 from datetime import datetime, timezone
 
-from flask import jsonify
+from flask import current_app, jsonify
 
 from app.extensions import db
 from app.models.order import Order, OrderTracking
 from app.models.enums import OrderStatus, TrackingStatusType
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
-from app.services import shiprocket
+from app.services import order_status, shiprocket
 from app.services.shiprocket import ShiprocketError
 
 
@@ -22,6 +22,12 @@ def ship_order(order_id):
     if order.tracking_number:
         return jsonify(error="This order already has an AWB assigned"), 409
 
+    # Before the courier is contacted: a cancelled or delivered order must
+    # not get a shipment booked against it.
+    if not order_status.can_transition(order.status, OrderStatus.shipped, order_status.SHIPMENT):
+        err = order_status.InvalidTransition(order.status, OrderStatus.shipped, order_status.SHIPMENT)
+        return jsonify(order_status.conflict_body(err)), 409
+
     try:
         created = shiprocket.create_order(order)
         shipment_id = created.get("shipment_id")
@@ -34,7 +40,16 @@ def ship_order(order_id):
 
     order.courier_name = awb.get("courier_name")
     order.tracking_number = awb.get("awb_code")
-    order.status = OrderStatus.shipped
+    order_status.transition(order, OrderStatus.shipped, order_status.SHIPMENT)
+
+    # The parcel is booked either way. A pickup the courier would not take is
+    # reported, not fatal: it can be requested again from Shiprocket.
+    pickup, pickup_problem = None, None
+    try:
+        pickup = shiprocket.schedule_pickup(shipment_id)
+    except ShiprocketError as err:
+        pickup_problem = str(err)
+        current_app.logger.warning("SHIPROCKET_PICKUP_NOT_SCHEDULED order=%s reason=%s", order.order_number, err)
 
     db.session.add(OrderTracking(
         order_id=order.id,
@@ -49,6 +64,9 @@ def ship_order(order_id):
         courier_name=order.courier_name,
         tracking_number=order.tracking_number,
         status=order.status.value,
+        pickup_scheduled=pickup is not None,
+        pickup_date=(pickup or {}).get("scheduled_date"),
+        pickup_problem=pickup_problem,
     ), 201
 
 

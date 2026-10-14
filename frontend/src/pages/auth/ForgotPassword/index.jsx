@@ -1,58 +1,77 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IconMail } from '@tabler/icons-react'
+import { IconMailCheck } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
+import Seo from '@/components/Seo'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
+  // Only ever present on a local development server.
   const [devLink, setDevLink] = useState('')
 
-  const handleSubmit = async (e) => {
+  const submit = async (e) => {
     e.preventDefault()
+    if (submitting) return
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError('Enter a valid email address.')
+      return
+    }
+    setError('')
     setSubmitting(true)
     try {
       const { data } = await apiClient.post('/auth/forgot-password', { email: email.trim() })
       setSent(true)
       if (data.dev_reset_link) setDevLink(data.dev_reset_link)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Something went wrong')
+      setError(
+        err.response?.status === 429
+          ? 'Too many requests. Please wait a while before trying again.'
+          : err.response?.data?.error || 'Something went wrong. Please try again.',
+      )
     }
     setSubmitting(false)
   }
 
   return (
-    <div className="bg-white p-8 md:p-10 max-w-[440px] w-full shadow-[0_4px_40px_rgba(0,0,0,0.06)]">
-      <h1 className="font-serif text-2xl text-center font-bold">Forgot Password</h1>
-      <p className="text-gray text-xs text-center mt-1">Enter your email and we'll send you a reset link</p>
-
+    <div className="w-full max-w-md rounded-block bg-card p-6 shadow-card sm:p-10">
+      <Seo title="Forgot Password" noindex />
       {sent ? (
-        <div className="mt-6 text-center">
-          <div className="w-14 h-14 rounded-full bg-cream flex items-center justify-center mx-auto"><IconMail size={26} className="text-gold" /></div>
-          <p className="text-sm mt-4">If an account exists for <span className="font-semibold">{email}</span>, a reset link is on its way.</p>
+        <div className="text-center" role="status">
+          <IconMailCheck size={44} stroke={1.25} className="mx-auto text-fg" aria-hidden="true" />
+          <h1 className="display text-2xl text-fg mt-4">Check your inbox</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            If an account exists for <span className="font-medium text-fg">{email.trim()}</span>, a link to reset
+            the password is on its way. It works for one hour.
+          </p>
           {devLink && (
-            <div className="mt-4 text-left bg-surface p-3 text-[11px] break-all">
-              <div className="text-gold font-semibold mb-1">Dev reset link:</div>
-              <a href={devLink} className="text-ink underline">{devLink}</a>
-            </div>
+            <p className="mt-5 break-all rounded-card bg-fill p-3 text-left text-xs text-muted">
+              Development only: <a href={devLink} className="text-fg underline">{devLink}</a>
+            </p>
           )}
-          <Link to="/login" className="inline-block mt-6 text-xs text-gold font-semibold hover:underline">← Back to sign in</Link>
+          <Button to="/login" variant="secondary" className="mt-8">Back to sign in</Button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Email</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors" placeholder="you@example.com" />
-          </div>
-          <button type="submit" disabled={submitting} className="w-full py-3.5 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors disabled:opacity-50">
-            {submitting ? 'Sending…' : 'Send Reset Link'}
-          </button>
-          <p className="text-center text-xs text-gray">
-            Remembered it? <Link to="/login" className="text-gold font-semibold hover:underline">Sign in</Link>
+        <>
+          <h1 className="display text-2xl text-fg sm:text-3xl">Reset your password</h1>
+          <p className="mt-2 text-sm text-muted">Enter your email and we will send you a link to choose a new one.</p>
+          <form onSubmit={submit} className="mt-8 space-y-4" noValidate>
+            <Input
+              label="Email" name="email" type="email" autoComplete="email" value={email} error={error}
+              onChange={(e) => { setEmail(e.target.value); setError('') }} placeholder="you@example.com"
+            />
+            <Button type="submit" size="lg" full disabled={submitting}>
+              {submitting ? 'Sending…' : 'Send reset link'}
+            </Button>
+          </form>
+          <p className="mt-6 text-center text-sm text-muted">
+            Remembered it? <Link to="/login" className="font-medium text-fg underline underline-offset-2">Sign in</Link>
           </p>
-        </form>
+        </>
       )}
     </div>
   )

@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.cms import Announcement
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminAnnouncementIn
 
 _ann_in = AdminAnnouncementIn()
@@ -32,8 +33,17 @@ def _serialize_announcement(a):
 @admin_bp.route("/announcements", methods=["GET"])
 @admin_required
 def admin_list_announcements():
-    items = Announcement.query.order_by(Announcement.sort_order, Announcement.created_at.desc()).all()
-    return jsonify(announcements=[_serialize_announcement(a) for a in items]), 200
+    q = Announcement.query
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(Announcement.text.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(Announcement.sort_order, Announcement.created_at.desc()), default=50)
+    return jsonify(
+        announcements=[_serialize_announcement(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/announcements", methods=["POST"])

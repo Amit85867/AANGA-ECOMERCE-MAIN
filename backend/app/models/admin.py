@@ -16,6 +16,7 @@ class Admin(db.Model):
     full_name = db.Column(db.Text, nullable=False)
     role = db.Column(db.Text, nullable=False, default="staff")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     created_by = db.Column(UUID(as_uuid=True), db.ForeignKey("admins.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
     last_login = db.Column(db.DateTime(timezone=True))

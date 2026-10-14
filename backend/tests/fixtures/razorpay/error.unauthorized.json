@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "BAD_REQUEST_ERROR",
+    "description": "Authentication failed",
+    "source": "NA",
+    "step": "NA",
+    "reason": "NA",
+    "metadata": {}
+  }
+}

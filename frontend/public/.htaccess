@@ -1,0 +1,98 @@
+# AANGA storefront — Apache / LiteSpeed (Hostinger shared hosting).
+#
+# Copied into the build by Vite (anything in frontend/public/ is emitted into
+# dist/ as-is), so deploying dist/ to public_html deploys this with it.
+#
+# Deliberately domain-agnostic: every rule uses %{HTTP_HOST}, so there is no
+# domain to edit here and nothing to forget when it changes.
+#
+# Order matters. Redirects run before the SPA fallback, or a visitor on
+# http://www would be served the app and *then* bounced, losing the URL.
+
+# ── 1. Canonical host and scheme ──────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Force HTTPS. Hostinger terminates TLS in front of Apache, so trust the
+  # proxy's header as well as the server's own view; checking only %{HTTPS}
+  # gives a redirect loop on some of their stacks.
+  RewriteCond %{HTTPS} !=on [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # www -> apex, in one hop, preserving the path.
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
+  # ── 2. SPA fallback ─────────────────────────────────────────────────────
+  # Anything that is not a real file or directory is handled by the router.
+  # Real files (assets, sitemap.xml, robots.txt, favicon) are served directly.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# ── 3. Caching ────────────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+  # Built assets carry a content hash in the filename, so they can never go
+  # stale: cache them for a year.
+  <FilesMatch "\.(js|css|woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # index.html must NOT be cached, or a deploy is invisible until the browser
+  # happens to re-check — the single most common "I deployed and nothing
+  # changed" cause on static hosting.
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # These are regenerated on a schedule; a day is plenty and keeps a stale
+  # robots.txt from pinning the site to the wrong indexing state for long.
+  <FilesMatch "^(robots\.txt|sitemap\.xml)$">
+    Header set Cache-Control "public, max-age=3600"
+  </FilesMatch>
+
+  # ── 4. Security headers ─────────────────────────────────────────────────
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(self)"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+  # Content-Security-Policy.
+  #
+  # 'unsafe-inline' for styles is required by the current build (Tailwind's
+  # runtime styles and the inline critical CSS in index.html). Scripts do NOT
+  # need it. connect-src must list the API subdomain and the image bucket, or
+  # the storefront cannot call either.
+  #
+  # NOTE: api.<domain> and the Neon storage host are matched by wildcard so
+  # this file stays domain-agnostic. Tighten to the exact hosts if you prefer.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: ; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+  # The API answers with its own X-Robots-Tag; nothing to add here. Indexing of
+  # the storefront is controlled by robots.txt and the per-page robots meta
+  # tag, both generated at build time from the INDEXING switch.
+</IfModule>
+
+# ── 5. Compression ────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css \
+    application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# ── 6. Housekeeping ───────────────────────────────────────────────────────
+Options -Indexes
+ServerSignature Off
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType image/webp .webp
+  AddType image/avif .avif
+</IfModule>
+
+# Never serve dotfiles or source maps from the document root.
+<FilesMatch "^\.|\.map$">
+  Require all denied
+</FilesMatch>

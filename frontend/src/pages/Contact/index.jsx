@@ -1,95 +1,146 @@
-import { useState } from 'react'
-import { IconMapPin, IconPhone, IconMail, IconClock } from '@tabler/icons-react'
-import PageHeader from '@/components/ui/PageHeader'
+import { useEffect, useState } from 'react'
+import { IconCircleCheck, IconClock, IconMail, IconMapPin, IconPhone } from '@tabler/icons-react'
 import apiClient from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
+import Input from '@/components/ui/Input'
+import { Select, Textarea } from '@/components/ui/Field'
+import { Container, PageTitle } from '@/components/ui/Display'
+import Seo from '@/components/Seo'
+import { CmsBody } from '@/components/common/CmsPage'
+import { useSetting } from '@/store/useSettingsStore'
 
-const INFO = [
-  { icon: IconMapPin, title: 'Visit Us', lines: ['Amit Enterprises', 'Boring Road, Patna', 'Bihar — 800001'] },
-  { icon: IconPhone, title: 'Call Us', lines: ['+91 98765 43210', '+91 61200 00000'] },
-  { icon: IconMail, title: 'Email Us', lines: ['support@aanga.in', 'wholesale@aanga.in'] },
-  { icon: IconClock, title: 'Working Hours', lines: ['Mon–Sat: 10 AM – 8 PM', 'Sunday: Closed'] },
-]
+// Address, phone and email come from Admin → Store settings; anything the
+// owner has left empty is simply not shown.
+const contactInfo = (s) => [
+  { icon: IconMapPin, title: 'Visit us', lines: s('store_address').split(/\n|,\s*/).map((l) => l.trim()).filter(Boolean) },
+  { icon: IconPhone, title: 'Call us', lines: [s('store_phone')].filter(Boolean) },
+  { icon: IconMail, title: 'Email us', lines: [s('store_email')].filter(Boolean) },
+  { icon: IconClock, title: 'WhatsApp', lines: [s('whatsapp_number')].filter(Boolean) },
+].filter((item) => item.lines.length > 0)
 
 const SUBJECTS = [
-  { value: 'general', label: 'General Inquiry' },
-  { value: 'order_support', label: 'Order Support' },
-  { value: 'wholesale', label: 'Wholesale' },
-  { value: 'returns_refunds', label: 'Returns & Refunds' },
-  { value: 'feedback', label: 'Feedback' },
-  { value: 'other', label: 'Other' },
+  ['general', 'General inquiry'],
+  ['order_support', 'Help with an order'],
+  ['returns_refunds', 'Returns and refunds'],
+  ['wholesale', 'Wholesale'],
+  ['feedback', 'Feedback'],
+  ['other', 'Something else'],
 ]
 
-export default function Contact() {
-  const [form, setForm] = useState({ name: '', email: '', subject: 'general', message: '' })
-  const [submitting, setSubmitting] = useState(false)
-  const update = (k, v) => setForm({ ...form, [k]: v })
+const EMPTY = { name: '', email: '', subject: 'general', message: '' }
+const MIN_MESSAGE = 10
 
-  const handleSubmit = async (e) => {
+export default function Contact() {
+  const [form, setForm] = useState(EMPTY)
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [sent, setSent] = useState(false)
+  const s = useSetting()
+  const CONTACT_INFO = contactInfo(s)
+  // Optional introduction written under Admin → Pages → Contact.
+  const [intro, setIntro] = useState('')
+  useEffect(() => {
+    apiClient.get('/content/pages/contact').then(({ data }) => setIntro(data.body_html || '')).catch(() => {})
+  }, [])
+
+  const field = (name) => ({
+    name: `contact-${name}`,
+    value: form[name],
+    error: errors[name],
+    onChange: (e) => {
+      setForm((f) => ({ ...f, [name]: e.target.value }))
+      if (errors[name]) setErrors((er) => ({ ...er, [name]: undefined }))
+    },
+  })
+
+  const submit = async (e) => {
     e.preventDefault()
-    if (form.message.trim().length < 10) return toast.error('Message must be at least 10 characters')
+    if (submitting) return
+    const found = {}
+    if (form.name.trim().length < 2) found.name = 'Enter your name.'
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) found.email = 'Enter a valid email address.'
+    if (form.message.trim().length < MIN_MESSAGE) found.message = `Tell us a little more (at least ${MIN_MESSAGE} characters).`
+    setErrors(found)
+    if (Object.keys(found).length) return
+
     setSubmitting(true)
     try {
-      await apiClient.post('/contact', form)
-      toast.success('Message sent! We\'ll get back to you soon.')
-      setForm({ name: '', email: '', subject: 'general', message: '' })
+      await apiClient.post('/contact', {
+        name: form.name.trim(), email: form.email.trim(), subject: form.subject, message: form.message.trim(),
+      })
+      setSent(true)
+      setForm(EMPTY)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not send message')
+      setErrors({
+        form: err.response?.status === 429
+          ? 'You have sent several messages recently. Please try again in a while.'
+          : err.response?.data?.error || 'We could not send your message. Please try again.',
+      })
     }
     setSubmitting(false)
   }
 
   return (
     <>
-      <PageHeader title="Contact Us" crumbs={[{ label: 'Home', to: '/' }, { label: 'Contact' }]} />
-      <section className="px-6 lg:px-12 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-10">
-          {/* Info */}
-          <div>
-            <h2 className="font-serif text-2xl font-bold mb-2">Get in Touch</h2>
-            <p className="text-[13px] text-gray leading-[1.8] mb-8">Have questions about orders, bulk pricing, or anything else? We'd love to hear from you.</p>
-            <div className="space-y-6">
-              {INFO.map((i) => (
-                <div key={i.title} className="flex gap-4">
-                  <div className="w-10 h-10 bg-cream flex items-center justify-center shrink-0"><i.icon size={18} className="text-gold" /></div>
-                  <div>
-                    <div className="font-semibold text-sm">{i.title}</div>
-                    {i.lines.map((l) => <div key={l} className="text-xs text-gray mt-0.5">{l}</div>)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      <Seo title="Contact Us" description="Get in touch with AANGA — order help, returns, wholesale and feedback." />
+      <Container className="pb-20">
+        <PageTitle
+          title="Contact us"
+          subtitle="Questions about an order, a return or anything else — we usually reply within one working day."
+          crumbs={[{ label: 'Home', to: '/' }, { label: 'Contact' }]}
+        />
 
-          {/* Form */}
-          <div className="bg-surface p-6 lg:p-8">
-            <h3 className="font-serif text-lg font-bold mb-5">Send a Message</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Name *</label>
-                  <input type="text" required value={form.name} onChange={(e) => update('name', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="Your name" />
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            {intro && <CmsBody html={intro} className="mb-6" />}
+            {CONTACT_INFO.map(({ icon: Icon, title, lines }) => (
+              <li key={title} className="flex gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-fill text-fg">
+                  <Icon size={20} stroke={1.5} aria-hidden="true" />
                 </div>
                 <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Email *</label>
-                  <input type="email" required value={form.email} onChange={(e) => update('email', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white" placeholder="you@example.com" />
+                  <h2 className="text-sm font-semibold text-fg">{title}</h2>
+                  {lines.map((line) => <p key={line} className="text-sm text-muted">{line}</p>)}
                 </div>
+              </li>
+            ))}
+          </ul>
+
+          <Card className="p-6 sm:p-8">
+            {sent ? (
+              <div className="py-8 text-center" role="status">
+                <IconCircleCheck size={44} stroke={1.25} className="mx-auto text-fg" aria-hidden="true" />
+                <h2 className="display mt-4 text-xl text-fg">Message sent</h2>
+                <p className="mt-2 text-sm text-muted">Thank you. We will reply to your email as soon as we can.</p>
+                <Button variant="secondary" className="mt-6" onClick={() => setSent(false)}>Send another message</Button>
               </div>
-              <div>
-                <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Subject *</label>
-                <select value={form.subject} onChange={(e) => update('subject', e.target.value)} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white">
-                  {SUBJECTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold uppercase tracking-[0.5px] text-gray block mb-1.5">Message *</label>
-                <textarea required value={form.message} onChange={(e) => update('message', e.target.value)} rows={5} className="w-full border border-line px-4 py-3 text-sm outline-none focus:border-gold transition-colors bg-white resize-none" placeholder="Tell us more... (at least 10 characters)" />
-              </div>
-              <button type="submit" disabled={submitting} className="px-8 py-3.5 bg-ink text-white text-[11px] tracking-[2px] uppercase font-bold hover:bg-ink/90 transition-colors disabled:opacity-60">{submitting ? 'Sending…' : 'Send Message'}</button>
-            </form>
-          </div>
+            ) : (
+              <form onSubmit={submit} className="space-y-4" noValidate>
+                <h2 className="display text-xl text-fg">Send us a message</h2>
+                {errors.form && (
+                  <p role="alert" className="rounded-card bg-danger-soft px-4 py-3 text-sm text-danger">{errors.form}</p>
+                )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input label="Your name" autoComplete="name" {...field('name')} />
+                  <Input label="Email" type="email" autoComplete="email" {...field('email')} />
+                </div>
+                <Select label="What is it about?" {...field('subject')}>
+                  {SUBJECTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+                <Textarea
+                  label="Message" rows={5} maxLength={2000}
+                  hint="If it is about an order, include the order number."
+                  {...field('message')}
+                />
+                <Button type="submit" size="lg" disabled={submitting}>
+                  {submitting ? 'Sending…' : 'Send message'}
+                </Button>
+              </form>
+            )}
+          </Card>
         </div>
-      </section>
+      </Container>
     </>
   )
 }

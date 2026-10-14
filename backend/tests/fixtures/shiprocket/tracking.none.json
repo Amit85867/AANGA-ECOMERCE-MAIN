@@ -1,0 +1,10 @@
+{
+  "tracking_data": {
+    "track_status": 0,
+    "shipment_status": 0,
+    "shipment_track": [],
+    "shipment_track_activities": null,
+    "track_url": "",
+    "error": "There are no activities for this shipment yet."
+  }
+}

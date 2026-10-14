@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from marshmallow import ValidationError
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.marketing import ContactMessage
 from app.models.enums import ContactSubject
 from app.schemas.marketing import ContactMessageIn
@@ -14,6 +14,7 @@ _msg_in = ContactMessageIn()
 
 
 @contact_bp.route("", methods=["POST"])
+@limiter.limit("10 per hour")
 def submit_contact():
     try:
         data = _msg_in.load(request.get_json())

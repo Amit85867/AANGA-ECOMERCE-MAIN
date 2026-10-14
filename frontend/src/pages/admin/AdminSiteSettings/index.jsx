@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/toastStore'
+import { notifyError } from '@/components/admin/helpers'
 import { IconDeviceFloppy } from '@tabler/icons-react'
 
 const GROUP_LABELS = {
@@ -18,10 +21,12 @@ export default function AdminSiteSettings() {
   const [settings, setSettings] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
   const [values, setValues] = useState({})
 
   const fetchSettings = () => {
     setLoading(true)
+    setError(null)
     adminApi.get('/admin/site-settings')
       .then((r) => {
         setSettings(r.data.settings)
@@ -29,7 +34,7 @@ export default function AdminSiteSettings() {
         for (const s of r.data.settings) vals[s.key] = s.value
         setValues(vals)
       })
-      .catch(() => {})
+      .catch((err) => setError(err.response?.data?.error || 'Could not load the site settings.'))
       .finally(() => setLoading(false))
   }
 
@@ -45,9 +50,10 @@ export default function AdminSiteSettings() {
     }))
     try {
       await adminApi.put('/admin/site-settings', { settings: payload })
+      toast.success('Site settings saved.')
       fetchSettings()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
     setSaving(false)
   }
@@ -59,9 +65,10 @@ export default function AdminSiteSettings() {
     grouped[g].push(s)
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
 
-  if (loading) return <div className="py-20 text-center text-gray-400">Loading...</div>
+  if (loading) return <TableSkeleton rows={6} columns={2} />
+  if (error) return <ErrorState message={error} onRetry={fetchSettings} />
 
   return (
     <div>
@@ -70,7 +77,7 @@ export default function AdminSiteSettings() {
           <h1 className="text-2xl font-semibold text-gray-900">Site Settings</h1>
           <p className="mt-1 text-sm text-gray-500">Configure store-wide settings, shipping, tax, and social links</p>
         </div>
-        <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-[#C8963E] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-gold px-5 py-2.5 text-sm font-medium text-white hover:bg-gold-dark disabled:opacity-50">
           <IconDeviceFloppy size={18} /> {saving ? 'Saving...' : 'Save All'}
         </button>
       </div>

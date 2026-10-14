@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.cms import Feature
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminFeatureIn
 
 _in = AdminFeatureIn()
@@ -27,8 +28,17 @@ def _serialize(f):
 @admin_bp.route("/features", methods=["GET"])
 @admin_required
 def admin_list_features():
-    items = Feature.query.order_by(Feature.sort_order, Feature.created_at.desc()).all()
-    return jsonify(features=[_serialize(f) for f in items]), 200
+    q = Feature.query
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(Feature.title.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(Feature.sort_order, Feature.created_at.desc()), default=50)
+    return jsonify(
+        features=[_serialize(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/features", methods=["POST"])

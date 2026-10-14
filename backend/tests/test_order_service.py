@@ -184,6 +184,27 @@ def test_cancel_restores_stock_exactly_once(app):
     assert variant.stock_qty == 10  # restored once, not 14
 
 
+def test_cod_idempotency_key_returns_same_order(app):
+    """A repeated COD submit with the same idempotency key is deduped."""
+    user = make_user()
+    address = make_address(user)
+    _, variant = make_product(price=300, stock=10)
+    make_cart(user, [(variant, 2)])
+
+    order1, err1 = create_order_from_cart(
+        user.id, address.id, "cod", idempotency_key="key-1"
+    )
+    order2, err2 = create_order_from_cart(
+        user.id, address.id, "cod", idempotency_key="key-1"
+    )
+
+    assert err1 is None and err2 is None
+    assert order1.id == order2.id
+    assert Order.query.count() == 1
+    db.session.refresh(variant)
+    assert variant.stock_qty == 8  # deducted once
+
+
 def test_prepaid_verify_is_idempotent(app):
     """Verifying the same payment twice returns the same order, not a duplicate."""
     user = make_user()

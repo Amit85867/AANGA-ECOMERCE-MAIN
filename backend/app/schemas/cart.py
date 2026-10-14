@@ -1,13 +1,23 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
+
+
+# Upper bound on one line's quantity. Stock is the real limit; this only stops
+# an absurd number reaching the database.
+MAX_LINE_QUANTITY = 99
 
 
 class CartItemIn(Schema):
     variant_id = fields.Int(required=True)
-    quantity = fields.Int(load_default=1)
+    # The cart_items_quantity_check constraint rejects anything below 1, so
+    # without this a zero or negative quantity surfaced as a 500.
+    quantity = fields.Int(
+        load_default=1, validate=validate.Range(min=1, max=MAX_LINE_QUANTITY)
+    )
 
 
 class CartItemUpdateIn(Schema):
-    quantity = fields.Int(required=True)
+    # Zero (or less) removes the line.
+    quantity = fields.Int(required=True, validate=validate.Range(max=MAX_LINE_QUANTITY))
 
 
 class ApplyCouponIn(Schema):
@@ -40,3 +50,4 @@ class CartOut(Schema):
     total = fields.Float()
     savings = fields.Float()
     item_count = fields.Int()
+    coupon_notice = fields.Str(allow_none=True)

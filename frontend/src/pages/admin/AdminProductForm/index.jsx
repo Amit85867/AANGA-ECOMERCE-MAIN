@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
+import { toast } from '@/components/ui/toastStore'
+import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
 import { IconPlus, IconTrash, IconArrowLeft, IconUpload, IconLink } from '@tabler/icons-react'
+import { ImageField, MediaPicker } from '@/components/admin/kit'
 
 export default function AdminProductForm() {
   const { id } = useParams()
@@ -11,6 +16,11 @@ export default function AdminProductForm() {
   const [categories, setCategories] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(isEdit)
+  const [loadError, setLoadError] = useState(null)
+  // Stock typed into a variant row but not saved yet: { [variantId]: "12" }
+  const [stockDrafts, setStockDrafts] = useState({})
+  const [savingVariant, setSavingVariant] = useState(null)
 
   const [form, setForm] = useState({
     name: '',
@@ -23,6 +33,10 @@ export default function AdminProductForm() {
     badge_class: '',
     is_active: true,
     is_featured: false,
+    care_details: '',
+    meta_title: '',
+    meta_description: '',
+    share_image_url: '',
   })
 
   const [variants, setVariants] = useState([])
@@ -38,6 +52,7 @@ export default function AdminProductForm() {
   const [newImageUrl, setNewImageUrl] = useState('')
   const [imageMode, setImageMode] = useState('upload')
   const [uploading, setUploading] = useState(false)
+  const [picking, setPicking] = useState(false)
 
   useEffect(() => {
     adminApi.get('/admin/categories').then((r) => {
@@ -48,6 +63,8 @@ export default function AdminProductForm() {
     })
 
     if (isEdit) {
+      setLoading(true)
+      setLoadError(null)
       adminApi.get(`/admin/products/${id}`).then((r) => {
         const p = r.data
         setForm({
@@ -61,10 +78,20 @@ export default function AdminProductForm() {
           badge_class: p.badge_class || '',
           is_active: p.is_active,
           is_featured: p.is_featured,
+          care_details: p.care_details || '',
+          meta_title: p.meta_title || '',
+          meta_description: p.meta_description || '',
+          share_image_url: p.share_image_url || '',
         })
         setVariants(p.variants)
         setImages(p.images)
-      })
+      }).catch((err) => {
+        setLoadError(
+          err.response?.status === 404
+            ? 'This product does not exist.'
+            : err.response?.data?.error || 'Could not load this product.',
+        )
+      }).finally(() => setLoading(false))
     }
   }, [id, isEdit])
 
@@ -93,18 +120,24 @@ export default function AdminProductForm() {
       category_id: Number(form.category_id),
       mrp: Number(form.mrp),
       selling_price: Number(form.selling_price),
+      care_details: form.care_details || null,
+      meta_title: form.meta_title || null,
+      meta_description: form.meta_description || null,
+      share_image_url: form.share_image_url || null,
     }
 
     try {
       if (isEdit) {
         await adminApi.put(`/admin/products/${id}`, payload)
+        toast.success('Product saved.')
         navigate('/admin/products')
       } else {
         const r = await adminApi.post('/admin/products', payload)
+        toast.success('Product created. Now add its sizes, colours and images.')
         navigate(`/admin/products/${r.data.id}`)
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.errors || 'Save failed')
+      setError(err.response?.data?.error || 'Could not save the product.')
     } finally {
       setSaving(false)
     }
@@ -122,15 +155,48 @@ export default function AdminProductForm() {
       const r = await adminApi.post(`/admin/products/${id}/variants`, payload)
       setVariants(r.data.variants)
       setNewVariant({ size: '', color_name: '', color_hex: '#000000', stock_qty: 0, price_override: '', sku: '' })
+      toast.success('Variant added.')
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to add variant')
+      notifyError(err, 'Could not add the variant.')
     }
   }
 
+  // Restocking is the most common edit on this page, so stock is changed in
+  // place rather than by deleting and re-adding the variant.
+  const saveStock = async (variant) => {
+    const stock = Number(stockDrafts[variant.id])
+    if (!Number.isInteger(stock) || stock < 0) {
+      toast.error('Stock must be a whole number, 0 or more.')
+      return
+    }
+    setSavingVariant(variant.id)
+    try {
+      const r = await adminApi.put(`/admin/products/${id}/variants/${variant.id}`, {
+        size: variant.size,
+        color_name: variant.color_name,
+        color_hex: variant.color_hex,
+        stock_qty: stock,
+        price_override: variant.price_override,
+        sku: variant.sku,
+      })
+      setVariants(r.data.variants)
+      setStockDrafts((d) => { const next = { ...d }; delete next[variant.id]; return next })
+      toast.success(`Stock for ${variant.size} · ${variant.color_name} set to ${stock}.`)
+    } catch (err) {
+      notifyError(err, 'Could not update the stock.')
+    }
+    setSavingVariant(null)
+  }
+
   const deleteVariant = async (vid) => {
-    if (!confirm('Delete this variant?')) return
-    const r = await adminApi.delete(`/admin/products/${id}/variants/${vid}`)
-    setVariants(r.data.variants)
+    if (!(await confirm({ title: 'Delete this variant?', message: 'This size and colour will no longer be sold.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      const r = await adminApi.delete(`/admin/products/${id}/variants/${vid}`)
+      setVariants(r.data.variants)
+      toast.success('Variant deleted.')
+    } catch (err) {
+      notifyError(err, 'Could not delete the variant.')
+    }
   }
 
   const addImage = async () => {
@@ -142,19 +208,28 @@ export default function AdminProductForm() {
       })
       setImages(r.data.images)
       setNewImageUrl('')
+      toast.success('Image added.')
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to add image')
+      notifyError(err, 'Could not add the image.')
     }
   }
 
   const deleteImage = async (imgId) => {
-    if (!confirm('Delete this image?')) return
-    const r = await adminApi.delete(`/admin/products/${id}/images/${imgId}`)
-    setImages(r.data.images)
+    if (!(await confirm({ title: 'Delete this image?', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      const r = await adminApi.delete(`/admin/products/${id}/images/${imgId}`)
+      setImages(r.data.images)
+      toast.success('Image deleted.')
+    } catch (err) {
+      notifyError(err, 'Could not delete the image.')
+    }
   }
 
+  if (loading) return <TableSkeleton rows={6} columns={3} />
+  if (loadError) return <ErrorState message={loadError} onRetry={() => window.location.reload()} />
+
   const inputCls =
-    'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+    'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
 
   return (
     <div>
@@ -192,17 +267,24 @@ export default function AdminProductForm() {
             <span className="mb-1 block text-sm font-medium text-gray-700">Category *</span>
             <select name="category_id" value={form.category_id} onChange={handleChange} required className={inputCls}>
               <option value="">Select category</option>
-              {categories.map((root) =>
-                root.children?.length > 0 ? (
-                  <optgroup key={root.id} label={root.name}>
-                    {root.children.map((child) => (
-                      <option key={child.id} value={child.id}>{child.name}</option>
-                    ))}
-                  </optgroup>
-                ) : (
-                  <option key={root.id} value={root.id}>{root.name}</option>
-                )
-              )}
+              {categories.map((root) => {
+                // Deactivated categories are not offered. The one this product is
+                // already in stays, marked, so opening and saving does not move it.
+                const current = (c) => String(c.id) === String(form.category_id)
+                const offered = (c) => (root.is_active && c.is_active) || current(c)
+                const name = (c) => (root.is_active && c.is_active ? c.name : `${c.name} (inactive)`)
+                if (root.children?.length > 0) {
+                  const children = root.children.filter(offered)
+                  return children.length > 0 && (
+                    <optgroup key={root.id} label={root.name}>
+                      {children.map((child) => (
+                        <option key={child.id} value={child.id}>{name(child)}</option>
+                      ))}
+                    </optgroup>
+                  )
+                }
+                return offered(root) && <option key={root.id} value={root.id}>{name(root)}</option>
+              })}
             </select>
           </label>
 
@@ -210,6 +292,28 @@ export default function AdminProductForm() {
             <span className="mb-1 block text-sm font-medium text-gray-700">Description</span>
             <textarea name="description" value={form.description} onChange={handleChange} rows={4} className={inputCls} />
           </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-gray-700">Fabric and care</span>
+            <textarea name="care_details" value={form.care_details} onChange={handleChange} rows={3} maxLength={2000} placeholder="100% cotton. Machine wash cold. Do not bleach." className={inputCls} />
+          </label>
+
+          <fieldset className="rounded-lg border border-gray-200 p-4">
+            <legend className="px-1 text-sm font-medium text-gray-700">Search and sharing (optional)</legend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Title in search results</span>
+                <input name="meta_title" value={form.meta_title} onChange={handleChange} maxLength={70} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Description in search results</span>
+                <input name="meta_description" value={form.meta_description} onChange={handleChange} maxLength={200} className={inputCls} />
+              </label>
+            </div>
+            <div className="mt-4">
+              <ImageField label="Image when the product is shared" help="Empty uses the main product photo." value={form.share_image_url} onChange={(url) => setForm((f) => ({ ...f, share_image_url: url }))} />
+            </div>
+          </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
@@ -250,7 +354,7 @@ export default function AdminProductForm() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-lg bg-[#C8963E] py-3 text-sm font-semibold text-white hover:bg-[#b88534] disabled:opacity-50"
+            className="w-full rounded-lg bg-gold py-3 text-sm font-semibold text-white hover:bg-gold-dark disabled:opacity-50"
           >
             {saving ? 'Saving...' : isEdit ? 'Update Product' : 'Create Product'}
           </button>
@@ -285,11 +389,29 @@ export default function AdminProductForm() {
                             {v.color_name}
                           </span>
                         </td>
-                        <td className="py-2 pr-4">{v.stock_qty}</td>
+                        <td className="py-2 pr-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number" min="0" step="1"
+                              aria-label={`Stock for ${v.size} ${v.color_name}`}
+                              value={stockDrafts[v.id] ?? v.stock_qty}
+                              onChange={(e) => setStockDrafts((d) => ({ ...d, [v.id]: e.target.value }))}
+                              className={`w-20 rounded border px-2 py-1 text-sm ${v.stock_qty === 0 ? 'border-red-300 text-red-600' : 'border-gray-200'}`}
+                            />
+                            {stockDrafts[v.id] != null && String(stockDrafts[v.id]) !== String(v.stock_qty) && (
+                              <button
+                                type="button" onClick={() => saveStock(v)} disabled={savingVariant === v.id}
+                                className="rounded bg-gray-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-black disabled:opacity-60"
+                              >
+                                {savingVariant === v.id ? 'Saving…' : 'Save'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-2 pr-4">{v.price_override ?? '-'}</td>
                         <td className="py-2 pr-4 text-gray-400">{v.sku || '-'}</td>
                         <td className="py-2">
-                          <button onClick={() => deleteVariant(v.id)} className="text-red-400 hover:text-red-600">
+                          <button type="button" onClick={() => deleteVariant(v.id)} aria-label={`Delete variant ${v.size} ${v.color_name}`} className="text-red-400 hover:text-red-600">
                             <IconTrash size={16} />
                           </button>
                         </td>
@@ -344,13 +466,15 @@ export default function AdminProductForm() {
                       className="h-24 w-24 rounded-lg border object-cover"
                     />
                     {img.is_primary && (
-                      <span className="absolute left-1 top-1 rounded bg-[#C8963E] px-1.5 py-0.5 text-[10px] text-white">
+                      <span className="absolute left-1 top-1 rounded bg-gold px-1.5 py-0.5 text-[10px] text-white">
                         Primary
                       </span>
                     )}
                     <button
+                      type="button"
                       onClick={() => deleteImage(img.id)}
-                      className="absolute -right-1 -top-1 hidden rounded-full bg-red-500 p-0.5 text-white group-hover:block"
+                      aria-label="Delete image"
+                      className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <IconTrash size={12} />
                     </button>
@@ -360,6 +484,9 @@ export default function AdminProductForm() {
             )}
 
             <div className="flex gap-1 mb-3">
+              <button type="button" onClick={() => setPicking(true)} className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600 hover:bg-gray-200">
+                From library
+              </button>
               <button type="button" onClick={() => setImageMode('upload')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm ${imageMode === 'upload' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
                 <IconUpload size={16} /> Upload
               </button>
@@ -368,6 +495,17 @@ export default function AdminProductForm() {
               </button>
             </div>
 
+            <MediaPicker
+              open={picking} onClose={() => setPicking(false)}
+              onPick={async (asset) => {
+                try {
+                  const r = await adminApi.post(`/admin/products/${id}/images`, { image_url: asset.url, is_primary: images.length === 0 })
+                  setImages(r.data.images)
+                } catch (err) {
+                  notifyError(err, 'Could not add this image.')
+                }
+              }}
+            />
             {imageMode === 'upload' ? (
               <div className="flex gap-2">
                 <input
@@ -390,7 +528,7 @@ export default function AdminProductForm() {
                       })
                       setImages(r.data.images)
                     } catch (err) {
-                      alert(err.response?.data?.error || 'Upload failed')
+                      notifyError(err, 'Upload failed')
                     } finally {
                       setUploading(false)
                       e.target.value = ''

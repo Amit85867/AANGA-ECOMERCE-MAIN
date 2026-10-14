@@ -15,22 +15,22 @@ export default function Privacy() {
   return (
     <>
       <PageHeader title="Privacy Policy" crumbs={[{ label: 'Home', to: '/' }, { label: 'Privacy Policy' }]} />
-      <section className="px-6 lg:px-12 py-10 max-w-3xl mx-auto">
-        <p className="text-xs text-gray mb-6">Last updated: 1 January 2026</p>
-        <p className="text-[13px] text-gray leading-[1.8] mb-8">
+      <section className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 max-w-3xl mx-auto">
+        <p className="text-xs text-muted mb-6">Last updated: 1 January 2026</p>
+        <p className="text-sm text-muted leading-relaxed mb-8">
           At AANGA (operated by Amit Enterprises, Patna), we are committed to protecting your privacy.
           This policy explains how we collect, use, and safeguard your personal information when you use our website and services.
         </p>
         <div className="space-y-6">
           {SECTIONS.map((s, i) => (
             <div key={i}>
-              <h3 className="font-serif text-lg font-bold mb-2">{i + 1}. {s.title}</h3>
-              <p className="text-[13px] text-gray leading-[1.8]">{s.content}</p>
+              <h3 className="display text-lg font-bold mb-2">{i + 1}. {s.title}</h3>
+              <p className="text-sm text-muted leading-relaxed">{s.content}</p>
             </div>
           ))}
         </div>
-        <div className="mt-8 pt-6 border-t border-line">
-          <p className="text-xs text-gray">For privacy-related queries, contact: <span className="text-gold">privacy@aanga.in</span></p>
+        <div className="mt-8 pt-6 border-t border-hairline/60">
+          <p className="text-xs text-muted">For privacy-related queries, contact: <span className="text-fg">privacy@aanga.in</span></p>
         </div>
       </section>
     </>

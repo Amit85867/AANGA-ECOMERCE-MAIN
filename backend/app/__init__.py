@@ -2,10 +2,13 @@
 import os
 
 import click
-from flask import Flask
+from flask import Flask, jsonify, request
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
 
-from config import get_config
+from config import DEV_DATABASE_URL, get_config
 from app.extensions import db, migrate, jwt, cors, limiter
 
 
@@ -13,14 +16,152 @@ def create_app(config_object=None):
     app = Flask(__name__, static_folder="../static", static_url_path="/static")
     app.config.from_object(config_object or get_config())
 
+    from app.observability import init_logging, init_sentry
+    init_sentry(app)   # as early as possible so startup errors are captured
+    init_logging(app)
+
     _validate_config(app)
+    _apply_proxy_fix(app)
     _init_extensions(app)
     _register_blueprints(app)
     _register_jwt_handlers(app)
+    _register_error_handlers(app)
+    _register_security_headers(app)
+    _register_health(app)
+
+    from app.services import audit, cache, maintenance
+    maintenance.init_app(app)
+    audit.init_app(app)
+    cache.init_app(app)
+    from app.services import demo
+    demo.init_app(app)
+    _warn_runtime_config(app)
     _register_cli(app)
+    _check_database(app)
     _auto_seed_admin(app)
 
     return app
+
+
+def _is_dev_or_test(app):
+    return bool(app.config.get("DEBUG") or app.config.get("TESTING"))
+
+
+def _apply_proxy_fix(app):
+    """Trust the platform's proxy for the client IP and scheme.
+
+    Behind a reverse proxy ``remote_addr`` is the proxy unless we honour
+    X-Forwarded-For. Without this, rate limiting would key every request on
+    the proxy's IP — one shared bucket for everyone.
+
+    Each proxy appends the address it received the request from, so the
+    client is the entry TRUSTED_PROXY_COUNT places from the right. Entries to
+    the left of it were sent by the client and are ignored, which is what
+    makes a forged header harmless. The count is the number of proxies on the
+    path the storefront uses (static site rewrite, then the API's own load
+    balancer); System Health reports how many it actually saw.
+    """
+    if _is_dev_or_test(app):
+        return
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    hops = max(int(app.config.get("TRUSTED_PROXY_COUNT", 1)), 0)
+    if hops:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=1, x_host=1)
+
+
+def _register_error_handlers(app):
+    """Always answer with JSON, and never leak a traceback in production."""
+
+    @app.errorhandler(HTTPException)
+    def _http_error(exc):
+        return jsonify(error=exc.description or exc.name), exc.code
+
+    @app.errorhandler(Exception)
+    def _unhandled(exc):
+        app.logger.exception("Unhandled exception")
+        # A failed flush leaves the session unusable until it is rolled back;
+        # do it here so the error cannot poison whatever runs next on it.
+        db.session.rollback()
+        # In dev/test let it propagate so the real stack trace surfaces.
+        if _is_dev_or_test(app):
+            raise exc
+        return jsonify(error="Internal server error"), 500
+
+
+def _register_security_headers(app):
+    """Add hardening headers to every response.
+
+    This service is a JSON API plus static product images — it renders no HTML
+    of its own — so a strict `default-src 'none'` CSP is safe and clickjacking
+    is fully denied. HSTS is production-only (dev is plain http).
+    """
+    hsts = not _is_dev_or_test(app)
+
+    @app.after_request
+    def _headers(resp):
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        resp.headers.setdefault(
+            "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
+        )
+        # Product images are embedded by the storefront on a different origin.
+        resp.headers.setdefault("Cross-Origin-Resource-Policy", "cross-origin")
+        # api.<domain> must never be indexed. Without this, search engines can
+        # list raw JSON endpoints and the API competes with the storefront for
+        # the same content — and sitemap.xml/robots.txt served from here would
+        # otherwise invite exactly that.
+        resp.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
+        if hsts:
+            resp.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return resp
+
+
+def _register_health(app):
+    @app.route("/api/ping")
+    def ping():
+        """Liveness only. Deliberately touches nothing.
+
+        This is the platform's health check. Neon suspends a branch after five
+        idle minutes, so a probe that ran `SELECT 1` every thirty seconds would
+        hold the compute awake around the clock and bill CU-hours for an empty
+        shop. Use /api/health when you actually want to know about the
+        database.
+        """
+        return jsonify(status="ok"), 200
+
+    @app.route("/api/health")
+    def health():
+        """Liveness + DB readiness. Wakes a suspended Neon compute — by design.
+
+        Not the platform health check (see /api/ping): call this when you want
+        to know whether the database is reachable, e.g. from admin System
+        Health or after a deploy.
+        """
+        try:
+            db.session.execute(text("SELECT 1"))
+        except Exception:
+            app.logger.exception("Health check DB ping failed")
+            return jsonify(status="degraded"), 503
+        return jsonify(status="ok"), 200
+
+
+def _warn_runtime_config(app):
+    """Non-fatal production warnings (fatal ones live in _validate_config)."""
+    if _is_dev_or_test(app):
+        return
+    if str(app.config.get("RATELIMIT_STORAGE_URI", "")).startswith("memory://"):
+        workers = os.environ.get("WEB_CONCURRENCY", "?")
+        app.logger.warning(
+            "RATELIMIT_STORAGE_URI is memory:// — rate-limit counters live in "
+            "each worker, so with WEB_CONCURRENCY=%s a caller gets about %s "
+            "times the advertised allowance and nothing is shared between "
+            "instances. Set it to an Upstash (or other) Redis URL to enforce "
+            "limits globally. See docs/DEPLOYMENT.md 'Rate limiting'.",
+            workers, workers,
+        )
 
 
 # Values that must never survive into a real deployment.
@@ -43,18 +184,42 @@ def _validate_config(app):
         elif len(str(value)) < 32:
             problems.append(f"{key} is too short (use at least 32 random characters)")
 
+    if not app.config.get("RATELIMIT_ENABLED", True):
+        problems.append(
+            "RATELIMIT_ENABLED is false — that switch exists for the "
+            "end-to-end run only and must never be set in production"
+        )
+
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI") or ""
     if db_uri.startswith("sqlite"):
-        problems.append("DATABASE_URL is unset (falling back to SQLite)")
+        problems.append(
+            "DATABASE_URL points at SQLite — the schema is Postgres-native "
+            "(enums, generated columns, triggers) and will not work"
+        )
+    elif db_uri == DEV_DATABASE_URL:
+        # Seeing the fallback verbatim means DATABASE_URL was never set. Without
+        # this the app would boot happily and only fail on the first query.
+        problems.append(
+            "DATABASE_URL is unset — set it to the Neon production branch's "
+            "POOLED connection string (docs/DATABASE.md)"
+        )
 
     # Uploads would land on an ephemeral filesystem and be lost on redeploy,
     # silently breaking every product image.
-    from app.services.storage import is_object_storage_configured
-    if not is_object_storage_configured(app.config):
+    # ALLOW_LOCAL_UPLOADS=true is the explicit statement that static/uploads is
+    # a persistent volume (a self-hosted server with a mounted disk).
+    # Never set it on Render, whose disk is wiped on every deploy.
+    local_uploads_ok = str(os.environ.get("ALLOW_LOCAL_UPLOADS", "")).lower() == "true"
+    from app.services import objectstore
+    missing_storage = objectstore.missing_settings(app.config)
+    if missing_storage and not local_uploads_ok:
         problems.append(
-            "SUPABASE_URL / SUPABASE_SERVICE_KEY are unset — product images "
-            "would be written to an ephemeral disk and lost on the next deploy"
+            f"object storage is not configured ({', '.join(missing_storage)} "
+            "unset) — product images would be written to an ephemeral disk and "
+            "lost on the next deploy"
         )
+
+    problems += _half_configured_integrations(os.environ)
 
     if problems:
         raise RuntimeError(
@@ -64,17 +229,70 @@ def _validate_config(app):
         )
 
 
+def _half_configured_integrations(env):
+    """An integration is all-or-nothing.
+
+    Razorpay and Shiprocket are optional — left blank the store runs COD-only
+    and hides delivery checks. But switched on *without* their companion
+    settings they fail quietly and expensively: payments are taken with no
+    webhook to catch an abandoned checkout, or the delivery widget reports
+    every PIN code as unserviceable.
+    """
+    def has(key):
+        return bool((env.get(key) or "").strip())
+
+    problems = []
+    if has("RAZORPAY_KEY_ID") or has("RAZORPAY_KEY_SECRET"):
+        for key in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"):
+            if not has(key):
+                problems.append(f"{key} is unset but Razorpay is otherwise configured")
+        if not has("RAZORPAY_WEBHOOK_SECRET"):
+            problems.append(
+                "RAZORPAY_WEBHOOK_SECRET is unset — a checkout abandoned after "
+                "capture would leave the customer charged with no order"
+            )
+
+    if has("SHIPROCKET_EMAIL") or has("SHIPROCKET_PASSWORD"):
+        for key in ("SHIPROCKET_EMAIL", "SHIPROCKET_PASSWORD"):
+            if not has(key):
+                problems.append(f"{key} is unset but Shiprocket is otherwise configured")
+        pincode = (env.get("SHIPROCKET_PICKUP_PINCODE") or "").strip()
+        if not (len(pincode) == 6 and pincode.isdigit() and pincode[0] != "0"):
+            problems.append(
+                "SHIPROCKET_PICKUP_PINCODE must be the 6-digit PIN code of the "
+                "Shiprocket pickup address"
+            )
+    return problems
+
+
 def _init_extensions(app):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     limiter.init_app(app)
+    # Only the storefront's own origins may call the API with credentials.
+    # An exact allow-list, never "*": with supports_credentials a wildcard is
+    # both illegal and, if a browser accepted it, a way for any site to make
+    # authenticated calls as a signed-in customer.
+    # Read at startup, not at class-definition time, so the value a platform
+    # injects is picked up and a test can set it.
+    from_env = [
+        o.strip().rstrip("/")
+        for o in os.environ.get("CORS_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+    origins = sorted({
+        *(from_env or app.config["CORS_ORIGINS"]),
+        app.config["FRONTEND_ORIGIN"].rstrip("/"),
+        app.config["SITE_URL"].rstrip("/"),
+    })
     cors.init_app(
         app,
-        origins=[app.config["FRONTEND_ORIGIN"]],
+        origins=origins,
         supports_credentials=True,  # required for the httpOnly refresh cookie
         expose_headers=["X-CSRF-TOKEN"],
     )
+    app.config["RESOLVED_CORS_ORIGINS"] = origins
 
     import app.models  # noqa: F401 – register models for Alembic
 
@@ -86,6 +304,7 @@ def _register_blueprints(app):
     from app.routes.cart import cart_bp
     from app.routes.wishlist import wishlist_bp
     from app.routes.orders import orders_bp
+    from app.routes.returns import returns_bp
     from app.routes.addresses import addresses_bp
     from app.routes.reviews import reviews_bp
     from app.routes.profile import profile_bp
@@ -96,12 +315,18 @@ def _register_blueprints(app):
     from app.routes.admin import admin_bp
     from app.routes.cms import cms_bp
     from app.routes.payments import payments_bp
+    from app.routes.shipping import shipping_bp
+    from app.routes.seo import seo_bp
+    from app.routes.jobs import jobs_bp
+    from app.routes.content import content_bp
 
     for bp in (
         auth_bp, products_bp, categories_bp, cart_bp,
-        wishlist_bp, orders_bp, addresses_bp, reviews_bp,
+        wishlist_bp, orders_bp, returns_bp, addresses_bp, reviews_bp,
         profile_bp, offers_bp, contact_bp, wholesale_bp,
-        newsletter_bp, admin_bp, cms_bp, payments_bp,
+        newsletter_bp, admin_bp, cms_bp, payments_bp, shipping_bp, seo_bp,
+        jobs_bp,
+        content_bp,
     ):
         app.register_blueprint(bp)
 
@@ -119,6 +344,54 @@ def _register_jwt_handlers(app):
     def missing_token(error_string):
         return {"error": "Authorization required"}, 401
 
+    @jwt.token_verification_loader
+    def token_matches_surface(jwt_header, jwt_payload):
+        """Admin tokens work only under /api/admin, customer tokens only outside it.
+
+        Both are signed with the same key and carry a UUID subject, so without
+        this an admin token passed @jwt_required on customer routes and acted
+        as a customer who does not exist (a foreign-key 500 on the cart, an
+        empty order list elsewhere).
+        """
+        is_admin_token = jwt_payload.get("actor") == "admin"
+        return is_admin_token == request.path.startswith("/api/admin/")
+
+    @jwt.token_verification_failed_loader
+    def wrong_surface(jwt_header, jwt_payload):
+        if jwt_payload.get("actor") == "admin":
+            return {"error": "Admin tokens cannot be used on customer endpoints"}, 403
+        return {"error": "Admin access required"}, 403
+
+
+def _check_database(app):
+    """Say so, loudly and once, when the database is unreachable or behind.
+
+    The app still starts: the health endpoint and the admin System Health
+    page are how someone finds out what is wrong, and they need it running.
+    Without this the first sign of a missing migration is a 500 on whichever
+    page happens to touch the missing table.
+    """
+    if app.config.get("TESTING"):
+        return
+    # Flask's own commands (including the one that fixes this) say it themselves.
+    import sys
+    if any(arg in ("apply-migrations", "check-schema", "check-integrations", "verify-integrations") for arg in sys.argv):
+        return
+    from app.services import schema_check
+
+    with app.app_context():
+        result = schema_check.status()
+    app.config["SCHEMA_STATUS_AT_START"] = result
+    if not result["reachable"]:
+        app.logger.error("DATABASE_UNREACHABLE %s", schema_check.describe(result))
+    elif result["empty"] or result["pending"]:
+        app.logger.error(
+            "DATABASE_MIGRATIONS_PENDING %s (missing: %s)",
+            schema_check.describe(result), ", ".join(result["missing"]),
+        )
+    else:
+        app.logger.info("DATABASE_OK schema is up to date")
+
 
 def _auto_seed_admin(app):
     email = os.environ.get("ADMIN_EMAIL")
@@ -128,19 +401,169 @@ def _auto_seed_admin(app):
 
     with app.app_context():
         from app.models.admin import Admin
-        if not Admin.query.filter_by(email=email).first():
-            admin = Admin(
-                email=email,
-                password_hash=generate_password_hash(password),
-                full_name="Master Admin",
-                role="master",
+        try:
+            if not Admin.query.filter_by(email=email).first():
+                admin = Admin(
+                    email=email,
+                    password_hash=generate_password_hash(password),
+                    full_name="Master Admin",
+                    role="master",
+                )
+                db.session.add(admin)
+                db.session.commit()
+                app.logger.info("Auto-seeded the master admin from ADMIN_EMAIL")
+        except IntegrityError:
+            # Another worker starting at the same moment created it first.
+            db.session.rollback()
+        except SQLAlchemyError:
+            # Seeding is a convenience, not a startup requirement. Letting this
+            # raise means a database that is merely slow to accept connections
+            # (a cold managed instance, a container still starting) takes the
+            # whole app down instead of booting and serving /api/health.
+            db.session.rollback()
+            app.logger.warning(
+                "Could not auto-seed the master admin — the database was not "
+                "reachable at startup. Run `flask seed-admin` once it is up.",
+                exc_info=True,
             )
-            db.session.add(admin)
-            db.session.commit()
-            app.logger.info(f"Auto-seeded master admin: {email}")
 
 
 def _register_cli(app):
+    @app.cli.command("apply-migrations")
+    @click.option("--all", "all_files", is_flag=True, help="Re-run every migration file, not only pending ones.")
+    def apply_migrations(all_files):
+        """Bring the database in DATABASE_URL up to date.
+
+        Runs the migration files that have not been applied yet. They are
+        idempotent, so running this twice is harmless.
+
+            flask apply-migrations
+        """
+        from app.services import schema_check
+
+        try:
+            applied = schema_check.apply_pending(all_files=all_files)
+        except RuntimeError as exc:
+            raise click.ClickException(str(exc))
+        for name in applied:
+            click.echo(f"  applied {name}")
+        after = schema_check.status()
+        if after["pending"]:
+            raise click.ClickException(schema_check.describe(after))
+        click.echo("Database is up to date." if applied else "Nothing to apply: the database is up to date.")
+
+    @app.cli.command("check-integrations")
+    @click.option("--offline", is_flag=True, help="Check the settings only; contact nobody.")
+    def check_integrations(offline):
+        """Check every outside service: settings present, and one read-only call each.
+
+            flask check-integrations
+
+        Prints what is wrong and how to fix it. Never prints a key or password.
+        Exits 1 if anything that is switched on is not working.
+        """
+        from app.services import integrations_check
+
+        lines, code = integrations_check.run(probe=not offline)
+        for line in lines:
+            click.echo(line)
+        raise SystemExit(code)
+
+    @app.cli.command("verify-integrations")
+    def verify_integrations():
+        """Run the six checks that need real TEST keys (see docs/GO_LIVE.md).
+
+        Refuses to run with live keys. Prints PASS or FAIL per step.
+        """
+        from app.services import integrations_verify
+
+        lines, code = integrations_verify.run(app)
+        for line in lines:
+            click.echo(line)
+        raise SystemExit(code)
+
+    @app.cli.command("check-schema")
+    def check_schema():
+        """Report whether the database is reachable and fully migrated (exit 1 if not)."""
+        from app.services import schema_check
+
+        result = schema_check.status()
+        click.echo(schema_check.describe(result))
+        if not result["reachable"] or result["empty"] or result["pending"]:
+            raise SystemExit(1)
+
+    @app.cli.command("remove-demo-content")
+    @click.option("--yes", is_flag=True, help="Do it without asking.")
+    def remove_demo_content(yes):
+        """Delete everything tagged as demo content (same as the admin button).
+
+            flask remove-demo-content          # shows what would go, then asks
+            flask remove-demo-content --yes
+        """
+        from app.extensions import db
+        from app.services import audit, cache, demo
+
+        counts = demo.summary()
+        if not sum(counts.values()):
+            click.echo("There is no demo content.")
+            return
+        for kind, number in counts.items():
+            if number:
+                click.echo(f"  {number:>4}  {kind.replace('_', ' ')}")
+        if not yes and not click.confirm("Remove all of it? This cannot be undone"):
+            click.echo("Nothing removed.")
+            return
+        removed = demo.remove_all()
+        kept = removed.pop("kept")
+        audit.record("remove_demo_content", "demo", summary="Removed demo content (command line)",
+                     changes={"removed": removed, "kept": kept}, actor_type="system", commit=False)
+        db.session.commit()
+        cache.invalidate()
+        for line in kept:
+            click.echo(f"  kept: {line}")
+        click.echo("Demo content removed.")
+
+    @app.cli.command("reconcile-payments")
+    @click.option("--hours", default=24, help="How far back to scan.")
+    @click.option("--dry-run", is_flag=True, help="Report orphans without refunding.")
+    def reconcile_payments(hours, dry_run):
+        """Refund captured payments that never became an order.
+
+        Safety net for a webhook that was never delivered. Schedule it (cron /
+        platform scheduler) a few times a day:
+
+            flask reconcile-payments --hours 24
+        """
+        from app.routes.payments import reconcile_orphaned_captures
+
+        result = reconcile_orphaned_captures(
+            window_seconds=hours * 3600, dry_run=dry_run
+        )
+        if not result.get("configured"):
+            click.echo("Razorpay is not configured — nothing to reconcile.")
+            return
+        if result.get("error"):
+            # Non-zero exit: a sweep that could not run is a failed run, and the
+            # scheduler should say so rather than report success.
+            raise click.ClickException(f"Could not reconcile: {result['error']}")
+
+        click.echo(f"Checked {result['checked']} payment(s) from the last {hours}h.")
+        if not result["orphans"]:
+            click.echo("No orphaned captures found.")
+            return
+        for o in result["orphans"]:
+            click.echo(f"  orphan {o['id']} amount={o['amount']} age={o['age']}s")
+        if dry_run:
+            click.echo(f"{len(result['orphans'])} orphan(s) found (dry run — nothing refunded).")
+        else:
+            click.echo(f"Refunded {result['refunded']} of {len(result['orphans'])} orphan(s).")
+        if result.get("failed"):
+            # Non-zero exit so the scheduler flags the run: these need a manual refund.
+            raise click.ClickException(
+                f"{result['failed']} refund(s) failed - "
+                "see ORPHANED_CAPTURE_REFUND_FAILED in the logs."
+            )
+
     @app.cli.command("seed-admin")
     @click.option("--email", default=None, help="Master admin email")
     @click.option("--password", default=None, help="Master admin password")
@@ -170,3 +593,33 @@ def _register_cli(app):
         db.session.add(admin)
         db.session.commit()
         click.echo(f"Master admin created: {email}")
+
+    @app.cli.command("set-admin-password")
+    @click.option("--email", default=None, help="Admin email (default: ADMIN_EMAIL)")
+    def set_admin_password(email):
+        """Change an existing admin's password.
+
+        ADMIN_PASSWORD only seeds an account that does not exist yet, so editing
+        it in .env never changes a live password — this does. The new password
+        is read from ADMIN_PASSWORD, or prompted for; it is deliberately not a
+        command-line option, which would leave it in shell history.
+        """
+        from app.models.admin import Admin
+
+        email = email or os.environ.get("ADMIN_EMAIL")
+        if not email:
+            raise click.ClickException("Provide --email or set ADMIN_EMAIL.")
+
+        admin = Admin.query.filter_by(email=email).first()
+        if not admin:
+            raise click.ClickException(f"No admin with email {email}.")
+
+        password = os.environ.get("ADMIN_PASSWORD") or click.prompt(
+            "New password", hide_input=True, confirmation_prompt=True
+        )
+        if len(password) < 12:
+            raise click.ClickException("Use at least 12 characters.")
+
+        admin.password_hash = generate_password_hash(password)
+        db.session.commit()
+        click.echo(f"Password updated for {email}.")

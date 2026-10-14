@@ -230,13 +230,13 @@ CREATE TYPE public.volume_range AS ENUM (
 
 CREATE FUNCTION public.assign_order_number() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.order_number is null then
-    new.order_number := generate_order_number();
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.order_number is null then
+    new.order_number := generate_order_number();
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -246,19 +246,19 @@ $$;
 
 CREATE FUNCTION public.deduct_inventory() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  update product_variants
-  set stock_qty = stock_qty - new.quantity
-  where id = new.variant_id;
-
-  -- Guard: rollback if stock goes negative
-  if (select stock_qty from product_variants where id = new.variant_id) < 0 then
-    raise exception 'Insufficient stock for variant %', new.variant_id;
-  end if;
-
-  return new;
-end;
+    AS $$
+begin
+  update product_variants
+  set stock_qty = stock_qty - new.quantity
+  where id = new.variant_id;
+
+  -- Guard: rollback if stock goes negative
+  if (select stock_qty from product_variants where id = new.variant_id) < 0 then
+    raise exception 'Insufficient stock for variant %', new.variant_id;
+  end if;
+
+  return new;
+end;
 $$;
 
 
@@ -268,10 +268,10 @@ $$;
 
 CREATE FUNCTION public.generate_order_number() RETURNS text
     LANGUAGE plpgsql
-    AS $$
-begin
-  return 'ANG-' || to_char(now(), 'YYYY') || '-' || nextval('order_seq')::text;
-end;
+    AS $$
+begin
+  return 'ANG-' || to_char(now(), 'YYYY') || '-' || nextval('order_seq')::text;
+end;
 $$;
 
 
@@ -281,15 +281,15 @@ $$;
 
 CREATE FUNCTION public.increment_coupon_usage() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.coupon_id is not null then
-    update coupons
-    set used_count = used_count + 1
-    where id = new.coupon_id;
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.coupon_id is not null then
+    update coupons
+    set used_count = used_count + 1
+    where id = new.coupon_id;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -299,17 +299,17 @@ $$;
 
 CREATE FUNCTION public.restore_inventory_on_cancel() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  if new.status = 'cancelled' and old.status != 'cancelled' then
-    update product_variants pv
-    set stock_qty = pv.stock_qty + oi.quantity
-    from order_items oi
-    where oi.order_id = new.id
-      and pv.id = oi.variant_id;
-  end if;
-  return new;
-end;
+    AS $$
+begin
+  if new.status = 'cancelled' and old.status != 'cancelled' then
+    update product_variants pv
+    set stock_qty = pv.stock_qty + oi.quantity
+    from order_items oi
+    where oi.order_id = new.id
+      and pv.id = oi.variant_id;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -319,11 +319,11 @@ $$;
 
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-begin
-  new.updated_at = now();
-  return new;
-end;
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
 $$;
 
 
@@ -347,7 +347,8 @@ CREATE TABLE public.addresses (
     state text NOT NULL,
     pin_code character(6) NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    archived_at timestamp with time zone
 );
 
 
@@ -682,6 +683,10 @@ CREATE TABLE public.hero_banners (
     link_text text,
     secondary_link_url text,
     secondary_link_text text,
+    pill_label text,
+    pill_value text,
+    chip_value text,
+    chip_label text,
     sort_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     starts_at timestamp with time zone,
@@ -879,6 +884,7 @@ CREATE TABLE public.orders (
     payment_method public.payment_method NOT NULL,
     payment_status public.payment_status DEFAULT 'pending'::public.payment_status NOT NULL,
     payment_ref text,
+    idempotency_key text,
     courier_name text,
     tracking_number text,
     expected_delivery date,
@@ -2121,6 +2127,20 @@ CREATE INDEX idx_orders_user_id ON public.orders USING btree (user_id);
 
 
 --
+-- Name: uq_orders_payment_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_orders_payment_ref ON public.orders USING btree (payment_ref) WHERE (payment_ref IS NOT NULL);
+
+
+--
+-- Name: uq_orders_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_orders_idempotency_key ON public.orders USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
+
+
+--
 -- Name: idx_products_category_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2913,8 +2933,229 @@ ALTER TABLE public.wholesale_inquiries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wishlist ENABLE ROW LEVEL SECURITY;
 
 --
+-- Operational bookkeeping (see migrations_ops_tables.sql)
+--
+
+CREATE TABLE IF NOT EXISTS public.webhook_events (
+    event_id text NOT NULL,
+    source text NOT NULL,
+    kind text,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT webhook_events_pkey PRIMARY KEY (event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_received_at
+    ON public.webhook_events USING btree (received_at);
+
+CREATE TABLE IF NOT EXISTS public.job_runs (
+    id bigint GENERATED BY DEFAULT AS IDENTITY,
+    name text NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    ok boolean DEFAULT true NOT NULL,
+    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT job_runs_pkey PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_runs_name_started
+    ON public.job_runs USING btree (name, started_at DESC);
+
+--
+-- Admin audit log and dashboard indexes (see migrations_admin_ops.sql)
+--
+
+CREATE TABLE IF NOT EXISTS public.audit_log (
+    id bigint GENERATED BY DEFAULT AS IDENTITY,
+    actor_type text DEFAULT 'admin'::text NOT NULL,
+    admin_id uuid,
+    actor_label text,
+    action text NOT NULL,
+    entity_type text NOT NULL,
+    entity_id text,
+    summary text,
+    changes jsonb DEFAULT '{}'::jsonb NOT NULL,
+    ip text,
+    request_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT audit_log_pkey PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at
+    ON public.audit_log USING btree (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity
+    ON public.audit_log USING btree (entity_type, entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_admin
+    ON public.audit_log USING btree (admin_id);
+
+CREATE INDEX IF NOT EXISTS idx_orders_status_placed_at
+    ON public.orders USING btree (status, placed_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_variants_low_stock
+    ON public.product_variants USING btree (stock_qty)
+    WHERE (stock_qty <= 5);
+
+CREATE INDEX IF NOT EXISTS idx_users_created_at
+    ON public.users USING btree (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at
+    ON public.product_reviews USING btree (created_at DESC);
+
+--
 -- PostgreSQL database dump complete
 --
 
 \unrestrict vM4PuTmlD1LMnjSyH9TgqzpVi3G5Nd4AKn2bgezgbb5HGe3JROl2T8r6f23KCTk
 
+-- >>> migrations_owner_dashboard.sql (kept in step by hand; the migration file is the source)
+-- Migration: owner dashboard (Round 3)
+--
+-- Collections, campaigns, the homepage builder, editable navigation, pages and
+-- FAQ, the media library, SEO fields and the "demo content" flag.
+--
+-- Applied by scripts/render_bootstrap_db.sh. Safe to run more than once: every
+-- statement is guarded. It inserts no rows — defaults (homepage sections,
+-- menus, the list of pages) are created by the application the first time
+-- they are read, so an empty database and a test database behave the same.
+
+-- ── Demo content flag ────────────────────────────────────────
+ALTER TABLE public.products      ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.categories    ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.hero_banners  ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.promo_banners ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.testimonials  ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.features      ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.coupons       ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.offers        ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.users         ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.admins        ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+
+-- ── Product SEO and care details ─────────────────────────────
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS care_details text;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS meta_title text;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS meta_description text;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS share_image_url text;
+
+-- ── Collections ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.collections (
+    id bigserial PRIMARY KEY,
+    name text NOT NULL,
+    slug text NOT NULL UNIQUE,
+    description text,
+    image_url text,
+    is_active boolean NOT NULL DEFAULT true,
+    meta_title text,
+    meta_description text,
+    share_image_url text,
+    is_demo boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.collection_products (
+    collection_id bigint NOT NULL REFERENCES public.collections(id) ON DELETE CASCADE,
+    product_id bigint NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    sort_order integer NOT NULL DEFAULT 0,
+    PRIMARY KEY (collection_id, product_id)
+);
+CREATE INDEX IF NOT EXISTS idx_collection_products_product ON public.collection_products (product_id);
+
+-- ── Campaigns ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.campaigns (
+    id bigserial PRIMARY KEY,
+    name text NOT NULL,
+    starts_at timestamptz NOT NULL,
+    ends_at timestamptz NOT NULL,
+    -- Set by "End now". A campaign is live while starts_at <= now < ends_at
+    -- and this is empty.
+    ended_at timestamptz,
+    announcement_text text,
+    announcement_highlight text,
+    announcement_link_url text,
+    announcement_link_text text,
+    collection_id bigint REFERENCES public.collections(id) ON DELETE SET NULL,
+    sale_percent numeric(4,1),
+    decoration_enabled boolean NOT NULL DEFAULT false,
+    accent_preset text NOT NULL DEFAULT 'marigold',
+    show_countdown boolean NOT NULL DEFAULT false,
+    is_demo boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ck_campaign_dates CHECK (ends_at > starts_at),
+    CONSTRAINT ck_campaign_sale CHECK (sale_percent IS NULL OR (sale_percent > 0 AND sale_percent <= 90))
+);
+CREATE INDEX IF NOT EXISTS idx_campaigns_window ON public.campaigns (starts_at, ends_at);
+
+-- Slides and promo banners made for a campaign disappear with it; a coupon
+-- outlives it (orders reference coupons) and is simply no longer usable.
+ALTER TABLE public.hero_banners  ADD COLUMN IF NOT EXISTS campaign_id bigint REFERENCES public.campaigns(id) ON DELETE CASCADE;
+ALTER TABLE public.promo_banners ADD COLUMN IF NOT EXISTS campaign_id bigint REFERENCES public.campaigns(id) ON DELETE CASCADE;
+ALTER TABLE public.coupons       ADD COLUMN IF NOT EXISTS campaign_id bigint REFERENCES public.campaigns(id) ON DELETE SET NULL;
+
+-- ── Homepage builder ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.homepage_sections (
+    id bigserial PRIMARY KEY,
+    key text NOT NULL UNIQUE,
+    title text,
+    subtitle text,
+    is_visible boolean NOT NULL DEFAULT true,
+    sort_order integer NOT NULL DEFAULT 0,
+    config jsonb NOT NULL DEFAULT '{}'::jsonb,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- ── Navigation ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.nav_links (
+    id bigserial PRIMARY KEY,
+    location text NOT NULL,
+    group_name text,
+    label text NOT NULL,
+    url text NOT NULL,
+    sort_order integer NOT NULL DEFAULT 0,
+    is_visible boolean NOT NULL DEFAULT true,
+    CONSTRAINT ck_nav_location CHECK (location IN ('header', 'footer'))
+);
+CREATE INDEX IF NOT EXISTS idx_nav_links_location ON public.nav_links (location, sort_order);
+
+-- ── Pages and FAQ ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.cms_pages (
+    id bigserial PRIMARY KEY,
+    slug text NOT NULL UNIQUE,
+    title text NOT NULL,
+    -- Sanitised on the server before it is stored (app/services/sanitize.py).
+    body_html text NOT NULL DEFAULT '',
+    meta_title text,
+    meta_description text,
+    share_image_url text,
+    is_demo boolean NOT NULL DEFAULT false,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.faq_items (
+    id bigserial PRIMARY KEY,
+    question text NOT NULL,
+    answer text NOT NULL,
+    sort_order integer NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT true,
+    is_demo boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- ── Media library ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.media_assets (
+    id bigserial PRIMARY KEY,
+    url text NOT NULL UNIQUE,
+    filename text,
+    alt_text text,
+    width integer,
+    height integer,
+    size_bytes integer,
+    -- Where the picture came from and under what licence, for the owner's records.
+    source_note text,
+    is_demo boolean NOT NULL DEFAULT false,
+    uploaded_by uuid REFERENCES public.admins(id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_media_assets_created ON public.media_assets (created_at DESC);
