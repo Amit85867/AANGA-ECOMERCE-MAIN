@@ -87,7 +87,12 @@ $pw2 = Read-Plain 'Confirm it'
 
 if ($pw1 -cne $pw2)      { Fail 'The two entries do not match. Nothing was changed.' }
 if ($pw1.Length -lt 12)  { Fail 'Use at least 12 characters. Nothing was changed.' }
-if ($pw1 -eq 'AANGA@144amit') {
+# The password published in the git history (commit 4651da7), compared by
+# SHA-256 so the plaintext is not republished in this file.
+$leakedSha256 = 'ca38bdecfc1b1d88e6ff1f4ef0d4636da41cea70257c9672b59241f3b36c73e1'
+$sha = [System.Security.Cryptography.SHA256]::Create()
+$typedSha256 = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($pw1)) | ForEach-Object { $_.ToString('x2') })
+if ($typedSha256 -eq $leakedSha256) {
     Fail 'That is the password published in the git history. Choose a different one.'
 }
 
