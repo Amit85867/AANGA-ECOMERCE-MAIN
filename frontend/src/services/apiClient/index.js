@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { describeApiError } from '@/utils/apiError'
 import { previewToken } from '@/services/preview'
+import { API_BASE_URL } from '@/utils/apiBase'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+const baseURL = API_BASE_URL
 
 const apiClient = axios.create({
   baseURL,

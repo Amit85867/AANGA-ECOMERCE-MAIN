@@ -73,6 +73,18 @@ def sitemap():
 
 @seo_bp.route("/robots.txt")
 def robots():
+    from app.services import indexing
+
+    if not indexing.is_enabled():
+        # Disallow everything, and do NOT advertise the sitemap: pointing a
+        # crawler at a list of URLs it is told not to fetch is a mixed signal.
+        return Response(
+            "# Indexing is switched off for this site.\n"
+            "User-agent: *\n"
+            "Disallow: /\n",
+            mimetype="text/plain",
+        )
+
     body = (
         "User-agent: *\n"
         "Allow: /\n"

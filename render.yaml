@@ -1,30 +1,37 @@
 # Render Blueprint — AANGA
 #
-# Layout (a): a static site serves the storefront and rewrites /api/* to the
-# backend, so the browser only ever talks to one origin. That keeps the login
-# refresh cookie first-party, which the storefront's CSRF handling relies on.
+# Render runs the BACKEND ONLY: a JSON API on https://api.<domain>.
 #
-# The database is NOT defined here: it is Neon (see docs/DATABASE.md). Set
-# DATABASE_URL and DIRECT_DATABASE_URL in the Dashboard from the Neon
-# *production* branch. Nothing in this repository holds a production string.
+#   storefront   static build on Hostinger (Apache/LiteSpeed)  https://<domain>
+#   API          this file                                     https://api.<domain>
+#   database     Neon production branch                        (docs/DATABASE.md)
+#   images       Neon Object Storage                           (docs/DEPLOYMENT.md)
 #
-# There is no Docker anywhere: the API runs on Render's native Python runtime.
+# The storefront and the API are different ORIGINS on the same registrable
+# domain, so auth works by scoping the refresh cookie to ".<domain>" with
+# SameSite=Lax, and CORS_ORIGINS lists the storefront exactly. Set
+# COOKIE_DOMAIN, CORS_ORIGINS, FRONTEND_ORIGIN and SITE_URL together or
+# sign-in will appear to work and then drop on the first reload.
+#
+# Flask serves no HTML: there is no static-site service here and no SPA
+# fallback in the app.
 #
 # Nothing here deploys by itself: create it from the Render Dashboard with
 # New -> Blueprint, pointed at this repository. Before the first sync:
 #
-#   1. Replace every "aanga-api.onrender.com" below with the backend's real
-#      URL if Render assigns a different one (it appends a suffix when the
-#      name is taken). The rewrite destinations cannot reference a service by
-#      name, so they are literal URLs.
-#   2. Replace "www.example.com" with the storefront's custom domain.
-#   3. Fill in every `sync: false` value in the Dashboard. They are secrets and
+#   1. Fill in every `sync: false` value in the Dashboard. They are secrets and
 #      are deliberately not in this file.
-#   4. Load the schema into the Neon production branch once:
+#   2. Add the custom domain api.<domain> to the service, then the CNAME at
+#      Hostinger that Render shows you.
+#   3. Load the schema into the Neon production branch once:
 #        scripts/render_bootstrap_db.sh        (see docs/DATABASE.md)
 #
-# Plans are the smallest that suit a live store. Free web services sleep when
-# idle, which would make Razorpay's webhook time out — do not use them here.
+# FREE PLAN, tonight: a free web service sleeps after ~15 minutes idle and
+# takes ~50 s to wake. Acceptable for launch; NOT acceptable once Razorpay is
+# switched on, because a sleeping service makes the payment webhook time out
+# and a customer can be charged with no order. Move to Starter before taking
+# online payments. UptimeRobot on /api/ping keeps it warm (that route touches
+# no database, so it does not hold the Neon compute awake either).
 #
 # Validate after editing:  render blueprints validate   (Render CLI)
 
@@ -57,23 +64,29 @@ envVarGroups:
       - key: DIRECT_DATABASE_URL
         sync: false
 
-      # Public origin of the storefront (the custom domain on the static site).
+      # ── The storefront's origin, and the cookie that spans both hosts ──
+      # Set all four together. Examples for the domain "example.com":
+      #   FRONTEND_ORIGIN  https://example.com
+      #   SITE_URL         https://example.com        (canonicals, sitemap)
+      #   CORS_ORIGINS     https://example.com,https://www.example.com
+      #   COOKIE_DOMAIN    .example.com               (leading dot, no scheme)
       - key: FRONTEND_ORIGIN
-        value: https://www.example.com
+        sync: false
       - key: SITE_URL
-        value: https://www.example.com
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: COOKIE_DOMAIN
+        sync: false
 
-      # Same-origin through the rewrite, so the strict setting works. Would
-      # have to be "None" only if the storefront called the API cross-site.
+      # Lax is correct for storefront + api subdomain: same site, so the
+      # cookie is sent, and it still does not ride along from other sites.
       - key: JWT_COOKIE_SAMESITE
         value: Lax
 
-      # Number of proxies between a storefront visitor and the app: the static
-      # site's /api rewrite plus the API's own load balancer. Render does not
-      # document the figure, so "1" is a starting value, not a known one.
-      # After the first deploy open admin → System Health through the
-      # storefront domain: "Proxies in front of the server" shows how many
-      # it saw. Set this to that number and redeploy.
+      # Proxies in front of the app. The browser now calls api.<domain>
+      # directly, so this is just Render's own load balancer. Verify after the
+      # first deploy: admin → System Health reports how many hops it saw.
       - key: TRUSTED_PROXY_COUNT
         value: "1"
 
@@ -149,7 +162,8 @@ services:
   - type: web
     name: aanga-api
     runtime: python
-    plan: starter
+    # Free tonight; see the note at the top before enabling payments.
+    plan: free
     region: singapore
     rootDir: backend
     buildCommand: pip install --no-cache-dir -r requirements.txt
@@ -170,77 +184,3 @@ services:
     autoDeploy: false
     envVars:
       - fromGroup: aanga-backend
-
-  # ── Refund abandoned checkouts ──────────────────────────────
-  # The webhook ignores captures younger than 15 minutes, so refunds for
-  # abandoned checkouts depend on this job running.
-  - type: cron
-    name: aanga-reconcile-payments
-    runtime: python
-    plan: starter
-    region: singapore
-    rootDir: backend
-    buildCommand: pip install --no-cache-dir -r requirements.txt
-    schedule: "*/30 * * * *"
-    startCommand: flask --app run reconcile-payments --hours 24
-    autoDeploy: false
-    envVars:
-      - fromGroup: aanga-backend
-      # One short-lived process: a single connection is all it needs.
-      - key: DB_POOL_SIZE
-        value: "1"
-      - key: DB_MAX_OVERFLOW
-        value: "1"
-
-  # ── Storefront ──────────────────────────────────────────────
-  - type: web
-    name: aanga-web
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    autoDeploy: false
-    domains:
-      - www.example.com
-    envVars:
-      # Deliberately no VITE_API_BASE_URL: the app then calls /api on its own
-      # origin and the rewrite below carries it to the backend.
-      - key: VITE_GOOGLE_CLIENT_ID
-        sync: false
-      - key: VITE_SENTRY_DSN
-        sync: false
-      - key: VITE_SENTRY_ENVIRONMENT
-        value: production
-    routes:
-      # Order matters: the first matching rule wins, and the SPA fallback at
-      # the bottom matches everything.
-      - type: rewrite
-        source: /api/*
-        destination: https://aanga-api.onrender.com/api/*
-      - type: rewrite
-        source: /sitemap.xml
-        destination: https://aanga-api.onrender.com/sitemap.xml
-      - type: rewrite
-        source: /robots.txt
-        destination: https://aanga-api.onrender.com/robots.txt
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    headers:
-      # Built assets are content-hashed, so they can be cached for a year.
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
-      # index.html must not be cached, or a deploy is not picked up.
-      - path: /index.html
-        name: Cache-Control
-        value: no-cache
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: X-Frame-Options
-        value: DENY
-      - path: /*
-        name: Referrer-Policy
-        value: strict-origin-when-cross-origin

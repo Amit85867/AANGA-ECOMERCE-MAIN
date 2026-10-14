@@ -107,6 +107,11 @@ def _register_security_headers(app):
         )
         # Product images are embedded by the storefront on a different origin.
         resp.headers.setdefault("Cross-Origin-Resource-Policy", "cross-origin")
+        # api.<domain> must never be indexed. Without this, search engines can
+        # list raw JSON endpoints and the API competes with the storefront for
+        # the same content — and sitemap.xml/robots.txt served from here would
+        # otherwise invite exactly that.
+        resp.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
         if hsts:
             resp.headers.setdefault(
                 "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
@@ -265,15 +270,29 @@ def _init_extensions(app):
     migrate.init_app(app, db)
     jwt.init_app(app)
     limiter.init_app(app)
+    # Only the storefront's own origins may call the API with credentials.
+    # An exact allow-list, never "*": with supports_credentials a wildcard is
+    # both illegal and, if a browser accepted it, a way for any site to make
+    # authenticated calls as a signed-in customer.
+    # Read at startup, not at class-definition time, so the value a platform
+    # injects is picked up and a test can set it.
+    from_env = [
+        o.strip().rstrip("/")
+        for o in os.environ.get("CORS_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+    origins = sorted({
+        *(from_env or app.config["CORS_ORIGINS"]),
+        app.config["FRONTEND_ORIGIN"].rstrip("/"),
+        app.config["SITE_URL"].rstrip("/"),
+    })
     cors.init_app(
         app,
-        # Only the storefront's own origin(s) may call the API with
-        # credentials. SITE_URL is the public domain; FRONTEND_ORIGIN usually
-        # equals it and differs only when the app is served from a second host.
-        origins=sorted({app.config["FRONTEND_ORIGIN"], app.config["SITE_URL"]}),
+        origins=origins,
         supports_credentials=True,  # required for the httpOnly refresh cookie
         expose_headers=["X-CSRF-TOKEN"],
     )
+    app.config["RESOLVED_CORS_ORIGINS"] = origins
 
     import app.models  # noqa: F401 – register models for Alembic
 
@@ -298,6 +317,7 @@ def _register_blueprints(app):
     from app.routes.payments import payments_bp
     from app.routes.shipping import shipping_bp
     from app.routes.seo import seo_bp
+    from app.routes.jobs import jobs_bp
     from app.routes.content import content_bp
 
     for bp in (
@@ -305,6 +325,7 @@ def _register_blueprints(app):
         wishlist_bp, orders_bp, returns_bp, addresses_bp, reviews_bp,
         profile_bp, offers_bp, contact_bp, wholesale_bp,
         newsletter_bp, admin_bp, cms_bp, payments_bp, shipping_bp, seo_bp,
+        jobs_bp,
         content_bp,
     ):
         app.register_blueprint(bp)

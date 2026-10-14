@@ -201,6 +201,11 @@ export default function Shop() {
         title={collection?.meta_title || collection?.name || categoryName || 'Shop All Products'}
         description={collection?.meta_description || collection?.description || 'Browse the full collection — clothing, accessories and more, with fast delivery across India.'}
         image={collection?.share_image_url || collection?.image_url || undefined}
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: 'Shop', path: '/shop' },
+          ...(categoryName ? [{ name: categoryName }] : []),
+        ]}
       />
       <Container className="pb-16">
         <PageTitle

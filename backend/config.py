@@ -60,11 +60,26 @@ class BaseConfig:
     # Scope the cookie to the auth routes that need it (refresh + logout).
     JWT_REFRESH_COOKIE_PATH = "/api/auth"
     # Double-submit CSRF protection for anything authenticated via a cookie.
+    # The CSRF cookie is deliberately NOT httpOnly: the storefront reads it and
+    # echoes it back in X-CSRF-TOKEN. The refresh cookie itself stays httpOnly.
     JWT_COOKIE_CSRF_PROTECT = True
     JWT_CSRF_IN_COOKIES = True
+
+    # Cross-subdomain auth: the storefront is https://example.com and the API
+    # is https://api.example.com. Different ORIGINS (so CORS applies) but the
+    # same registrable domain, so a cookie scoped to ".example.com" is sent on
+    # both and SameSite=Lax is enough -- "None" would be needed only for a
+    # genuinely cross-SITE API, and it is weaker.
+    #
+    # Leave COOKIE_DOMAIN blank for localhost: a Domain attribute of
+    # "localhost" is rejected by some browsers, and host-only cookies are
+    # correct there anyway.
+    COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", "").strip()
+    JWT_COOKIE_DOMAIN = COOKIE_DOMAIN or None
+    SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN or None
     # Overridden per environment below.
     JWT_COOKIE_SECURE = True
-    JWT_COOKIE_SAMESITE = "None"
+    JWT_COOKIE_SAMESITE = "Lax"
 
     # Observability (Sentry). Leave SENTRY_DSN blank to disable entirely.
     SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
@@ -101,12 +116,36 @@ class BaseConfig:
     # integrated yet, so this stays empty and the option stays hidden.
     SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "")
 
-    # CORS
+    # CORS. The storefront is on its own origin now (Hostinger) and the API on
+    # another (Render), so this is a real cross-origin setup with credentials:
+    # the allow-list must be exact, and "*" is not legal with credentials.
+    #
+    # CORS_ORIGINS is a comma-separated list; apex and www are usually both
+    # needed because a visitor can arrive at either before the redirect.
     FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
+    CORS_ORIGINS = [
+        o.strip().rstrip("/")
+        for o in os.environ.get("CORS_ORIGINS", "").split(",")
+        if o.strip()
+    ] or [FRONTEND_ORIGIN]
 
     # Public storefront origin used to build absolute URLs in sitemap.xml /
     # robots.txt (canonical links, Open Graph). Defaults to the frontend origin.
     SITE_URL = os.environ.get("SITE_URL", os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173"))
+
+    # Search-engine indexing. OFF for launch: a half-finished catalogue indexed
+    # on day one is expensive to undo, because removing pages from an index is
+    # far slower than adding them.
+    #
+    # OFF  -> robots.txt disallows everything, every page carries
+    #         <meta name="robots" content="noindex">, sitemap.xml still builds
+    #         (so it is ready) but is not advertised.
+    # ON   -> normal robots.txt and no noindex tag.
+    #
+    # The environment variable is the floor: with INDEXING=false the admin
+    # toggle cannot turn indexing on, so a live site cannot be exposed by a
+    # mis-click in the dashboard.
+    INDEXING = os.environ.get("INDEXING", "false").lower() in ("1", "true", "yes", "on")
 
     # Google OAuth
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
@@ -163,10 +202,11 @@ class DevelopmentConfig(BaseConfig):
 
 class ProductionConfig(BaseConfig):
     DEBUG = False
-    # "None" is required only when the storefront calls the API cross-site.
-    # Behind a same-origin /api rewrite (the Render layout) set this to "Lax",
-    # which also stops the cookie riding along on cross-site requests.
-    JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "None")
+    # Lax is correct for the storefront/API-subdomain split: same site, so the
+    # cookie is sent, and it still does not ride along on requests from other
+    # sites. "None" would only be needed for a different registrable domain.
+    JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "Lax")
+    JWT_COOKIE_SECURE = True
 
 
 class TestingConfig(BaseConfig):

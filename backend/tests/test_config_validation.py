@@ -47,8 +47,10 @@ def test_production_accepts_strong_config():
         JWT_SECRET_KEY="y" * 40,
         SQLALCHEMY_DATABASE_URI="postgresql://u:p@host/db",
         # Object storage is mandatory in production — see test_storage.py.
-        SUPABASE_URL="https://proj.supabase.co",
-        SUPABASE_SERVICE_KEY="service-key",
+        S3_ENDPOINT_URL="https://s3.example",
+        S3_BUCKET="product-images",
+        S3_ACCESS_KEY_ID="key",
+        S3_SECRET_ACCESS_KEY="secret",
     )
     _validate_config(app)  # must not raise
 
@@ -62,8 +64,10 @@ def test_production_rejects_an_unset_database_url():
         SECRET_KEY="x" * 40,
         JWT_SECRET_KEY="y" * 40,
         SQLALCHEMY_DATABASE_URI=UNSET_DATABASE_URL,
-        SUPABASE_URL="https://proj.supabase.co",
-        SUPABASE_SERVICE_KEY="service-key",
+        S3_ENDPOINT_URL="https://s3.example",
+        S3_BUCKET="product-images",
+        S3_ACCESS_KEY_ID="key",
+        S3_SECRET_ACCESS_KEY="secret",
     )
     with pytest.raises(RuntimeError) as exc:
         _validate_config(app)
@@ -95,7 +99,8 @@ def _production_app():
         DEBUG=False, TESTING=False,
         SECRET_KEY="x" * 40, JWT_SECRET_KEY="y" * 40,
         SQLALCHEMY_DATABASE_URI="postgresql://u:p@host/db",
-        SUPABASE_URL="https://proj.supabase.co", SUPABASE_SERVICE_KEY="service-key",
+        S3_ENDPOINT_URL="https://s3.example", S3_BUCKET="product-images",
+        S3_ACCESS_KEY_ID="key", S3_SECRET_ACCESS_KEY="secret",
     )
 
 

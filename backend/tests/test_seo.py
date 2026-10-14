@@ -26,7 +26,11 @@ def test_sitemap_excludes_inactive_products(app, client):
     assert "/product/hidden-item" not in body
 
 
-def test_robots_txt(app, client):
+def test_robots_txt(app, client, monkeypatch):
+    # Indexing is off by default now (see test_jobs_and_indexing.py); this
+    # covers the shape of robots.txt once it has been switched on.
+    monkeypatch.setitem(app.config, "INDEXING", True)
+
     resp = client.get("/robots.txt")
 
     assert resp.status_code == 200

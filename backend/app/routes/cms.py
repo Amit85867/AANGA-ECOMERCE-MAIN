@@ -171,6 +171,10 @@ def public_settings():
     settings = {s.key: s.value for s in SiteSetting.query.all()}
     # The store's own fields always have a value, even before anyone saves them.
     settings.update(store_settings.all_values())
+    # Resolved here, not in the browser: the storefront must not have to know
+    # about the environment floor to decide whether to emit a noindex tag.
+    from app.services import indexing
+    settings["seo_indexing_effective"] = "true" if indexing.is_enabled() else "false"
     return jsonify(settings=settings), 200
 
 

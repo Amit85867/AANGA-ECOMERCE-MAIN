@@ -51,6 +51,15 @@ FIELDS = [
     Field("seo_title", "Default page title", TEXT, "Search and sharing", "", "Used on the home page and wherever a page has no title of its own.", max_length=70),
     Field("seo_description", "Default description", LONGTEXT, "Search and sharing", "", max_length=200),
     Field("seo_share_image", "Default share image", IMAGE, "Search and sharing", "", "Shown when a link to the store is shared. 1200 × 630 works best."),
+    Field(
+        "seo_indexing", "Allow search engines", BOOL, "Search and sharing", "true",
+        "Off = robots.txt blocks everything and every page says noindex. "
+        "The server has the final say: while INDEXING is off there, this cannot "
+        "turn indexing on, which is what keeps a site that is not ready from "
+        "being exposed by a mis-click. Default on, so switching INDEXING on at "
+        "the server is all it takes; turn this off to close the site again "
+        "without a redeploy.",
+    ),
 ]
 BY_KEY = {f.key: f for f in FIELDS}
 

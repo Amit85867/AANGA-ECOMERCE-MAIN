@@ -211,6 +211,14 @@ export default function ProductDetail() {
         image={product.share_image_url || primaryImage}
         type="product"
         jsonLd={productJsonLd}
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: 'Shop', path: '/shop' },
+          ...(product.category_slug
+            ? [{ name: product.category_name, path: `/shop?category=${product.category_slug}` }]
+            : []),
+          { name: product.name },
+        ]}
       />
       <Container as="section" className="py-6 lg:py-10">
         <Breadcrumbs

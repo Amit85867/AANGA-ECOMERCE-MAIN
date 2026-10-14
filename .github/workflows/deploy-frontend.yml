@@ -1,0 +1,117 @@
+name: Deploy storefront to Hostinger
+
+# Builds the static storefront and uploads it to Hostinger's public_html.
+#
+# Repository secrets (Settings -> Secrets and variables -> Actions):
+#   HOSTINGER_HOST        e.g. 123.45.67.89  or  ftp.example.com
+#   HOSTINGER_PORT        SSH/SFTP port (Hostinger shared hosting is often 65002)
+#   HOSTINGER_USER        SSH user (e.g. u123456789)
+#   HOSTINGER_SSH_KEY     private key, PEM. Use this OR the password below.
+#   HOSTINGER_PASSWORD    SSH password, if you are not using a key
+#   HOSTINGER_PATH        e.g. /home/u123456789/domains/example.com/public_html
+#
+# Repository variables (not secret):
+#   SITE_URL              https://example.com
+#   API_BASE_URL          https://api.example.com
+#
+# Deliberately manual by default: `workflow_dispatch` plus pushes to main that
+# actually touch the storefront. A deploy replaces a live shop, so it should
+# not fire on an unrelated README edit.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'scripts/generate_seo_files.mjs'
+      - '.github/workflows/deploy-frontend.yml'
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npx oxlint
+
+      - name: Build
+        working-directory: frontend
+        env:
+          # The storefront calls the API on its own subdomain. Without this the
+          # build falls back to a same-origin /api, which does not exist on
+          # Hostinger, and every API call 404s.
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: npm run build
+
+      - name: Generate sitemap.xml and robots.txt
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: node scripts/generate_seo_files.mjs
+
+      - name: Check the build looks deployable
+        working-directory: frontend/dist
+        run: |
+          test -f index.html || { echo "no index.html"; exit 1; }
+          test -f .htaccess  || { echo "no .htaccess — SPA routes would 404"; exit 1; }
+          test -f robots.txt || { echo "no robots.txt"; exit 1; }
+          test -f sitemap.xml || { echo "no sitemap.xml"; exit 1; }
+          echo "dist contents:"; ls -la
+
+      # rsync over SSH: deletes files that no longer exist, so old hashed
+      # assets do not accumulate for ever. index.html is written last by
+      # rsync's default ordering being alphabetical — not guaranteed, but the
+      # no-cache header on index.html means a brief mismatch self-corrects.
+      - name: Deploy over SSH (key)
+        if: ${{ secrets.HOSTINGER_SSH_KEY != '' }}
+        uses: burnett01/rsync-deployments@7.0.2
+        with:
+          switches: -avzr --delete --exclude='.well-known' --exclude='.git*'
+          path: frontend/dist/
+          remote_path: ${{ secrets.HOSTINGER_PATH }}
+          remote_host: ${{ secrets.HOSTINGER_HOST }}
+          remote_port: ${{ secrets.HOSTINGER_PORT }}
+          remote_user: ${{ secrets.HOSTINGER_USER }}
+          remote_key: ${{ secrets.HOSTINGER_SSH_KEY }}
+
+      - name: Deploy over SFTP (password)
+        if: ${{ secrets.HOSTINGER_SSH_KEY == '' }}
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.HOSTINGER_HOST }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          local_path: './frontend/dist/*'
+          remote_path: ${{ secrets.HOSTINGER_PATH }}
+          sftp_only: true
+
+      - name: Smoke test the live site
+        if: ${{ vars.SITE_URL != '' }}
+        run: |
+          set -e
+          echo "waiting a moment for the upload to settle"; sleep 10
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.SITE_URL }}/")
+          echo "home            -> $code"; [ "$code" = "200" ]
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.SITE_URL }}/robots.txt")
+          echo "robots.txt      -> $code"; [ "$code" = "200" ]
+          # A deep link must be served by the SPA fallback, not 404.
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.SITE_URL }}/shop")
+          echo "/shop (fallback)-> $code"; [ "$code" = "200" ]
