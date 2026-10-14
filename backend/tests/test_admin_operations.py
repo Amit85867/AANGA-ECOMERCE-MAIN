@@ -151,7 +151,10 @@ def test_first_image_becomes_primary_and_primary_moves_on_delete(app, client):
 
 def test_upload_stores_an_image_and_returns_its_url(app, client, tmp_path, monkeypatch):
     monkeypatch.setitem(app.config, "UPLOAD_FOLDER", str(tmp_path))
-    monkeypatch.setitem(app.config, "SUPABASE_URL", "")
+    # Local disk, explicitly: with object storage configured (a developer's
+    # .env) this would otherwise upload to the real bucket on every run.
+    for _name in ("S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"):
+        monkeypatch.setitem(app.config, _name, "")
     buf = io.BytesIO()
     Image.new("RGB", (40, 40), "#C8963E").save(buf, format="PNG")
     buf.seek(0)

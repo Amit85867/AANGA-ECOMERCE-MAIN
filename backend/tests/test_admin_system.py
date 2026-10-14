@@ -181,8 +181,13 @@ def test_health_never_returns_a_configured_value(app, client, monkeypatch):
     }
     for key, value in secrets.items():
         monkeypatch.setenv(key, value)
-    monkeypatch.setitem(app.config, "SUPABASE_URL", "https://project-ref.supabase.co")
-    monkeypatch.setitem(app.config, "SUPABASE_SERVICE_KEY", "SUPABASE-SERVICE-KEY")
+    # Object storage, configured explicitly. This used the old Supabase
+    # settings and passed locally only because a real S3_* .env leaked in;
+    # CI, with no .env, showed storage as "not configured".
+    monkeypatch.setitem(app.config, "S3_ENDPOINT_URL", "https://project-ref.storage.example")
+    monkeypatch.setitem(app.config, "S3_BUCKET", "product-images")
+    monkeypatch.setitem(app.config, "S3_ACCESS_KEY_ID", "S3-ACCESS-KEY-ID-VALUE")
+    monkeypatch.setitem(app.config, "S3_SECRET_ACCESS_KEY", "S3-SECRET-ACCESS-KEY-VALUE")
     monkeypatch.setitem(app.config, "SENTRY_DSN", "https://key@sentry.example/1")
     monkeypatch.setitem(app.config, "RESEND_API_KEY", "RESEND-KEY")
     monkeypatch.setitem(app.config, "EMAIL_FROM", "orders@example.com")
@@ -191,7 +196,8 @@ def test_health_never_returns_a_configured_value(app, client, monkeypatch):
 
     text = resp.get_data(as_text=True)
     for value in list(secrets.values()) + [
-        "project-ref", "SUPABASE-SERVICE-KEY", "sentry.example", "RESEND-KEY",
+        "project-ref", "S3-ACCESS-KEY-ID-VALUE", "S3-SECRET-ACCESS-KEY-VALUE",
+        "sentry.example", "RESEND-KEY",
     ]:
         if value == "800001":
             continue
