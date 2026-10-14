@@ -17,10 +17,11 @@ SECRETS = {
     "RAZORPAY_KEY_SECRET": "s3cr3t-razorpay-value-do-not-print",
     "RAZORPAY_WEBHOOK_SECRET": "whsec-value-do-not-print",
     "SHIPROCKET_PASSWORD": "shiprocket-pass-do-not-print",
-    "SUPABASE_SERVICE_KEY": "supabase-service-key-do-not-print",
+    "S3_SECRET_ACCESS_KEY": "s3-secret-access-key-do-not-print",
     "RESEND_API_KEY": "re_do_not_print_this_value",
 }
-ALL_KEYS = ["RAZORPAY_KEY_ID", "SHIPROCKET_EMAIL", "SHIPROCKET_PICKUP_PINCODE", "SUPABASE_URL", *SECRETS]
+ALL_KEYS = ["RAZORPAY_KEY_ID", "SHIPROCKET_EMAIL", "SHIPROCKET_PICKUP_PINCODE",
+            "S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", *SECRETS]
 
 
 @pytest.fixture
