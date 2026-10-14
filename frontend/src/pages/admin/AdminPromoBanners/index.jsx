@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/toastStore'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconEdit, IconTrash, IconX } from '@tabler/icons-react'
 
 export default function AdminPromoBanners() {
   const [promos, setPromos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -18,9 +24,10 @@ export default function AdminPromoBanners() {
 
   const fetchPromos = () => {
     setLoading(true)
-    adminApi.get('/admin/promo-banners')
+    setError(null)
+    adminApi.get('/admin/promo-banners', { params: { per_page: 100 } })
       .then((r) => setPromos(r.data.promo_banners))
-      .catch(() => {})
+      .catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.'))
       .finally(() => setLoading(false))
   }
 
@@ -54,7 +61,19 @@ export default function AdminPromoBanners() {
 
   const removeItem = (idx) => setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const validItems = form.items.filter((i) => i.pct && i.label)
     const payload = {
@@ -76,20 +95,26 @@ export default function AdminPromoBanners() {
       } else {
         await adminApi.post('/admin/promo-banners', payload)
       }
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false)
       fetchPromos()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this promo banner?')) return
-    await adminApi.delete(`/admin/promo-banners/${id}`)
-    fetchPromos()
+    if (!(await confirm({ title: 'Delete this promo banner?', message: 'It will be removed from the home page.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      await adminApi.delete(`/admin/promo-banners/${id}`)
+      toast.success('Deleted.')
+      fetchPromos()
+    } catch (err) {
+      notifyError(err, 'Could not delete this.')
+    }
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
   const labelCls = 'block text-xs font-medium text-gray-500 mb-1'
 
   return (
@@ -99,7 +124,7 @@ export default function AdminPromoBanners() {
           <h1 className="text-2xl font-semibold text-gray-900">Promo Banners</h1>
           <p className="mt-1 text-sm text-gray-500">Manage the mid-page sale/promotional banners</p>
         </div>
-        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-[#C8963E] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#b88534]">
+        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-dark">
           <IconPlus size={18} /> Add Promo
         </button>
       </div>
@@ -110,52 +135,52 @@ export default function AdminPromoBanners() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className={labelCls}>Title *</label>
-              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className={inputCls} />
+              <label htmlFor="promobanners-title" className={labelCls}>Title *</label>
+              <input id="promobanners-title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Subtitle (accent word)</label>
-              <input value={form.subtitle} onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))} placeholder="e.g. Sale" className={inputCls} />
+              <label htmlFor="promobanners-subtitle-accent-word" className={labelCls}>Subtitle (accent word)</label>
+              <input id="promobanners-subtitle-accent-word" value={form.subtitle} onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))} placeholder="e.g. Sale" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Badge Text</label>
-              <input value={form.badge_text} onChange={(e) => setForm((f) => ({ ...f, badge_text: e.target.value }))} placeholder="e.g. Limited Time" className={inputCls} />
+              <label htmlFor="promobanners-badge-text" className={labelCls}>Badge Text</label>
+              <input id="promobanners-badge-text" value={form.badge_text} onChange={(e) => setForm((f) => ({ ...f, badge_text: e.target.value }))} placeholder="e.g. Limited Time" className={inputCls} />
             </div>
           </div>
 
           <div className="mt-4">
-            <label className={labelCls}>Description</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={inputCls} />
+            <label htmlFor="promobanners-description" className={labelCls}>Description</label>
+            <textarea id="promobanners-description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={inputCls} />
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div>
-              <label className={labelCls}>Image URL</label>
-              <input value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-image-url" className={labelCls}>Image URL</label>
+              <input id="promobanners-image-url" value={form.image_url} onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Button Text</label>
-              <input value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop the Sale" className={inputCls} />
+              <label htmlFor="promobanners-button-text" className={labelCls}>Button Text</label>
+              <input id="promobanners-button-text" value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop the Sale" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Button URL</label>
-              <input value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
+              <label htmlFor="promobanners-button-url" className={labelCls}>Button URL</label>
+              <input id="promobanners-button-url" value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
             </div>
           </div>
 
           {/* Sale items grid */}
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <label className={labelCls + ' mb-0'}>Sale Items (shown as grid cards)</label>
-              <button type="button" onClick={addItem} className="text-xs text-[#C8963E] hover:underline">+ Add Item</button>
+              <span className={labelCls + ' mb-0'}>Sale Items (shown as grid cards)</span>
+              <button type="button" onClick={addItem} className="text-xs text-gold hover:underline">+ Add Item</button>
             </div>
             <div className="grid gap-2">
               {form.items.map((item, idx) => (
                 <div key={idx} className="flex gap-2 items-center">
-                  <input value={item.pct} onChange={(e) => updateItem(idx, 'pct', e.target.value)} placeholder="e.g. 50%" className={inputCls + ' max-w-[120px]'} />
-                  <input value={item.label} onChange={(e) => updateItem(idx, 'label', e.target.value)} placeholder="e.g. On Jackets" className={inputCls} />
+                  <input aria-label={`Sale item ${idx + 1} discount`} value={item.pct} onChange={(e) => updateItem(idx, 'pct', e.target.value)} placeholder="e.g. 50%" className={inputCls + ' max-w-[120px]'} />
+                  <input aria-label={`Sale item ${idx + 1} label`} value={item.label} onChange={(e) => updateItem(idx, 'label', e.target.value)} placeholder="e.g. On Jackets" className={inputCls} />
                   {form.items.length > 1 && (
-                    <button type="button" onClick={() => removeItem(idx)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                    <button type="button" onClick={() => removeItem(idx)} aria-label="Remove item" title="Remove item" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500">
                       <IconX size={16} />
                     </button>
                   )}
@@ -166,16 +191,16 @@ export default function AdminPromoBanners() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-4">
             <div>
-              <label className={labelCls}>Sort Order</label>
-              <input type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-sort-order" className={labelCls}>Sort Order</label>
+              <input id="promobanners-sort-order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Starts At</label>
-              <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-starts-at" className={labelCls}>Starts At</label>
+              <input id="promobanners-starts-at" type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Ends At</label>
-              <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="promobanners-ends-at" className={labelCls}>Ends At</label>
+              <input id="promobanners-ends-at" type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2">
@@ -186,16 +211,18 @@ export default function AdminPromoBanners() {
           </div>
 
           <div className="mt-5 flex gap-2">
-            <button type="submit" className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">{editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-gold px-5 py-2 text-sm font-medium text-white hover:bg-gold-dark">{editing ? 'Update' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetchPromos()} />
       ) : promos.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No promo banners yet.</div>
+        <EmptyState title="No promo banners yet" hint="Add a promotional banner for the home page." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">
@@ -227,8 +254,8 @@ export default function AdminPromoBanners() {
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(p)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                      <button onClick={() => handleDelete(p.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                      <button type="button" onClick={() => openEdit(p)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                      <button type="button" onClick={() => handleDelete(p.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
                     </div>
                   </td>
                 </tr>

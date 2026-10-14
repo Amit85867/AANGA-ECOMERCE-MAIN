@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.cms import HeroBanner
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminHeroBannerIn
 
 _banner_in = AdminHeroBannerIn()
@@ -14,6 +15,8 @@ _banner_in = AdminHeroBannerIn()
 def _serialize_banner(b):
     return {
         "id": b.id,
+        "campaign_id": b.campaign_id,
+        "is_demo": b.is_demo,
         "title": b.title,
         "subtitle": b.subtitle,
         "description": b.description,
@@ -23,6 +26,10 @@ def _serialize_banner(b):
         "link_text": b.link_text,
         "secondary_link_url": b.secondary_link_url,
         "secondary_link_text": b.secondary_link_text,
+        "pill_label": b.pill_label,
+        "pill_value": b.pill_value,
+        "chip_value": b.chip_value,
+        "chip_label": b.chip_label,
         "sort_order": b.sort_order,
         "is_active": b.is_active,
         "starts_at": b.starts_at.isoformat() if b.starts_at else None,
@@ -35,8 +42,22 @@ def _serialize_banner(b):
 @admin_bp.route("/banners", methods=["GET"])
 @admin_required
 def admin_list_banners():
-    banners = HeroBanner.query.order_by(HeroBanner.sort_order, HeroBanner.created_at.desc()).all()
-    return jsonify(banners=[_serialize_banner(b) for b in banners]), 200
+    # The everyday list leaves campaign slides out; the campaign screen asks
+    # for its own with ?campaign_id=.
+    campaign_id = request.args.get("campaign_id", type=int)
+    q = HeroBanner.query.filter(
+        HeroBanner.campaign_id == campaign_id if campaign_id else HeroBanner.campaign_id.is_(None)
+    )
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(HeroBanner.title.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(HeroBanner.sort_order, HeroBanner.created_at.desc()), default=50)
+    return jsonify(
+        banners=[_serialize_banner(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/banners", methods=["POST"])
@@ -57,10 +78,15 @@ def create_banner():
         link_text=data.get("link_text"),
         secondary_link_url=data.get("secondary_link_url"),
         secondary_link_text=data.get("secondary_link_text"),
+        pill_label=data.get("pill_label"),
+        pill_value=data.get("pill_value"),
+        chip_value=data.get("chip_value"),
+        chip_label=data.get("chip_label"),
         sort_order=data.get("sort_order", 0),
         is_active=data.get("is_active", True),
         starts_at=data.get("starts_at"),
         ends_at=data.get("ends_at"),
+        campaign_id=data.get("campaign_id"),
     )
     db.session.add(banner)
     db.session.commit()
@@ -88,10 +114,15 @@ def update_banner(banner_id):
     banner.link_text = data.get("link_text")
     banner.secondary_link_url = data.get("secondary_link_url")
     banner.secondary_link_text = data.get("secondary_link_text")
+    banner.pill_label = data.get("pill_label")
+    banner.pill_value = data.get("pill_value")
+    banner.chip_value = data.get("chip_value")
+    banner.chip_label = data.get("chip_label")
     banner.sort_order = data.get("sort_order", 0)
     banner.is_active = data.get("is_active", True)
     banner.starts_at = data.get("starts_at")
     banner.ends_at = data.get("ends_at")
+    banner.campaign_id = data.get("campaign_id")
 
     db.session.commit()
     return jsonify(_serialize_banner(banner)), 200

@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 
 
 class ProductImageOut(Schema):
@@ -32,6 +32,11 @@ class ProductListOut(Schema):
     colors = fields.List(fields.Str())
     avg_rating = fields.Float(allow_none=True)
     review_count = fields.Int()
+    # Set while a campaign has this product on sale.
+    on_sale = fields.Bool()
+    original_price = fields.Float()
+    sale_percent = fields.Float()
+    sale_name = fields.Str()
 
 
 class ProductDetailOut(Schema):
@@ -52,6 +57,14 @@ class ProductDetailOut(Schema):
     avg_rating = fields.Float(allow_none=True)
     review_count = fields.Int()
     rating_count = fields.Int()
+    care_details = fields.Str(allow_none=True)
+    meta_title = fields.Str(allow_none=True)
+    meta_description = fields.Str(allow_none=True)
+    share_image_url = fields.Str(allow_none=True)
+    on_sale = fields.Bool()
+    original_price = fields.Float()
+    sale_percent = fields.Float()
+    sale_name = fields.Str()
 
 
 class ReviewOut(Schema):
@@ -66,7 +79,10 @@ class ReviewOut(Schema):
 
 class ReviewIn(Schema):
     product_id = fields.Int(required=True)
-    order_item_id = fields.Int(allow_none=True)
-    rating = fields.Int(required=True)
-    title = fields.Str()
-    body = fields.Str()
+    # Bounded here so an out-of-range rating is a clean 422 rather than a 500
+    # from the ck_review_rating check constraint.
+    rating = fields.Int(required=True, validate=validate.Range(min=1, max=5))
+    title = fields.Str(validate=validate.Length(max=200))
+    body = fields.Str(validate=validate.Length(max=5000))
+    # order_item_id is deliberately absent: "verified purchase" is resolved
+    # server-side from the reviewer's delivered orders (see routes/reviews.py).

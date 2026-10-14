@@ -1,0 +1,186 @@
+# Render Blueprint — AANGA
+#
+# Render runs the BACKEND ONLY: a JSON API on https://api.<domain>.
+#
+#   storefront   static build on Hostinger (Apache/LiteSpeed)  https://<domain>
+#   API          this file                                     https://api.<domain>
+#   database     Neon production branch                        (docs/DATABASE.md)
+#   images       Neon Object Storage                           (docs/DEPLOYMENT.md)
+#
+# The storefront and the API are different ORIGINS on the same registrable
+# domain, so auth works by scoping the refresh cookie to ".<domain>" with
+# SameSite=Lax, and CORS_ORIGINS lists the storefront exactly. Set
+# COOKIE_DOMAIN, CORS_ORIGINS, FRONTEND_ORIGIN and SITE_URL together or
+# sign-in will appear to work and then drop on the first reload.
+#
+# Flask serves no HTML: there is no static-site service here and no SPA
+# fallback in the app.
+#
+# Nothing here deploys by itself: create it from the Render Dashboard with
+# New -> Blueprint, pointed at this repository. Before the first sync:
+#
+#   1. Fill in every `sync: false` value in the Dashboard. They are secrets and
+#      are deliberately not in this file.
+#   2. Add the custom domain api.<domain> to the service, then the CNAME at
+#      Hostinger that Render shows you.
+#   3. Load the schema into the Neon production branch once:
+#        scripts/render_bootstrap_db.sh        (see docs/DATABASE.md)
+#
+# FREE PLAN, tonight: a free web service sleeps after ~15 minutes idle and
+# takes ~50 s to wake. Acceptable for launch; NOT acceptable once Razorpay is
+# switched on, because a sleeping service makes the payment webhook time out
+# and a customer can be charged with no order. Move to Starter before taking
+# online payments. UptimeRobot on /api/ping keeps it warm (that route touches
+# no database, so it does not hold the Neon compute awake either).
+#
+# Validate after editing:  render blueprints validate   (Render CLI)
+
+envVarGroups:
+  # Shared by the web service and the cron job so the two can never drift.
+  - name: aanga-backend
+    envVars:
+      - key: FLASK_ENV
+        value: production
+
+      # Pin the interpreter. Render also honours backend/.python-version;
+      # both are set so neither can drift silently.
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+
+      # ── Neon ────────────────────────────────────────────────
+      # From the Neon *production* branch (docs/DATABASE.md):
+      #   DATABASE_URL        -> pooled  ("-pooler" in the host). The app.
+      #   DIRECT_DATABASE_URL -> direct. Migrations, dumps, DDL.
+      # Never load a schema over the pooled string: schema.sql is a pg_dump and
+      # sets search_path to '', which PgBouncer then leaves on the server
+      # connection for whoever gets it next.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false
+
+      # ── The storefront's origin, and the cookie that spans both hosts ──
+      # Set all four together. Examples for the domain "example.com":
+      #   FRONTEND_ORIGIN  https://example.com
+      #   SITE_URL         https://example.com        (canonicals, sitemap)
+      #   CORS_ORIGINS     https://example.com,https://www.example.com
+      #   COOKIE_DOMAIN    .example.com               (leading dot, no scheme)
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: SITE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: COOKIE_DOMAIN
+        sync: false
+
+      # Lax is correct for storefront + api subdomain: same site, so the
+      # cookie is sent, and it still does not ride along from other sites.
+      - key: JWT_COOKIE_SAMESITE
+        value: Lax
+
+      # Proxies in front of the app. The browser now calls api.<domain>
+      # directly, so this is just Render's own load balancer. Verify after the
+      # first deploy: admin → System Health reports how many hops it saw.
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+
+      # Rate-limit counters. Blank = per-worker in-memory counters, which with
+      # two workers means roughly double the advertised allowance and nothing
+      # shared between instances. Upstash's free tier is plenty; paste its
+      # redis:// (or rediss://) URL here. See docs/DEPLOYMENT.md.
+      - key: RATELIMIT_STORAGE_URI
+        sync: false
+
+      # Product images. Required: the service refuses to start without them
+      # (Render's disk is ephemeral, so local uploads would vanish on deploy).
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: product-images
+
+      # First master admin, created on first boot. Change the password
+      # afterwards with:  flask --app run set-admin-password
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # Online payments. Leave all three blank to launch COD-only. Once the key
+      # is set, the secret and the webhook secret are required.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+      # Courier. Leave blank to launch without booking or delivery checks.
+      - key: SHIPROCKET_EMAIL
+        sync: false
+      - key: SHIPROCKET_PASSWORD
+        sync: false
+      - key: SHIPROCKET_PICKUP_LOCATION
+        value: Primary
+      - key: SHIPROCKET_PICKUP_PINCODE
+        sync: false
+
+      # Email. Blank = emails are logged, not sent.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+
+      # Sizing. Neon's pooled endpoint allows 10,000 connections, so the pool
+      # is no longer the binding constraint; these are sized for the instance's
+      # memory instead. See docs/DEPLOYMENT.md "Sizing".
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+
+services:
+  # ── API ─────────────────────────────────────────────────────
+  - type: web
+    name: aanga-api
+    runtime: python
+    # Free tonight; see the note at the top before enabling payments.
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    # gthread workers: a request spends most of its time waiting on Postgres or
+    # an upstream API, so a few threads per worker serve several at once
+    # without the memory of extra processes.
+    # keep-alive is longer than the load balancer's idle timeout (typically
+    # 60 s): with gunicorn's default of 2 s the proxy reuses a connection the
+    # worker has just closed, and that reaches the visitor as a 502.
+    startCommand: >-
+      gunicorn -b 0.0.0.0:$PORT -k gthread
+      -w ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4}
+      --timeout 60 --graceful-timeout 30
+      --keep-alive ${GUNICORN_KEEPALIVE:-75} --access-logfile - run:app
+    # /api/ping answers without touching the database, so the health check does
+    # not keep the Neon compute awake (and does not bill CU-hours for nothing).
+    healthCheckPath: /api/ping
+    autoDeploy: false
+    envVars:
+      - fromGroup: aanga-backend

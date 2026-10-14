@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from marshmallow import ValidationError
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.marketing import NewsletterSubscriber
 from app.schemas.marketing import NewsletterIn
 
@@ -14,6 +14,7 @@ _sub_in = NewsletterIn()
 
 
 @newsletter_bp.route("/subscribe", methods=["POST"])
+@limiter.limit("20 per hour")
 def subscribe():
     try:
         data = _sub_in.load(request.get_json())

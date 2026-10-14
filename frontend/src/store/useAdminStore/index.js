@@ -6,7 +6,7 @@ import adminApi, { setAdminAccessToken, refreshAdminAccessToken } from '@/servic
  * adminApi) and the refresh token is an httpOnly cookie, so a reload restores
  * the session via restoreSession() instead of reading localStorage.
  */
-export const useAdminStore = create((set, get) => ({
+export const useAdminStore = create((set) => ({
   admin: null,
   isAuthenticated: false,
   // True until we've tried to restore an existing admin session.

@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import adminApi from '@/services/adminApi'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { toast } from '@/components/ui/toastStore'
+import { confirm } from '@/components/admin/confirm'
+import { notifyError } from '@/components/admin/helpers'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 
 export default function AdminAnnouncements() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -17,9 +23,10 @@ export default function AdminAnnouncements() {
 
   const fetchItems = () => {
     setLoading(true)
-    adminApi.get('/admin/announcements')
+    setError(null)
+    adminApi.get('/admin/announcements', { params: { per_page: 100 } })
       .then((r) => setItems(r.data.announcements))
-      .catch(() => {})
+      .catch((err) => setError(err.response?.data?.error || 'Could not load this page. Check your connection and try again.'))
       .finally(() => setLoading(false))
   }
 
@@ -41,7 +48,19 @@ export default function AdminAnnouncements() {
     setShowForm(true)
   }
 
+  // Guards the save so a double click (or Enter twice) cannot create two.
   const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      await saveForm(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveForm = async (e) => {
     e.preventDefault()
     const payload = {
       ...form,
@@ -58,20 +77,26 @@ export default function AdminAnnouncements() {
       } else {
         await adminApi.post('/admin/announcements', payload)
       }
+      toast.success(editing ? 'Changes saved.' : 'Created.')
       setShowForm(false)
       fetchItems()
     } catch (err) {
-      alert(err.response?.data?.error || 'Save failed')
+      notifyError(err, 'Save failed')
     }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this announcement?')) return
-    await adminApi.delete(`/admin/announcements/${id}`)
-    fetchItems()
+    if (!(await confirm({ title: 'Delete this announcement?', message: 'It will disappear from the storefront straight away.', confirmLabel: 'Delete', danger: true }))) return
+    try {
+      await adminApi.delete(`/admin/announcements/${id}`)
+      toast.success('Deleted.')
+      fetchItems()
+    } catch (err) {
+      notifyError(err, 'Could not delete this.')
+    }
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-gold'
   const labelCls = 'block text-xs font-medium text-gray-500 mb-1'
 
   return (
@@ -81,7 +106,7 @@ export default function AdminAnnouncements() {
           <h1 className="text-2xl font-semibold text-gray-900">Announcements</h1>
           <p className="mt-1 text-sm text-gray-500">Manage the top announcement bar on the website</p>
         </div>
-        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-[#C8963E] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#b88534]">
+        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-dark">
           <IconPlus size={18} /> Add Announcement
         </button>
       </div>
@@ -92,53 +117,53 @@ export default function AdminAnnouncements() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Main Text *</label>
-              <input value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} placeholder="e.g. Summer Sale Live" required className={inputCls} />
+              <label htmlFor="announcements-main-text" className={labelCls}>Main Text *</label>
+              <input id="announcements-main-text" value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} placeholder="e.g. Summer Sale Live" required className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Highlight Text (shown in accent color)</label>
-              <input value={form.highlight_text} onChange={(e) => setForm((f) => ({ ...f, highlight_text: e.target.value }))} placeholder="e.g. Free shipping on orders above ₹999" className={inputCls} />
+              <label htmlFor="announcements-highlight-text-shown-in-accent-color" className={labelCls}>Highlight Text (shown in accent color)</label>
+              <input id="announcements-highlight-text-shown-in-accent-color" value={form.highlight_text} onChange={(e) => setForm((f) => ({ ...f, highlight_text: e.target.value }))} placeholder="e.g. Free shipping on orders above ₹999" className={inputCls} />
             </div>
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Link URL</label>
-              <input value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
+              <label htmlFor="announcements-link-url" className={labelCls}>Link URL</label>
+              <input id="announcements-link-url" value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} placeholder="/offers" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Link Text</label>
-              <input value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop Now" className={inputCls} />
+              <label htmlFor="announcements-link-text" className={labelCls}>Link Text</label>
+              <input id="announcements-link-text" value={form.link_text} onChange={(e) => setForm((f) => ({ ...f, link_text: e.target.value }))} placeholder="Shop Now" className={inputCls} />
             </div>
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div>
-              <label className={labelCls}>Background Color</label>
+              <label htmlFor="announcements-background-color" className={labelCls}>Background Color</label>
               <div className="flex gap-2">
-                <input type="color" value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
-                <input value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className={inputCls} />
+                <input id="announcements-background-color" type="color" value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
+                <input aria-label="Background Color (hex code)" value={form.bg_color} onChange={(e) => setForm((f) => ({ ...f, bg_color: e.target.value }))} className={inputCls} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>Text Color</label>
+              <label htmlFor="announcements-text-color" className={labelCls}>Text Color</label>
               <div className="flex gap-2">
-                <input type="color" value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
-                <input value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className={inputCls} />
+                <input id="announcements-text-color" type="color" value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
+                <input aria-label="Text Color (hex code)" value={form.text_color} onChange={(e) => setForm((f) => ({ ...f, text_color: e.target.value }))} className={inputCls} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>Highlight Color</label>
+              <label htmlFor="announcements-highlight-color" className={labelCls}>Highlight Color</label>
               <div className="flex gap-2">
-                <input type="color" value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
-                <input value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className={inputCls} />
+                <input id="announcements-highlight-color" type="color" value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className="h-10 w-12 cursor-pointer rounded border border-gray-200" />
+                <input aria-label="Highlight Color (hex code)" value={form.highlight_color} onChange={(e) => setForm((f) => ({ ...f, highlight_color: e.target.value }))} className={inputCls} />
               </div>
             </div>
           </div>
 
           {/* Live preview */}
           <div className="mt-4">
-            <label className={labelCls}>Preview</label>
+            <div className={labelCls}>Preview</div>
             <div
               className="rounded-lg py-2.5 px-4 text-center text-[11px] tracking-[1.5px] uppercase"
               style={{ backgroundColor: form.bg_color, color: form.text_color + 'd9' }}
@@ -151,16 +176,16 @@ export default function AdminAnnouncements() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-4">
             <div>
-              <label className={labelCls}>Sort Order</label>
-              <input type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
+              <label htmlFor="announcements-sort-order" className={labelCls}>Sort Order</label>
+              <input id="announcements-sort-order" type="number" value={form.sort_order} onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Starts At</label>
-              <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="announcements-starts-at" className={labelCls}>Starts At</label>
+              <input id="announcements-starts-at" type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Ends At</label>
-              <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
+              <label htmlFor="announcements-ends-at" className={labelCls}>Ends At</label>
+              <input id="announcements-ends-at" type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} className={inputCls} />
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2">
@@ -171,16 +196,18 @@ export default function AdminAnnouncements() {
           </div>
 
           <div className="mt-5 flex gap-2">
-            <button type="submit" className="rounded-lg bg-[#C8963E] px-5 py-2 text-sm font-medium text-white hover:bg-[#b88534]">{editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={saving} aria-busy={saving} className="disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-gold px-5 py-2 text-sm font-medium text-white hover:bg-gold-dark">{editing ? 'Update' : 'Create'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-5 py-2 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400">Loading...</div>
+        <TableSkeleton />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => fetchItems()} />
       ) : items.length === 0 ? (
-        <div className="py-20 text-center text-gray-400">No announcements yet.</div>
+        <EmptyState title="No announcements yet" hint="Add one to show a notice bar at the top of the store." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">
@@ -214,8 +241,8 @@ export default function AdminAnnouncements() {
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(a)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
-                      <button onClick={() => handleDelete(a.id)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
+                      <button type="button" onClick={() => openEdit(a)} aria-label="Edit" title="Edit" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><IconEdit size={16} /></button>
+                      <button type="button" onClick={() => handleDelete(a.id)} aria-label="Delete" title="Delete" className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><IconTrash size={16} /></button>
                     </div>
                   </td>
                 </tr>

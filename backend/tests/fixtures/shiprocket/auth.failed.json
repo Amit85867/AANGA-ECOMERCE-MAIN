@@ -1,0 +1,4 @@
+{
+  "message": "Invalid email and password combination",
+  "status_code": 400
+}

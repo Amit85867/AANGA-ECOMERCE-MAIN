@@ -1,0 +1,101 @@
+name: Scheduled jobs
+
+# Render's free plan has no cron, so the two recurring jobs run from here.
+#
+# Repository secrets:
+#   JOBS_TOKEN   shared secret, also set as JOBS_TOKEN on the Render service.
+#                Generate with: python -c "import secrets;print(secrets.token_urlsafe(48))"
+#   (plus the Hostinger secrets used by deploy-frontend.yml, for the sitemap)
+#
+# Repository variables:
+#   SITE_URL, API_BASE_URL
+
+on:
+  schedule:
+    # Refund abandoned checkouts. Every 30 minutes, matching the grace window
+    # the webhook uses (RAZORPAY_ORPHAN_GRACE_SECONDS, 15 min) so an orphaned
+    # capture is never left for long.
+    #
+    # Not needed until online payments are switched on, but harmless before
+    # then: with no Razorpay keys the endpoint reports "not configured" and
+    # does nothing.
+    - cron: '*/30 * * * *'
+    # Rebuild sitemap.xml daily, so new products appear without a deploy.
+    - cron: '20 2 * * *'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run
+        type: choice
+        options: [reconcile, sitemap]
+        default: reconcile
+
+jobs:
+  reconcile-payments:
+    # The 30-minute schedule, or an explicit run.
+    if: >-
+      github.event.schedule == '*/30 * * * *' ||
+      (github.event_name == 'workflow_dispatch' && inputs.job == 'reconcile')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the reconcile endpoint
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$JOBS_TOKEN" ]; then
+            echo "JOBS_TOKEN is not set; skipping (the endpoint would refuse anyway)."
+            exit 0
+          fi
+          # A free Render instance sleeps; the first call may take ~50 s to
+          # wake it, so allow a generous timeout and one retry.
+          for attempt in 1 2; do
+            code=$(curl -sS -o /tmp/out.json -w '%{http_code}' \
+              --max-time 120 \
+              -X POST "$API_BASE_URL/api/jobs/reconcile-payments" \
+              -H "Authorization: Bearer $JOBS_TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d '{"hours": 24}') && break
+            echo "attempt $attempt failed, retrying"; sleep 15
+          done
+          echo "HTTP $code"; cat /tmp/out.json; echo
+          [ "$code" = "200" ]
+
+  rebuild-sitemap:
+    if: >-
+      github.event.schedule == '20 2 * * *' ||
+      (github.event_name == 'workflow_dispatch' && inputs.job == 'sitemap')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate sitemap.xml and robots.txt
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          OUT_DIR: ${{ github.workspace }}/seo-out
+        run: node scripts/generate_seo_files.mjs
+
+      # Only these two files are uploaded, so a scheduled run can never
+      # overwrite the deployed app with a stale build.
+      - name: Upload just the two files
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.HOSTINGER_HOST }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          ssh_private_key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          local_path: './seo-out/*'
+          remote_path: ${{ secrets.HOSTINGER_PATH }}
+          sftp_only: true
+
+      - name: Confirm
+        if: ${{ vars.SITE_URL != '' }}
+        run: |
+          curl -s "${{ vars.SITE_URL }}/robots.txt" | head -5
+          echo "sitemap URLs: $(curl -s "${{ vars.SITE_URL }}/sitemap.xml" | grep -c '<url>')"

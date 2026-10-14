@@ -15,22 +15,22 @@ export default function Terms() {
   return (
     <>
       <PageHeader title="Terms of Service" crumbs={[{ label: 'Home', to: '/' }, { label: 'Terms' }]} />
-      <section className="px-6 lg:px-12 py-10 max-w-3xl mx-auto">
-        <p className="text-xs text-gray mb-6">Effective date: 1 January 2026</p>
-        <p className="text-[13px] text-gray leading-[1.8] mb-8">
+      <section className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 max-w-3xl mx-auto">
+        <p className="text-xs text-muted mb-6">Effective date: 1 January 2026</p>
+        <p className="text-sm text-muted leading-relaxed mb-8">
           Welcome to AANGA. These Terms of Service govern your use of our website, mobile app, and all related services
           operated by Amit Enterprises, Patna, Bihar.
         </p>
         <div className="space-y-6">
           {SECTIONS.map((s, i) => (
             <div key={i}>
-              <h3 className="font-serif text-lg font-bold mb-2">{i + 1}. {s.title}</h3>
-              <p className="text-[13px] text-gray leading-[1.8]">{s.content}</p>
+              <h3 className="display text-lg font-bold mb-2">{i + 1}. {s.title}</h3>
+              <p className="text-sm text-muted leading-relaxed">{s.content}</p>
             </div>
           ))}
         </div>
-        <div className="mt-8 pt-6 border-t border-line">
-          <p className="text-xs text-gray">For legal queries, contact: <span className="text-gold">legal@aanga.in</span></p>
+        <div className="mt-8 pt-6 border-t border-hairline/60">
+          <p className="text-xs text-muted">For legal queries, contact: <span className="text-fg">legal@aanga.in</span></p>
         </div>
       </section>
     </>

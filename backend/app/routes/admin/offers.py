@@ -7,6 +7,7 @@ from app.models.marketing import Offer
 from app.models.enums import OfferType
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required
+from app.utils.pagination import page_meta, paginate
 from app.schemas.admin import AdminOfferIn
 
 _offer_in = AdminOfferIn()
@@ -31,8 +32,17 @@ def _serialize_offer(o):
 @admin_bp.route("/offers", methods=["GET"])
 @admin_required
 def admin_list_offers():
-    offers = Offer.query.order_by(Offer.created_at.desc()).all()
-    return jsonify(offers=[_serialize_offer(o) for o in offers]), 200
+    q = Offer.query
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(Offer.title.ilike(f"%{search}%"))
+
+    # Capped rather than unbounded: these lists are short today, and this
+    # is what keeps them cheap when they are not.
+    page = paginate(q.order_by(Offer.created_at.desc()), default=50)
+    return jsonify(
+        offers=[_serialize_offer(row) for row in page.items], **page_meta(page)
+    ), 200
 
 
 @admin_bp.route("/offers", methods=["POST"])

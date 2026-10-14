@@ -38,6 +38,9 @@ class Order(db.Model):
     payment_method = db.Column(pg_enum(PaymentMethod, "payment_method"), nullable=False)
     payment_status = db.Column(pg_enum(PaymentStatus, "payment_status"), nullable=False, default=PaymentStatus.pending)
     payment_ref = db.Column(db.Text)
+    # Client-supplied key that makes a double-submitted COD checkout resolve to
+    # a single order. Uniqueness is enforced by a partial index in the DB.
+    idempotency_key = db.Column(db.Text)
 
     courier_name = db.Column(db.Text)
     tracking_number = db.Column(db.Text)

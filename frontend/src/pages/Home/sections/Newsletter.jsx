@@ -1,53 +1,67 @@
 import { useState } from 'react'
 import apiClient from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import { Container } from '@/components/ui/Display'
 import { useSetting } from '@/store/useSettingsStore'
 
-export default function Newsletter() {
+export default function Newsletter({ heading }) {
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // The outcome is shown in place, next to the field it belongs to.
+  const [result, setResult] = useState(null)   // { ok, message }
   const s = useSetting()
 
-  const handleSubscribe = async (e) => {
+  const subscribe = async (e) => {
     e.preventDefault()
-    if (!email.trim()) return
+    if (submitting) return
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setResult({ ok: false, message: 'Enter a valid email address.' })
+      return
+    }
     setSubmitting(true)
     try {
       const { data } = await apiClient.post('/newsletter/subscribe', { email: email.trim() })
-      toast.success(data.message || 'Subscribed successfully')
+      setResult({ ok: true, message: data.message === 'Already subscribed' ? 'You are already on the list.' : 'You are on the list. Thank you!' })
       setEmail('')
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not subscribe')
+      setResult({
+        ok: false,
+        message: err.response?.status === 429
+          ? 'Too many attempts. Please try again later.'
+          : err.response?.data?.error || 'We could not subscribe you. Please try again.',
+      })
     }
     setSubmitting(false)
   }
 
   return (
-    <div className="bg-ink px-8 lg:px-12 py-14 text-center">
-      <h2 className="font-serif text-4xl text-white font-bold">
-        {(() => {
-          const heading = s('newsletter_heading', 'Stay in Style')
-          const parts = heading.split(' ')
-          const last = parts.pop()
-          return <>{parts.join(' ')} <span className="text-gold-light">{last}</span></>
-        })()}
-      </h2>
-      <p className="text-[13px] text-white/50 mt-3 leading-[1.8]">
-        {s('newsletter_subtitle', 'Get early access to new collections, exclusive deals, and seasonal lookbooks.')}
-      </p>
-      <form onSubmit={handleSubscribe} className="flex max-w-[460px] mx-auto mt-7">
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Enter your email address"
-          className="flex-1 px-5 py-3.5 bg-white/[0.08] border border-white/15 text-white text-[13px] outline-none placeholder:text-white/30"
-        />
-        <button type="submit" disabled={submitting} className="px-7 py-3.5 bg-gold text-ink text-[11px] tracking-[2px] uppercase font-bold border-none cursor-pointer hover:bg-gold-light transition-colors disabled:opacity-60">
-          {submitting ? '…' : 'Subscribe'}
-        </button>
-      </form>
-    </div>
+    <section className="bg-primary py-14 text-on-primary lg:py-20" aria-labelledby="newsletter-heading">
+      <Container className="max-w-2xl text-center">
+        <h2 id="newsletter-heading" className="display text-3xl sm:text-4xl">{heading?.title || s('newsletter_heading', 'Stay in style')}</h2>
+        <p className="mt-3 text-sm leading-relaxed text-white/80">
+          {heading?.subtitle || s('newsletter_subheading', 'New arrivals and offers, a couple of times a month. No spam.')}
+        </p>
+
+        <form onSubmit={subscribe} className="mx-auto mt-7 flex max-w-md flex-col gap-3 sm:flex-row" noValidate>
+          <label htmlFor="newsletter-email" className="sr-only">Email address</label>
+          <input
+            id="newsletter-email" type="email" autoComplete="email" value={email}
+            onChange={(e) => { setEmail(e.target.value); setResult(null) }}
+            placeholder="you@example.com"
+            aria-describedby={result ? 'newsletter-result' : undefined}
+            aria-invalid={result && !result.ok ? true : undefined}
+            className="h-12 min-w-0 flex-1 rounded-full border border-white/30 bg-white/10 px-5 text-sm text-white outline-none placeholder:text-white/60 focus:border-white focus:ring-1 focus:ring-white"
+          />
+          <button
+            type="submit" disabled={submitting}
+            className="h-12 rounded-full bg-white px-7 text-sm font-semibold text-black transition-colors hover:bg-white/90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          >
+            {submitting ? 'Subscribing…' : 'Subscribe'}
+          </button>
+        </form>
+        <p id="newsletter-result" role="status" className={`mt-3 min-h-5 text-sm ${result?.ok ? 'text-white' : 'text-accent-soft'}`}>
+          {result?.message}
+        </p>
+      </Container>
+    </section>
   )
 }

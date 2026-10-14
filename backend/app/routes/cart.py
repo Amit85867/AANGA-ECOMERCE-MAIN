@@ -5,11 +5,13 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from marshmallow import ValidationError
 
-from app.extensions import db
+from app.extensions import db, limiter, user_or_ip
 from app.models.cart import Cart, CartItem
 from app.models.catalogue import Product, ProductVariant, ProductImage
 from app.models.engagement import Coupon
 from app.schemas.cart import CartItemIn, CartItemUpdateIn, ApplyCouponIn, CartOut
+from app.services.catalogue import primary_images
+from app.services.order_service import compute_totals
 
 cart_bp = Blueprint("cart", __name__, url_prefix="/api/cart")
 
@@ -17,10 +19,6 @@ _item_in = CartItemIn()
 _item_update = CartItemUpdateIn()
 _coupon_in = ApplyCouponIn()
 _cart_out = CartOut()
-
-GST_RATE = 0.05
-FREE_SHIPPING_THRESHOLD = 999
-DELIVERY_CHARGE = 49
 
 
 def _get_or_create_cart(user_id):
@@ -37,14 +35,16 @@ def _serialize_cart(cart):
     subtotal = 0
     mrp_total = 0
 
+    # One query for every line's image instead of one per line.
+    images = primary_images(ci.variant.product_id for ci in cart.items)
+
+    # Reprices the lines (and drops an out-of-campaign coupon) before any
+    # line total is read below.
+    totals = compute_totals(cart)
+
     for ci in cart.items:
         variant = ci.variant
         product = variant.product
-        primary_img = (
-            ProductImage.query
-            .filter_by(product_id=product.id, is_primary=True)
-            .first()
-        )
         line_total = float(ci.unit_price) * ci.quantity
         mrp_line = float(product.mrp) * ci.quantity
         subtotal += line_total
@@ -58,41 +58,30 @@ def _serialize_cart(cart):
             "size": variant.size,
             "color_name": variant.color_name,
             "color_hex": variant.color_hex,
-            "image_url": primary_img.image_url if primary_img else None,
+            "image_url": images.get(product.id),
             "quantity": ci.quantity,
             "unit_price": float(ci.unit_price),
             "mrp": float(product.mrp),
             "line_total": line_total,
         })
 
-    discount = 0
-    coupon_code = None
-    if cart.coupon:
-        coupon_code = cart.coupon.code
-        if cart.coupon.discount_type.value == "percentage":
-            discount = subtotal * float(cart.coupon.discount_value) / 100
-            if cart.coupon.max_discount:
-                discount = min(discount, float(cart.coupon.max_discount))
-        else:
-            discount = float(cart.coupon.discount_value)
-
-    after_discount = subtotal - discount
-    gst = round(after_discount * GST_RATE, 2)
-    delivery = 0 if subtotal >= FREE_SHIPPING_THRESHOLD else DELIVERY_CHARGE
-    total = round(after_discount + gst + delivery, 2)
-    savings = round(mrp_total - subtotal + discount, 2)
+    # Single source of truth, shared with checkout. Computing GST/shipping/
+    # discount separately here once meant the cart could quote one price while
+    # the order charged another. (Computed above.)
+    savings = round(mrp_total - subtotal + totals["discount"], 2)
 
     return _cart_out.dump({
         "id": cart.id,
         "items": items,
-        "coupon_code": coupon_code,
-        "subtotal": round(subtotal, 2),
-        "discount": round(discount, 2),
-        "gst": gst,
-        "delivery_charge": delivery,
-        "total": total,
+        "coupon_code": cart.coupon.code if cart.coupon else None,
+        "subtotal": totals["subtotal"],
+        "discount": totals["discount"],
+        "gst": totals["gst"],
+        "delivery_charge": totals["delivery"],
+        "total": totals["total"],
         "savings": savings,
         "item_count": sum(ci.quantity for ci in cart.items),
+        "coupon_notice": totals.get("coupon_notice"),
     })
 
 
@@ -100,7 +89,9 @@ def _serialize_cart(cart):
 @jwt_required()
 def get_cart():
     cart = _get_or_create_cart(get_jwt_identity())
-    return jsonify(_serialize_cart(cart)), 200
+    body = _serialize_cart(cart)
+    db.session.commit()          # keeps a repriced line, or a coupon taken off, off
+    return jsonify(body), 200
 
 
 @cart_bp.route("/items", methods=["POST"])
@@ -112,20 +103,24 @@ def add_item():
         return jsonify(errors=err.messages), 422
 
     variant = db.session.get(ProductVariant, data["variant_id"])
-    if not variant:
+    if not variant or not variant.product.is_active:
         return jsonify(error="Variant not found"), 404
-
-    if variant.stock_qty < data["quantity"]:
-        return jsonify(error="Insufficient stock"), 409
 
     cart = _get_or_create_cart(get_jwt_identity())
 
     existing = CartItem.query.filter_by(cart_id=cart.id, variant_id=variant.id).first()
+    # Stock is checked against what the line would hold afterwards, not just
+    # this request, or adding the same item twice walks past the limit.
+    wanted = data["quantity"] + (existing.quantity if existing else 0)
+    if variant.stock_qty < wanted:
+        return jsonify(error="Insufficient stock"), 409
+
     if existing:
         existing.quantity += data["quantity"]
         existing.updated_at = datetime.now(timezone.utc)
     else:
-        price = float(variant.price_override or variant.product.selling_price)
+        from app.services import campaigns
+        price = campaigns.unit_price(variant.product, variant)
         ci = CartItem(
             cart_id=cart.id,
             variant_id=variant.id,
@@ -177,6 +172,7 @@ def remove_item(item_id):
 
 
 @cart_bp.route("/coupon", methods=["POST"])
+@limiter.limit("30 per hour", key_func=user_or_ip)
 @jwt_required()
 def apply_coupon():
     try:
@@ -192,10 +188,15 @@ def apply_coupon():
     if coupon.expires_at and coupon.expires_at < now:
         return jsonify(error="Coupon has expired"), 410
 
+    from app.services import campaigns
+    if not campaigns.coupon_usable(coupon):
+        return jsonify(error="This coupon is not valid right now."), 410
+
     if coupon.usage_limit and coupon.used_count >= coupon.usage_limit:
         return jsonify(error="Coupon usage limit reached"), 410
 
     cart = _get_or_create_cart(get_jwt_identity())
+    campaigns.reprice_cart(cart)
 
     subtotal = sum(float(ci.unit_price) * ci.quantity for ci in cart.items)
     if subtotal < float(coupon.min_order_value):

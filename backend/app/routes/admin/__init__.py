@@ -22,4 +22,13 @@ from app.routes.admin import (  # noqa: E402, F401
     shipping,
     testimonials,
     features,
+    settlements,
+    system,
+    reviews,
+    staff_settings,
+    content,
+    merchandising,
 )
+from app.services import permissions  # noqa: E402
+
+permissions.init_app(admin_bp)

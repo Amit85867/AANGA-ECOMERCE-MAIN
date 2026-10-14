@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import adminApi from '@/services/adminApi'
+import { toast } from '@/components/ui/toastStore'
+import { confirm } from '@/components/admin/confirm'
+import { ErrorState, TableSkeleton } from '@/components/admin/DataState'
+import { inr, notifyError } from '@/components/admin/helpers'
 import { IconArrowLeft, IconTruckDelivery, IconRefresh } from '@tabler/icons-react'
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled']
@@ -25,6 +29,9 @@ export default function AdminOrderDetail() {
   const [tracking, setTracking] = useState({ status_label: '', description: '', status_type: 'confirmed', courier_name: '', tracking_number: '' })
   const [shipping, setShipping] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState(null)
+  const [savingStatus, setSavingStatus] = useState(false)
+  const [savingEvent, setSavingEvent] = useState(false)
 
   const reload = async () => {
     const r = await adminApi.get(`/admin/orders/${id}`)
@@ -32,15 +39,32 @@ export default function AdminOrderDetail() {
     setNewStatus(r.data.status)
   }
 
+  const load = () => {
+    setLoading(true)
+    setError(null)
+    reload()
+      .catch((err) =>
+        setError(
+          err.response?.status === 404
+            ? 'This order does not exist.'
+            : err.response?.data?.error || 'Could not load this order.',
+        ),
+      )
+      .finally(() => setLoading(false))
+  }
+
   const shipViaShiprocket = async () => {
-    if (!confirm('Create a Shiprocket shipment and assign an AWB for this order?')) return
+    if (!(await confirm({ title: 'Book this shipment?', message: 'A Shiprocket shipment is created and an AWB assigned. This cannot be undone from here.', confirmLabel: 'Book shipment' }))) return
     setShipping(true)
     try {
       const { data } = await adminApi.post(`/admin/orders/${id}/ship`)
-      alert(`Shipment created via ${data.courier_name || 'courier'} — AWB ${data.tracking_number}`)
+      toast.success(`Shipment booked with ${data.courier_name || 'courier'} — AWB ${data.tracking_number}`)
+      if (data.pickup_scheduled === false) {
+        toast.error('The pickup was not scheduled. Request it from the Shiprocket dashboard.', { duration: 10000 })
+      }
       await reload()
     } catch (err) {
-      alert(err.response?.data?.error || 'Could not create shipment')
+      notifyError(err, 'Could not create shipment')
     }
     setShipping(false)
   }
@@ -49,50 +73,74 @@ export default function AdminOrderDetail() {
     setSyncing(true)
     try {
       const { data } = await adminApi.post(`/admin/orders/${id}/sync-tracking`)
-      alert(data.message || 'Tracking synced')
+      toast.success(data.message || 'Tracking synced')
       await reload()
     } catch (err) {
-      alert(err.response?.data?.error || 'Could not sync tracking')
+      notifyError(err, 'Could not sync tracking')
     }
     setSyncing(false)
   }
 
-  useEffect(() => {
-    adminApi
-      .get(`/admin/orders/${id}`)
-      .then((r) => {
-        setOrder(r.data)
-        setNewStatus(r.data.status)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [id])
 
   const updateStatus = async () => {
-    try {
-      await adminApi.patch(`/admin/orders/${id}/status`, { status: newStatus })
-      setOrder((o) => ({ ...o, status: newStatus }))
-    } catch (err) {
-      alert(err.response?.data?.error || 'Update failed')
+    if (savingStatus || newStatus === order.status) return
+
+    // Cancelling restores stock and, for a prepaid order, sends the money
+    // back — say so before it happens.
+    if (newStatus === 'cancelled') {
+      const prepaid = order.payment_status === 'paid'
+      const sure = await confirm({
+        title: `Cancel order ${order.order_number}?`,
+        message: prepaid
+          ? `${inr(order.total_amount)} is refunded to the customer through Razorpay and the items go back into stock. A cancelled order cannot be reopened.`
+          : 'The items go back into stock. A cancelled order cannot be reopened.',
+        confirmLabel: prepaid ? `Cancel and refund ${inr(order.total_amount)}` : 'Cancel order',
+        cancelLabel: 'Keep order',
+        danger: true,
+      })
+      if (!sure) {
+        setNewStatus(order.status)
+        return
+      }
     }
+
+    setSavingStatus(true)
+    try {
+      const { data } = await adminApi.patch(`/admin/orders/${id}/status`, { status: newStatus })
+      if (data.refunded === false) {
+        toast.error('Order cancelled, but the refund did not go through. Refund it in the Razorpay Dashboard.')
+      } else {
+        toast.success(data.refunded ? 'Order cancelled and payment refunded.' : 'Order status updated.')
+      }
+      await reload()
+    } catch (err) {
+      notifyError(err, 'Could not update the status.')
+      setNewStatus(order.status)
+    }
+    setSavingStatus(false)
   }
 
   const addTracking = async (e) => {
     e.preventDefault()
+    if (savingEvent) return
+    setSavingEvent(true)
     try {
       await adminApi.post(`/admin/orders/${id}/tracking`, tracking)
-      const r = await adminApi.get(`/admin/orders/${id}`)
-      setOrder(r.data)
+      toast.success('Tracking event added.')
+      await reload()
       setTracking({ status_label: '', description: '', status_type: 'confirmed', courier_name: '', tracking_number: '' })
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed')
+      notifyError(err, 'Could not add the tracking event.')
     }
+    setSavingEvent(false)
   }
 
-  if (loading) return <div className="py-20 text-center text-gray-400">Loading...</div>
-  if (!order) return <div className="py-20 text-center text-gray-400">Order not found</div>
+  if (loading) return <TableSkeleton rows={6} columns={4} />
+  if (error || !order) return <ErrorState message={error || 'This order does not exist.'} onRetry={load} />
 
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#C8963E]'
+  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-gold'
 
   return (
     <div>
@@ -127,7 +175,7 @@ export default function AdminOrderDetail() {
                       <span>{item.color_name}</span>
                     </div>
                     <div className="mt-1 text-sm text-gray-700">
-                      ₹{item.unit_price.toLocaleString('en-IN')} x {item.quantity} = ₹{item.total_price.toLocaleString('en-IN')}
+                      {inr(item.unit_price)} x {item.quantity} = {inr(item.total_price)}
                     </div>
                   </div>
                 </div>
@@ -139,9 +187,11 @@ export default function AdminOrderDetail() {
             <h3 className="mb-4 font-medium text-gray-900">Update Status</h3>
             <div className="flex gap-2">
               <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} className={inputCls}>
-                {ORDER_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                {ORDER_STATUSES
+                  .filter((s) => s === order.status || (order.allowed_statuses || ORDER_STATUSES).includes(s))
+                  .map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
-              <button onClick={updateStatus} className="rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800">Update</button>
+              <button onClick={updateStatus} disabled={savingStatus || newStatus === order.status} className="disabled:cursor-not-allowed disabled:opacity-50 rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800">Update</button>
             </div>
           </div>
 
@@ -151,7 +201,7 @@ export default function AdminOrderDetail() {
               <div className="mb-4 space-y-2">
                 {order.tracking.map((t) => (
                   <div key={t.id} className="flex items-start gap-3 rounded-lg border border-gray-50 p-3">
-                    <div className="mt-0.5 h-2 w-2 rounded-full bg-[#C8963E]" />
+                    <div className="mt-0.5 h-2 w-2 rounded-full bg-gold" />
                     <div>
                       <div className="text-sm font-medium text-gray-900">{t.status_label}</div>
                       {t.description && <div className="text-xs text-gray-500">{t.description}</div>}
@@ -169,7 +219,7 @@ export default function AdminOrderDetail() {
               <input value={tracking.description} onChange={(e) => setTracking((t) => ({ ...t, description: e.target.value }))} placeholder="Description" className={inputCls} />
               <input value={tracking.courier_name} onChange={(e) => setTracking((t) => ({ ...t, courier_name: e.target.value }))} placeholder="Courier name" className={inputCls} />
               <input value={tracking.tracking_number} onChange={(e) => setTracking((t) => ({ ...t, tracking_number: e.target.value }))} placeholder="Tracking number" className={inputCls} />
-              <button type="submit" className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">Add Event</button>
+              <button type="submit" disabled={savingEvent} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800 disabled:opacity-60">{savingEvent ? 'Adding…' : 'Add Event'}</button>
             </form>
           </div>
         </div>
@@ -204,12 +254,12 @@ export default function AdminOrderDetail() {
               <div className="flex justify-between"><span className="text-gray-500">Status</span><span className="capitalize text-gray-900">{order.payment_status}</span></div>
               {order.payment_ref && <div className="flex justify-between"><span className="text-gray-500">Ref</span><span className="text-gray-900">{order.payment_ref}</span></div>}
               <hr className="my-2" />
-              <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>₹{order.subtotal.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Discount</span><span className="text-green-600">-₹{order.discount_amount.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">GST</span><span>₹{order.gst_amount.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Delivery</span><span>₹{order.delivery_charge.toLocaleString('en-IN')}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{inr(order.subtotal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Discount</span><span className="text-green-600">-{inr(order.discount_amount)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">GST</span><span>{inr(order.gst_amount)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Delivery</span><span>{inr(order.delivery_charge)}</span></div>
               <hr className="my-2" />
-              <div className="flex justify-between font-semibold"><span>Total</span><span>₹{order.total_amount.toLocaleString('en-IN')}</span></div>
+              <div className="flex justify-between font-semibold"><span>Total</span><span>{inr(order.total_amount)}</span></div>
             </div>
           </div>
 
@@ -227,7 +277,7 @@ export default function AdminOrderDetail() {
             ) : (
               <>
                 <p className="mb-3 text-xs text-gray-500">Create a Shiprocket shipment to auto-assign a courier and AWB, then push updates to the customer's tracking page.</p>
-                <button onClick={shipViaShiprocket} disabled={shipping} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#C8963E] py-2.5 text-sm font-medium text-white hover:bg-[#b88534] disabled:opacity-60">
+                <button onClick={shipViaShiprocket} disabled={shipping} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold py-2.5 text-sm font-medium text-white hover:bg-gold-dark disabled:opacity-60">
                   <IconTruckDelivery size={16} /> {shipping ? 'Creating…' : 'Ship via Shiprocket'}
                 </button>
               </>

@@ -60,6 +60,8 @@ class Coupon(db.Model):
     used_count = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     expires_at = db.Column(db.DateTime(timezone=True))
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
+    campaign_id = db.Column(db.BigInteger, db.ForeignKey("campaigns.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
 
     def __repr__(self):

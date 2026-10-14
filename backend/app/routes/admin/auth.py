@@ -11,11 +11,12 @@ from flask_jwt_extended import (
 from marshmallow import ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.extensions import db, limiter
+from app.extensions import db, limiter, login_email
 from app.models.admin import Admin
 from app.routes.admin import admin_bp
 from app.routes.admin.decorators import admin_required, master_required
 from app.schemas.admin import AdminLoginIn, AdminCreateIn, AdminOut
+from app.services import audit, permissions
 
 _login_in = AdminLoginIn()
 _create_in = AdminCreateIn()
@@ -84,15 +85,42 @@ def _admin_auth_response(admin, status=200):
         "access_token": create_access_token(
             identity=str(admin.id), additional_claims=_admin_claims(admin)
         ),
-        "admin": _admin_out.dump(admin),
+        "admin": {**_admin_out.dump(admin), "areas": permissions.allowed_areas(admin.role)},
     }
     resp = jsonify(body)
     _set_admin_refresh_cookie(resp, admin)
     return resp, status
 
 
+def _audit_sign_in(email, admin=None, failure=None):
+    """One audit entry per admin sign-in attempt that reached the password check.
+
+    A failure is filed as "anonymous": typing an admin's email does not make
+    the visitor that admin. The reason is kept for the admin reading the log
+    and never sent to the browser. Attempts cut off by the rate limiter are
+    not recorded.
+    """
+    email = (email or "")[:254]
+    if failure:
+        audit.record(
+            "admin_sign_in_failed", "sign_ins", admin.id if admin else None,
+            summary=f"Failed admin sign-in for {email}: {failure}",
+            changes={"email": email, "reason": failure,
+                     "user_agent": request.headers.get("User-Agent", "")[:200]},
+            actor_type="anonymous", actor_label=email,
+        )
+    else:
+        audit.record(
+            "admin_sign_in", "sign_ins", admin.id,
+            summary=f"{admin.email} signed in",
+            changes={"user_agent": request.headers.get("User-Agent", "")[:200]},
+            actor_type="admin", actor_label=admin.email, admin_id=admin.id,
+        )
+
+
 @admin_bp.route("/auth/login", methods=["POST"])
 @limiter.limit("5 per 15 minutes")
+@limiter.limit("10 per hour", key_func=login_email)
 def admin_login():
     try:
         data = _login_in.load(request.get_json())
@@ -101,19 +129,38 @@ def admin_login():
 
     admin = Admin.query.filter_by(email=data["email"]).first()
     if not admin or not check_password_hash(admin.password_hash, data["password"]):
+        _audit_sign_in(
+            data["email"], admin,
+            failure="wrong password" if admin else "no admin with this email",
+        )
         return jsonify(error="Invalid email or password"), 401
 
     if not admin.is_active:
+        _audit_sign_in(data["email"], admin, failure="account is deactivated")
         return jsonify(error="Account is deactivated"), 403
 
     admin.last_login = datetime.now(timezone.utc)
     db.session.commit()
+    _audit_sign_in(admin.email, admin)
 
     return _admin_auth_response(admin)
 
 
+def _session_key():
+    """Whose session is being renewed: the admin in the refresh cookie, or the
+    caller's address when there is no valid cookie.
+
+    Counting by address alone locked out whole teams: every page reload renews
+    the session, and a shop's staff usually share one internet connection.
+    """
+    try:
+        return f"admin-session:{decode_token(request.cookies.get(ADMIN_REFRESH_COOKIE))['sub']}"
+    except Exception:
+        return f"admin-session-ip:{request.remote_addr}"
+
+
 @admin_bp.route("/auth/refresh", methods=["POST"])
-@limiter.limit("60 per hour")
+@limiter.limit("300 per hour", key_func=_session_key)
 def admin_refresh():
     """Mint a new admin access token from the httpOnly admin refresh cookie.
 
@@ -166,7 +213,7 @@ def admin_logout():
 def admin_me():
     claims = get_jwt()
     admin = db.session.get(Admin, claims["sub"])
-    return jsonify(_admin_out.dump(admin)), 200
+    return jsonify({**_admin_out.dump(admin), "areas": permissions.allowed_areas(admin.role)}), 200
 
 
 @admin_bp.route("/auth/admins", methods=["POST"])

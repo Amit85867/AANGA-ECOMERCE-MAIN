@@ -1,14 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 @import 'tailwindcss';
 
+/*
+ * AANGA design tokens — FROZEN.
+ *
+ * These are the brand: do not add, remove or change a value here as part of
+ * layout or component work. Storefront components use only these; see
+ * docs/UI_PLAN.md.
+ *
+ * Fonts are loaded from index.html (Poppins for headings, Inter for body).
+ */
 @theme {
-  /* ──────────────────────────────────────────────────────────────
-   * NEW — "Premium Editorial Commerce" design system.
-   * Monochrome editorial canvas with a single pink accent.
-   * Being rolled out screen by screen (see the UI phase plan); the
-   * legacy warm palette below stays until the migration finishes.
-   * ────────────────────────────────────────────────────────────── */
-
   /* Surfaces */
   --color-bg: #f8f9fb;           /* page canvas */
   --color-card: #ffffff;         /* elevated cards */
@@ -27,7 +28,9 @@
   --color-primary: #000000;      /* solid black buttons */
   --color-on-primary: #ffffff;
 
-  /* Accent — "fashion pink". Use sparingly: sale tags, active states. */
+  /* Accent — "fashion pink". Sparingly: sale tags, active states. At 3.7:1 on
+     white it does not pass WCAG AA as small text; use it for fills, icons and
+     large type, never for body copy. */
   --color-accent: #f53765;
   --color-accent-soft: #ffd9dc;
 
@@ -35,10 +38,11 @@
   --color-danger: #ba1a1a;
   --color-danger-soft: #ffdad6;
 
-  /* Type — Poppins for headings, Inter for body */
+  /* Type */
   --font-display: 'Poppins', sans-serif;
+  --font-sans: 'Inter', sans-serif;
 
-  /* Radii (additive so existing rounded-* keep their current values) */
+  /* Radii (additive: Tailwind's own rounded-* keep their values) */
   --radius-card: 1rem;     /* cards, inputs, large buttons */
   --radius-block: 1.5rem;  /* container blocks, promo banners */
 
@@ -46,24 +50,25 @@
   --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.04);
   --shadow-lift: 0 18px 50px rgba(0, 0, 0, 0.08);
 
-  /* ── LEGACY palette (pre-redesign). Removed in UI Phase 8. ── */
+  /* Admin panel only. The admin keeps its original dark-and-gold look; these
+     are its three brand values, defined once instead of as literals. */
   --color-ink: #0a0a0a;
-  --color-paper: #fafaf8;
-  --color-cream: #f5f0e8;
   --color-gold: #c8963e;
-  --color-gold-light: #e8b96a;
-  --color-maroon: #8b1a1a;
-  --color-maroon-light: #c0392b;
-  --color-gray: #6b6b6b;
-  --color-line: #e8e4dc;
-  --color-surface: #f2ede5;
-
-  --font-serif: 'Playfair Display', serif;
-  --font-sans: 'Inter', sans-serif;
+  --color-gold-dark: #b88534;
 }
 
 body {
-  @apply bg-paper text-ink font-sans;
+  @apply bg-bg text-fg font-sans antialiased;
+}
+
+/* Anyone who has asked their system for less motion gets none of ours. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Frosted navigation / overlay surfaces. */
@@ -84,3 +89,61 @@ body {
   from { opacity: 0; transform: translateX(100%); }
   to { opacity: 1; transform: translateX(0); }
 }
+
+/*
+ * Festive decoration layer (campaigns).
+ *
+ * An overlay on the theme, not a change to it: no token above is touched.
+ * <html data-festive="…"> and the three --festive-* variables are set by
+ * components/layout/Festive only while a live campaign has decoration on, and
+ * these are the only rules that read them. Static: no animation.
+ */
+.festive-only { display: none; }
+[data-festive] .festive-only { display: block; }
+
+/* Sale badge on product cards and the product page. */
+.sale-badge {
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
+}
+[data-festive] .sale-badge {
+  background: var(--festive-accent);
+  color: var(--festive-on-accent);
+}
+
+/* Countdown chip in the announcement bar. */
+.festive-countdown { border: 1px solid currentColor; }
+[data-festive] .festive-countdown {
+  border-color: transparent;
+  background: var(--festive-accent);
+  color: var(--festive-on-accent);
+}
+
+/* The offer chip on a hero slide. White on black: the small label under the
+   figure is 12px, which the pink accent cannot carry at AA contrast. */
+.hero-chip { background: var(--color-primary); color: var(--color-on-primary); }
+[data-festive] .hero-chip { background: var(--festive-accent); color: var(--festive-on-accent); }
+
+/* The hero's main button takes the accent while the campaign is on. */
+[data-festive] .festive-cta {
+  background: var(--festive-accent);
+  border-color: var(--festive-accent);
+  color: var(--festive-on-accent);
+}
+[data-festive] .festive-text { color: var(--festive-accent-text); }
+
+/* Owner-written page text (Admin → Pages). Theme tokens only. */
+.cms-prose { color: var(--color-muted); font-size: 0.9375rem; line-height: 1.75; }
+.cms-prose > * + * { margin-top: 1rem; }
+.cms-prose h2, .cms-prose h3, .cms-prose h4 { color: var(--color-fg); font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; }
+.cms-prose h2 { font-size: 1.5rem; margin-top: 2.25rem; }
+.cms-prose h3 { font-size: 1.2rem; margin-top: 1.75rem; }
+.cms-prose h4 { font-size: 1rem; margin-top: 1.5rem; }
+.cms-prose > :first-child { margin-top: 0; }
+.cms-prose strong { color: var(--color-fg); font-weight: 600; }
+.cms-prose ul { list-style: disc; padding-left: 1.25rem; }
+.cms-prose ol { list-style: decimal; padding-left: 1.25rem; }
+.cms-prose li + li { margin-top: 0.35rem; }
+.cms-prose a { color: var(--color-fg); text-decoration: underline; text-underline-offset: 3px; }
+.cms-prose blockquote { border-left: 2px solid var(--color-hairline); padding-left: 1rem; font-style: italic; }
+.cms-prose hr { border: 0; border-top: 1px solid var(--color-hairline); margin: 2rem 0; }

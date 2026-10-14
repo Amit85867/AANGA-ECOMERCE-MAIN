@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import apiClient, { setAccessToken, refreshAccessToken } from '@/services/apiClient'
+import apiClient, { setAccessToken, refreshAccessToken, markSessionSettled } from '@/services/apiClient'
 import { useCartStore } from '@/store/useCartStore'
 import { useWishlistStore } from '@/store/useWishlistStore'
 
@@ -37,8 +37,11 @@ export const useAuthStore = create((set, get) => ({
       })
       return get()._onAuthSuccess(data)
     } catch (err) {
-      const msg = err.response?.data?.error || err.response?.data?.errors || 'Registration failed'
-      set({ loading: false, error: typeof msg === 'string' ? msg : JSON.stringify(msg) })
+      const msg =
+        err.response?.status === 429
+          ? 'Too many attempts. Please wait a while and try again.'
+          : err.response?.data?.error || 'We could not create your account. Please try again.'
+      set({ loading: false, error: msg })
       throw err
     }
   },
@@ -112,6 +115,8 @@ export const useAuthStore = create((set, get) => ({
     } catch {
       setAccessToken(null)
       set({ user: null, isAuthenticated: false, initializing: false })
+    } finally {
+      markSessionSettled()
     }
   },
 

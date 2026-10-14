@@ -1,0 +1,67 @@
+{
+  "entity": "event",
+  "account_id": "acc_TESTACCOUNT0001",
+  "event": "refund.processed",
+  "contains": [
+    "refund",
+    "payment"
+  ],
+  "payload": {
+    "refund": {
+      "entity": {
+        "id": "rfnd_Q1w2E3r4T5y6U9",
+        "entity": "refund",
+        "amount": 52500,
+        "currency": "INR",
+        "payment_id": "pay_Q1w2E3r4T5y6U8",
+        "notes": [],
+        "receipt": null,
+        "acquirer_data": {
+          "arn": null
+        },
+        "created_at": 1760000200,
+        "batch_id": null,
+        "status": "processed",
+        "speed_processed": "normal",
+        "speed_requested": "normal"
+      }
+    },
+    "payment": {
+      "entity": {
+        "id": "pay_Q1w2E3r4T5y6U8",
+        "entity": "payment",
+        "amount": 52500,
+        "currency": "INR",
+        "status": "refunded",
+        "order_id": "order_Q1w2E3r4T5y6U7",
+        "invoice_id": null,
+        "international": false,
+        "method": "upi",
+        "amount_refunded": 52500,
+        "refund_status": "full",
+        "captured": true,
+        "description": null,
+        "card_id": null,
+        "bank": null,
+        "wallet": null,
+        "vpa": "success@razorpay",
+        "email": "customer@example.com",
+        "contact": "+919800000000",
+        "notes": [],
+        "fee": 1240,
+        "tax": 190,
+        "error_code": null,
+        "error_description": null,
+        "error_source": null,
+        "error_step": null,
+        "error_reason": null,
+        "acquirer_data": {
+          "rrn": "000000000000",
+          "upi_transaction_id": "TESTUPI0001"
+        },
+        "created_at": 1760000100
+      }
+    }
+  },
+  "created_at": 1760000101
+}

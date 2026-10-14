@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify
 
 from app.models.marketing import Offer
 from app.schemas.marketing import OfferOut
+from app.services.cache import cached_view
 
 offers_bp = Blueprint("offers", __name__, url_prefix="/api/offers")
 
@@ -12,6 +13,7 @@ _offer_out = OfferOut(many=True)
 
 
 @offers_bp.route("", methods=["GET"])
+@cached_view(60)
 def list_offers():
     now = datetime.now(timezone.utc)
     offers = (

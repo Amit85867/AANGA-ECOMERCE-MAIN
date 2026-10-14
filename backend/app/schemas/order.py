@@ -1,7 +1,12 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, validate, EXCLUDE
 
 
 class PlaceOrderIn(Schema):
+    class Meta:
+        # Silently drop anything not declared here — in particular a client
+        # trying to smuggle in a `payment_ref` to mark its own order paid.
+        unknown = EXCLUDE
+
     address_id = fields.Int(required=True)
     payment_method = fields.Str(
         required=True,
@@ -10,7 +15,10 @@ class PlaceOrderIn(Schema):
             "net_banking", "wallet", "emi", "cod",
         ]),
     )
-    payment_ref = fields.Str(allow_none=True)
+    # NB: there is deliberately no `payment_ref` here. A client must never be
+    # able to declare an order "paid" — that is proven only by the gateway
+    # signature check in /api/payments/verify. This endpoint always creates an
+    # unpaid (pending) order; prepaid methods still go through verify.
 
 
 class OrderItemOut(Schema):
@@ -62,3 +70,15 @@ class OrderDetailOut(Schema):
     items = fields.List(fields.Nested(OrderItemOut))
     tracking = fields.List(fields.Nested(TrackingEventOut))
     address = fields.Dict()
+
+
+class ReturnRequestIn(Schema):
+    order_item_id = fields.Int(required=True)
+    reason = fields.Str(
+        required=True,
+        validate=validate.OneOf([
+            "size_issue", "wrong_item", "damaged",
+            "quality_issue", "not_as_described", "changed_mind", "other",
+        ]),
+    )
+    description = fields.Str(allow_none=True, validate=validate.Length(max=2000))

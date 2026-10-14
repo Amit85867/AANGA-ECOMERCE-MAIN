@@ -1,11 +1,17 @@
 import { create } from 'zustand'
-import apiClient, { getAccessToken } from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import apiClient, { getAccessToken, sessionSettled } from '@/services/apiClient'
+import { toast } from '@/components/ui/toastStore'
 
 // Tokens are no longer persisted — the in-memory access token is the signal.
 const hasToken = () => !!getAccessToken()
 
-export const useWishlistStore = create((set, get) => ({
+// Counts every change the customer makes, so a list fetched before a change
+// but answered after it does not put the heart back the way it was.
+let changes = 0
+
+export const useWishlistStore = create((rawSet, get) => {
+  const set = (next) => { if ('productIds' in next) changes += 1; rawSet(next) }
+  return {
   items: [],
   productIds: [],
   loading: false,
@@ -16,8 +22,13 @@ export const useWishlistStore = create((set, get) => ({
       return
     }
     set({ loading: true })
+    const before = changes
     try {
       const { data } = await apiClient.get('/wishlist')
+      if (changes !== before) {
+        set({ loading: false })
+        return
+      }
       set({
         items: data.items,
         productIds: data.items.map((i) => i.product_id),
@@ -30,6 +41,7 @@ export const useWishlistStore = create((set, get) => ({
 
   // Toggle a product in the wishlist. Returns { needsAuth } if logged out.
   toggle: async (productId) => {
+    await sessionSettled
     if (!hasToken()) {
       toast.info('Please sign in to save items')
       return { needsAuth: true }
@@ -67,4 +79,5 @@ export const useWishlistStore = create((set, get) => ({
   },
 
   clearLocal: () => set({ items: [], productIds: [] }),
-}))
+  }
+})

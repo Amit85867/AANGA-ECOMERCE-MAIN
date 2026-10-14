@@ -1,4 +1,6 @@
-from marshmallow import Schema, fields, validate
+import re
+
+from marshmallow import Schema, fields, pre_load, validate
 
 
 def _enum_value(obj, attr):
@@ -27,13 +29,26 @@ class ProfileUpdateIn(Schema):
 class AddressIn(Schema):
     label = fields.Str(load_default="Home")
     full_name = fields.Str(required=True, validate=validate.Length(min=2, max=120))
-    phone = fields.Str(required=True, validate=validate.Length(min=10, max=15))
-    line1 = fields.Str(required=True)
-    line2 = fields.Str(allow_none=True)
-    city = fields.Str(required=True)
-    state = fields.Str(required=True)
-    pin_code = fields.Str(required=True, validate=validate.Length(equal=6))
+    phone = fields.Str(required=True, validate=validate.Regexp(
+        r"^\+?\d{10,14}$", error="Enter a valid phone number."
+    ))
+    line1 = fields.Str(required=True, validate=validate.Length(min=3, max=300))
+    line2 = fields.Str(allow_none=True, validate=validate.Length(max=300))
+    city = fields.Str(required=True, validate=validate.Length(min=2, max=100))
+    state = fields.Str(required=True, validate=validate.Length(min=2, max=100))
+    # Indian PIN codes: six digits, never starting with 0. The courier rejects
+    # anything else, long after the customer has paid.
+    pin_code = fields.Str(required=True, validate=validate.Regexp(
+        r"^[1-9]\d{5}$", error="Enter a valid 6-digit PIN code."
+    ))
     is_default = fields.Bool(load_default=False)
+
+    @pre_load
+    def _tidy(self, data, **kwargs):
+        """Accept a phone typed the way people type them ("98765 43210")."""
+        if isinstance(data, dict) and isinstance(data.get("phone"), str):
+            data = {**data, "phone": re.sub(r"[\s\-()]", "", data["phone"])}
+        return data
 
 
 class AddressOut(Schema):

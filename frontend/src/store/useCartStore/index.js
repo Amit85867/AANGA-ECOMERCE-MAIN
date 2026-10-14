@@ -1,11 +1,19 @@
 import { create } from 'zustand'
-import apiClient, { getAccessToken } from '@/services/apiClient'
-import { toast } from '@/components/ui/Toast'
+import apiClient, { getAccessToken, sessionSettled } from '@/services/apiClient'
+import { toast } from '@/components/ui/toastStore'
 
 // Tokens are no longer persisted — the in-memory access token is the signal.
 const hasToken = () => !!getAccessToken()
 
-export const useCartStore = create((set, get) => ({
+// Counts every change the customer makes. A bag fetched before a change but
+// answered after it is out of date, and showing it would undo what they just
+// did on screen (the item they added, the coupon they removed) until the next
+// reload.
+let changes = 0
+
+export const useCartStore = create((rawSet) => {
+  const set = (next) => { if ('cart' in next) changes += 1; rawSet(next) }
+  return {
   cart: null,
   loading: false,
 
@@ -16,9 +24,10 @@ export const useCartStore = create((set, get) => ({
       return
     }
     set({ loading: true })
+    const before = changes
     try {
       const { data } = await apiClient.get('/cart')
-      set({ cart: data, loading: false })
+      set(changes === before ? { cart: data, loading: false } : { loading: false })
     } catch {
       set({ loading: false })
     }
@@ -27,6 +36,7 @@ export const useCartStore = create((set, get) => ({
   // Add a variant to the cart. Returns { ok } or { needsAuth } so the caller
   // can redirect to login.
   addItem: async ({ variant_id, quantity = 1 }) => {
+    await sessionSettled
     if (!hasToken()) return { needsAuth: true }
     try {
       const { data } = await apiClient.post('/cart/items', { variant_id, quantity })
@@ -80,7 +90,8 @@ export const useCartStore = create((set, get) => ({
 
   // Reset local state (e.g. after logout or a placed order).
   clearLocal: () => set({ cart: null }),
-}))
+  }
+})
 
 // Selector helper — use as useCartStore(selectCartCount)
 export const selectCartCount = (state) => state.cart?.item_count || 0

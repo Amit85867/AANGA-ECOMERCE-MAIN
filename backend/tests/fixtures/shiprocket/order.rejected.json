@@ -1,0 +1,4 @@
+{
+  "message": "Wrong Pickup location entered. Please choose one location from data",
+  "status_code": 422
+}

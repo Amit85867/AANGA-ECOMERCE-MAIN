@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useAdminStore } from '@/store/useAdminStore'
-import titleImg from '@/assets/images/logo-title.png'
+import titleImg from '@/assets/images/logo-title.webp'
 
 export default function AdminLogin() {
   const { login, isAuthenticated } = useAdminStore()
@@ -28,7 +28,7 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-ink px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center">
           <img src={titleImg} alt="AANGA" className="h-44 object-contain brightness-0 invert" />
@@ -54,7 +54,7 @@ export default function AdminLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 outline-none focus:border-[#C8963E]"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 outline-none focus:border-gold"
               placeholder="admin@aanga.in"
             />
           </label>
@@ -66,7 +66,7 @@ export default function AdminLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 outline-none focus:border-[#C8963E]"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 outline-none focus:border-gold"
               placeholder="Enter password"
             />
           </label>
@@ -74,7 +74,7 @@ export default function AdminLogin() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-[#C8963E] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#b88534] disabled:opacity-50"
+            className="w-full rounded-lg bg-gold py-3 text-sm font-semibold text-white transition-colors hover:bg-gold-dark disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
